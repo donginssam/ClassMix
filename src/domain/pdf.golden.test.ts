@@ -9,6 +9,7 @@ import * as pdfjs from "pdfjs-dist/legacy/build/pdf.mjs";
 import { extractPdfPages } from "./pdfExtract";
 import { matchPdfRows, type MatchStudent } from "./matching";
 import { parsePdfPages, type PdfParseResult } from "./pdfTable";
+import { twinCandidates } from "./siblings";
 
 const fixtures = path.resolve(import.meta.dirname, "../../tests/fixtures");
 
@@ -84,5 +85,18 @@ describe("sample.pdf", () => {
     const review = res.matches.filter((m) => m.confidence === "review").map((m) => byId.get(m.studentId)!.name);
     expect(review.sort()).toEqual(["달다구리", "멍멍이", "소복이", "팽이돌이"]);
     expect(res.matches).toHaveLength(231);
+  });
+
+  it("finds 4 'possible' twin groups (one of 3) by birth date", () => {
+    const res = matchPdfRows(parsed.rows, students);
+    const list = res.matches.map((m) => ({
+      id: m.studentId,
+      nameNorm: parsed.rows[m.rowIndex].name,
+      birthDate: parsed.rows[m.rowIndex].birthDate,
+    }));
+    const c = twinCandidates(list, [], []);
+    expect(c).toHaveLength(4);
+    expect(c.every((x) => x.grade === "possible")).toBe(true);
+    expect(c.map((x) => x.studentIds.length).sort()).toEqual([2, 2, 2, 3]);
   });
 });

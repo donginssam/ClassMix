@@ -74,7 +74,8 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
               <section>
                 <h3 className="mb-1.5 text-sm font-semibold">로마자 이름 학생 {report.romanNameCount}명</h3>
                 <p className="text-sm text-muted-foreground">
-                  번호 정렬에 쓸 한글 발음은 번호 기능에서 입력할 수 있습니다.
+                  확인을 누르면 번호 정렬에 쓸 한글 발음을 입력하는 단계가 이어집니다. 건너뛰고 나중에 [번호] 메뉴나
+                  학생 메뉴에서 넣어도 됩니다.
                 </p>
               </section>
             )}

@@ -29,7 +29,7 @@ pub struct StudentDto {
     pub match_method: Option<String>,
     pub memo: Option<String>,
     pub sort_name: Option<String>,
-    /// 켜져 있는 동명이인 분리 규칙에 속하는지
+    /// 동명이인 분리 규칙에 속하는지(규칙을 꺼도 구분 꼬리표는 항상 붙인다)
     pub same_name: bool,
 }
 
@@ -39,7 +39,7 @@ pub fn list_students(conn: &Connection) -> AppResult<Vec<StudentDto>> {
                 s.orig_class, s.orig_number, s.cur_class, s.cur_number, s.gender, s.birth_date, s.base_score,
                 s.match_method, s.memo, s.sort_name,
                 EXISTS (SELECT 1 FROM separation_member m JOIN separation_rule r ON r.id = m.rule_id
-                        WHERE m.student_id = s.id AND r.kind = 'same_name' AND r.enabled = 1)
+                        WHERE m.student_id = s.id AND r.kind = 'same_name')
          FROM student s ORDER BY s.cur_class, s.cur_number",
     )?;
     let rows = stmt
@@ -75,13 +75,15 @@ pub struct GapDto {
     pub id: i64,
     pub class: i64,
     pub number: i64,
+    pub anchor_key: String,
     pub planned_name: Option<String>,
     pub origin: String,
+    pub created_at: String,
 }
 
 pub fn list_gaps(conn: &Connection) -> AppResult<Vec<GapDto>> {
     let mut stmt = conn.prepare(
-        "SELECT id, class, number, planned_name, origin FROM number_gap ORDER BY class, number",
+        "SELECT id, class, number, anchor_key, planned_name, origin, created_at FROM number_gap ORDER BY class, number",
     )?;
     let rows = stmt
         .query_map([], |r| {
@@ -89,8 +91,10 @@ pub fn list_gaps(conn: &Connection) -> AppResult<Vec<GapDto>> {
                 id: r.get(0)?,
                 class: r.get(1)?,
                 number: r.get(2)?,
-                planned_name: r.get(3)?,
-                origin: r.get(4)?,
+                anchor_key: r.get(3)?,
+                planned_name: r.get(4)?,
+                origin: r.get(5)?,
+                created_at: r.get(6)?,
             })
         })?
         .collect::<Result<Vec<_>, _>>()?;

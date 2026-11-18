@@ -60,13 +60,11 @@ fn parse_int(raw: &str) -> Result<Option<i64>, ()> {
     }
 }
 
-/// 첫 시트를 읽어 행 목록으로 바꾼다. 필수 헤더가 없으면 오류.
-pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
-    let book =
-        umya_spreadsheet::reader::xlsx::read(path).map_err(|e| AppError::Xlsx(e.to_string()))?;
-    let sheet = book.sheet(0).map_err(|e| AppError::Xlsx(e.to_string()))?;
-    let (max_col, max_row) = sheet.highest_column_and_row();
-
+/// 1행에서 필수 헤더의 열 번호를 찾는다(열 순서가 바뀌어도 동작). 없으면 오류.
+pub fn header_columns(
+    sheet: &umya_spreadsheet::Worksheet,
+) -> AppResult<HashMap<&'static str, u32>> {
+    let (max_col, _) = sheet.highest_column_and_row();
     let mut col_of: HashMap<&'static str, u32> = HashMap::new();
     for col in 1..=max_col {
         let header: String = sheet
@@ -89,6 +87,16 @@ pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
             missing.join(", ")
         )));
     }
+    Ok(col_of)
+}
+
+/// 첫 시트를 읽어 행 목록으로 바꾼다. 필수 헤더가 없으면 오류.
+pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
+    let book =
+        umya_spreadsheet::reader::xlsx::read(path).map_err(|e| AppError::Xlsx(e.to_string()))?;
+    let sheet = book.sheet(0).map_err(|e| AppError::Xlsx(e.to_string()))?;
+    let (_, max_row) = sheet.highest_column_and_row();
+    let col_of = header_columns(sheet)?;
 
     let text = |h: &str, row: u32| -> String { sheet.value((col_of[h], row)).trim().to_string() };
     let mut rows = Vec::new();

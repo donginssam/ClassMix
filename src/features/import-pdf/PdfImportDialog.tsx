@@ -36,7 +36,16 @@ const METHOD_LABEL: Record<Match["method"], string> = {
   manual: "직접 연결",
 };
 
-export function PdfImportDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+export function PdfImportDialog({
+  open,
+  onOpenChange,
+  onApplied,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  /** 반영을 마치고 대화상자를 닫은 뒤 호출(쌍둥이 후보 검토로 이어짐) */
+  onApplied?: () => void;
+}) {
   const students = useWorkspace((s) => s.students);
   const refresh = useWorkspace((s) => s.refresh);
   const [stage, setStage] = useState<Stage>({ kind: "pick" });
@@ -110,6 +119,7 @@ export function PdfImportDialog({ open, onOpenChange }: { open: boolean; onOpenC
       });
       onOpenChange(false);
       setStage({ kind: "pick" });
+      onApplied?.();
     } catch (e) {
       toast.error("반영하지 못했습니다.", { description: errorMessage(e) });
       setStage({ kind: "pick" });

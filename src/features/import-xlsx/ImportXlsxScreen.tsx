@@ -117,6 +117,8 @@ export function ImportXlsxScreen() {
       <ImportReportDialog
         report={report}
         onClose={async () => {
+          // 로마자 이름 학생이 있으면 보드에서 한글 발음 입력 단계를 띄운다.
+          if (report && report.romanNameCount > 0) useWorkspace.getState().setPendingReadingPrompt(true);
           setReport(null);
           await refresh();
           toast.success("학생 명단을 가져왔습니다.");

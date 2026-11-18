@@ -79,8 +79,89 @@ export interface Gap {
   id: number;
   class: number;
   number: number;
+  anchorKey: string;
   plannedName: string | null;
   origin: "manual" | "import";
+  createdAt: string;
+}
+
+export type Numbering = "original" | "sorted";
+
+export interface ClassState {
+  class: number;
+  numbering: Numbering;
+}
+
+export type RuleKind = "group" | "one_to_many" | "twin" | "same_name";
+
+export interface RuleMember {
+  studentId: number;
+  role: "member" | "leader";
+}
+
+export interface Rule {
+  id: number;
+  kind: RuleKind;
+  origin: "manual" | "auto";
+  enabled: boolean;
+  reason: string | null;
+  createdAt: string;
+  members: RuleMember[];
+}
+
+export interface HistoryEntry {
+  id: number;
+  seq: number;
+  action: string;
+  label: string;
+  studentIds: number[];
+  undone: boolean;
+  createdAt: string;
+}
+
+export interface BoardData {
+  students: Student[];
+  gaps: Gap[];
+  classStates: ClassState[];
+  rules: Rule[];
+  dismissedTwins: [number, number][];
+  history: HistoryEntry[];
+  canUndo: boolean;
+  canRedo: boolean;
+}
+
+export interface Seat {
+  c: number;
+  n: number;
+}
+
+/** 빈 번호 한 줄(변경 묶음 안). */
+export interface GapRow {
+  number: number;
+  anchorKey: string;
+  plannedName: string | null;
+  origin: "manual" | "import";
+  createdAt?: string | null;
+}
+
+export type ChangeAction =
+  "swap" | "move" | "renumber" | "set_number" | "gap_add" | "gap_remove" | "gap_edit" | "set_reading" | "reset";
+
+/** Rust `changes::ChangeSet`과 같은 모양. 바꾸기 전·후 값을 모두 담는다. */
+export interface ChangeSet {
+  action: ChangeAction;
+  label: string;
+  students: { studentId: number; from: Seat; to: Seat }[];
+  gaps: { class: number; before: GapRow[]; after: GapRow[] }[];
+  numbering: { class: number; from: Numbering; to: Numbering }[];
+  readings: { studentId: number; from: string | null; to: string | null }[];
+}
+
+export interface ExportReport {
+  path: string;
+  rows: number;
+  removedRows: number;
+  changedStudents: number;
 }
 
 export interface PdfRowInput {
@@ -135,6 +216,19 @@ export const api = {
   readPdfFile: async (path: string) => new Uint8Array(await invoke<ArrayBuffer>("read_pdf_file", { path })),
   applyPdfMapping: (path: string, rows: PdfRowInput[], links: PdfLink[]) =>
     invoke<PdfApplyReport>("apply_pdf_mapping", { path, rows, links }),
+  getBoard: () => invoke<BoardData>("get_board"),
+  applyChange: (change: ChangeSet) => invoke<void>("apply_change", { change }),
+  undoChange: () => invoke<string | null>("undo_change"),
+  redoChange: () => invoke<string | null>("redo_change"),
+  setMemo: (studentId: number, memo: string | null) => invoke<void>("set_memo", { studentId, memo }),
+  createRule: (rule: { kind: RuleKind; reason: string | null; members: RuleMember[] }) =>
+    invoke<number>("create_rule", { rule }),
+  updateRule: (id: number, enabled: boolean, reason: string | null) =>
+    invoke<void>("update_rule", { id, enabled, reason }),
+  deleteRule: (id: number) => invoke<void>("delete_rule", { id }),
+  resolveTwinCandidates: (register: number[][], dismiss: number[][]) =>
+    invoke<void>("resolve_twin_candidates", { register, dismiss }),
+  exportXlsx: (path: string) => invoke<ExportReport>("export_xlsx", { path }),
   /** 개발용(디버그 빌드에서만 값이 있음) */
   devSamplePaths: () => invoke<{ xlsx: string; pdf: string } | null>("dev_sample_paths"),
 };

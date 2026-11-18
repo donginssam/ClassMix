@@ -7,8 +7,11 @@ use rusqlite::{Connection, params};
 use serde::Serialize;
 use tauri::{AppHandle, State};
 
+use crate::board::{self, BoardData, NewRule};
+use crate::changes::{self, ChangeSet};
 use crate::db::{self, FILE_EXTENSION};
 use crate::error::{AppError, AppResult};
+use crate::export::{self, ExportReport};
 use crate::roster::{self, GapDto, PdfApplyReport, PdfLink, PdfRowInput, StudentDto};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
@@ -380,6 +383,92 @@ pub async fn apply_pdf_mapping(
         .unwrap_or_default();
     let bytes = std::fs::read(&src)?;
     state.with_writable(|wf| roster::apply_pdf(&mut wf.conn, &file_name, &bytes, &rows, &links))
+}
+
+// ───────────── 반편성 보드(M4~M7) ─────────────
+
+#[tauri::command]
+pub async fn get_board(state: State<'_, AppState>) -> AppResult<BoardData> {
+    state.with_file(|wf| board::board_data(&wf.conn))
+}
+
+#[tauri::command]
+pub async fn apply_change(state: State<'_, AppState>, change: ChangeSet) -> AppResult<()> {
+    state.with_writable(|wf| changes::apply_change(&mut wf.conn, &change))
+}
+
+#[tauri::command]
+pub async fn undo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    state.with_writable(|wf| changes::undo(&mut wf.conn))
+}
+
+#[tauri::command]
+pub async fn redo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    state.with_writable(|wf| changes::redo(&mut wf.conn))
+}
+
+#[tauri::command]
+pub async fn set_memo(
+    state: State<'_, AppState>,
+    student_id: i64,
+    memo: Option<String>,
+) -> AppResult<()> {
+    state.with_writable(|wf| board::set_memo(&wf.conn, student_id, memo))
+}
+
+#[tauri::command]
+pub async fn create_rule(state: State<'_, AppState>, rule: NewRule) -> AppResult<i64> {
+    state.with_writable(|wf| board::create_rule(&mut wf.conn, &rule))
+}
+
+#[tauri::command]
+pub async fn update_rule(
+    state: State<'_, AppState>,
+    id: i64,
+    enabled: bool,
+    reason: Option<String>,
+) -> AppResult<()> {
+    state.with_writable(|wf| board::update_rule(&wf.conn, id, enabled, reason))
+}
+
+#[tauri::command]
+pub async fn delete_rule(state: State<'_, AppState>, id: i64) -> AppResult<()> {
+    state.with_writable(|wf| board::delete_rule(&wf.conn, id))
+}
+
+#[tauri::command]
+pub async fn resolve_twin_candidates(
+    state: State<'_, AppState>,
+    register: Vec<Vec<i64>>,
+    dismiss: Vec<Vec<i64>>,
+) -> AppResult<()> {
+    state.with_writable(|wf| board::resolve_twin_candidates(&mut wf.conn, &register, &dismiss))
+}
+
+#[tauri::command]
+pub async fn export_xlsx(state: State<'_, AppState>, path: String) -> AppResult<ExportReport> {
+    let mut target = PathBuf::from(&path);
+    if target
+        .extension()
+        .and_then(|e| e.to_str())
+        .map(|e| e.eq_ignore_ascii_case("xlsx"))
+        != Some(true)
+    {
+        let mut name = target
+            .file_name()
+            .map(|s| s.to_os_string())
+            .unwrap_or_default();
+        name.push(".xlsx");
+        target.set_file_name(name);
+    }
+    state.with_file(|wf| {
+        if target == wf.path {
+            return Err(AppError::InvalidInput(
+                "작업 파일 자리에 저장할 수 없습니다.".into(),
+            ));
+        }
+        export::export_xlsx(&wf.conn, &target)
+    })
 }
 
 #[derive(Debug, Clone, Serialize)]
