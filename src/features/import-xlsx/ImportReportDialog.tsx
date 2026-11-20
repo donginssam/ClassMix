@@ -63,7 +63,7 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
             {report.warnings.length > 0 && (
               <section>
                 <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-                  <AlertTriangle className="size-4 text-amber-600" />
+                  <AlertTriangle className="size-4 text-amber-600 dark:text-amber-400" />
                   확인할 점
                 </h3>
                 <ul className="list-disc space-y-1 pl-5 text-sm">

@@ -183,6 +183,13 @@ export interface PdfApplyReport {
   unlinkedRows: number;
 }
 
+/** `.mix` 파일 연결 상태(Windows). macOS는 번들이 자동 등록하므로 `unsupported`. */
+export interface AssociationStatus {
+  state: "unsupported" | "none" | "current" | "moved";
+  registeredExe: string | null;
+  currentExe: string | null;
+}
+
 /** Rust `AppError` 직렬화 형태 */
 export interface AppErrorPayload {
   code: string;
@@ -222,6 +229,11 @@ export const api = {
   resolveTwinCandidates: (register: number[][], dismiss: number[][]) =>
     invoke<void>("resolve_twin_candidates", { register, dismiss }),
   exportXlsx: (path: string) => invoke<ExportReport>("export_xlsx", { path }),
+  /** 더블클릭·두 번째 실행으로 받은 .mix 경로(한 번만 돌려줌) */
+  takeLaunchFile: () => invoke<string | null>("take_launch_file"),
+  fileAssociationStatus: () => invoke<AssociationStatus>("file_association_status"),
+  registerFileAssociation: () => invoke<AssociationStatus>("register_file_association"),
+  unregisterFileAssociation: () => invoke<AssociationStatus>("unregister_file_association"),
   /** 개발용(디버그 빌드에서만 값이 있음) */
   devSamplePaths: () => invoke<{ xlsx: string; pdf: string } | null>("dev_sample_paths"),
 };

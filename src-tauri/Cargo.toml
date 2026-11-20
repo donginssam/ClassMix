@@ -1,7 +1,7 @@
 [package]
 name = "classmix"
 version = "0.1.0"
-description = "ClassMix — 나이스 진급 반편성 도우미"
+description = "나이스 반편성 도우미"
 authors = ["Dongin Lee"]
 edition = "2024"
 
@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2.12", features = [] }
+tauri = { version = "2.12", features = ["macos-private-api"] }
 tauri-plugin-dialog = "2.8"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
@@ -26,6 +26,10 @@ thiserror = "2"
 sha2 = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 gethostname = "1"
+tauri-plugin-single-instance = "2"
+
+[target.'cfg(windows)'.dependencies]
+winreg = "0.55"
 
 [dev-dependencies]
 tempfile = "3"

@@ -55,9 +55,12 @@ export interface MatrixRow {
 /** 왼쪽 번호 축. 가로로 스크롤해도 붙어 있다. */
 export function NumberAxis({ rows, pdf }: { rows: MatrixRow[]; pdf: boolean }) {
   return (
-    <div className="sticky left-0 z-20 shrink-0 border-r border-line-strong bg-board" style={{ width: AXIS_W }}>
+    <div
+      className="sticky left-0 z-20 shrink-0 border-r border-(--glass-border) bg-muted/85 backdrop-blur-xl"
+      style={{ width: AXIS_W }}
+    >
       <div
-        className="sticky top-0 z-30 flex items-end justify-center border-b border-line-strong bg-board pb-2 text-[11px] text-muted-foreground"
+        className="sticky top-0 z-30 flex items-end justify-center border-b border-(--glass-border) bg-muted pb-2 text-[11px] text-muted-foreground"
         style={{ height: headerHeight(pdf) }}
       >
         번호
@@ -112,10 +115,10 @@ export const ClassColumn = memo(function ClassColumn(props: ClassColumnProps) {
     >
       <header
         className={cn(
-          "sticky top-0 z-10 flex flex-col gap-1.5 border-b border-line-strong bg-background px-2.5 pt-2 pb-2 transition-colors",
+          // 머리는 아래로 스크롤되는 칸을 가리되, 유리처럼 살짝 비친다.
+          "sticky top-0 z-10 flex flex-col gap-1.5 border-b border-(--glass-border) px-2.5 pt-2 pb-2 backdrop-blur-xl transition-colors",
           violations.length > 0 && "shadow-[inset_0_3px_0_var(--destructive)]",
-          isOver && "bg-accent",
-          preview && "bg-violation-soft",
+          preview ? "bg-violation-soft" : isOver ? "bg-accent" : "bg-background/85",
         )}
         style={{ height: headerHeight(pdf) }}
       >
@@ -214,7 +217,7 @@ export const ClassColumn = memo(function ClassColumn(props: ClassColumnProps) {
               ),
             )}
             {slots.length < r.units && (
-              <div className={cn("flex-1 border-b", r.number > lastNumber && "border-transparent bg-board/70")} />
+              <div className={cn("flex-1 border-b", r.number > lastNumber && "border-transparent bg-muted/40")} />
             )}
           </div>
         );

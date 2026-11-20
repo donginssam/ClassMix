@@ -106,14 +106,16 @@ export function ExportDialog() {
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>나이스 업로드용 XLSX 내보내기</DialogTitle>
-          <DialogDescription>
-            가져온 원본 XLSX({workspace.xlsxFileName}) 양식 그대로 진급반코드·진급반번호만 바꿔 저장합니다. 저장한 뒤
-            파일을 다시 읽어 값이 맞는지 확인합니다.
+          <DialogDescription className="grid gap-0.5">
+            <span>가져온 원본 XLSX({workspace.xlsxFileName}) 양식 그대로 진급반코드·진급반번호만 바꿔 저장합니다.</span>
+            <span>저장한 뒤 파일을 다시 읽어 값이 맞는지 확인합니다.</span>
           </DialogDescription>
         </DialogHeader>
         <div className="flex gap-4 text-sm">
           <span className={cn(errors.length && "font-semibold text-red-600")}>오류 {errors.length}</span>
-          <span className={cn(warnings.length && "font-semibold text-amber-600")}>경고 {warnings.length}</span>
+          <span className={cn(warnings.length && "font-semibold text-amber-600 dark:text-amber-400")}>
+            경고 {warnings.length}
+          </span>
         </div>
         <ul className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto pr-1">
           {issues.map((i, n) => {

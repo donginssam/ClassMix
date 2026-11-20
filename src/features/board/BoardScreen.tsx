@@ -34,6 +34,7 @@ import {
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
+  DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -51,14 +52,23 @@ import {
 } from "@/domain/separation";
 import { overallStats, THRESHOLDS } from "@/domain/stats";
 import { roundDiv } from "@/lib/format";
-import { closeWorkFile, saveWorkFileAsWithDialog, saveWorkFileCopyWithDialog } from "@/lib/fileActions";
+import {
+  closeWorkFile,
+  openWorkFileWithDialog,
+  saveWorkFileAsWithDialog,
+  saveWorkFileCopyWithDialog,
+} from "@/lib/fileActions";
+import { IS_MAC, isHelpKey, isTypingTarget, shortcut } from "@/lib/platform";
 import { cn } from "@/lib/utils";
+import { dragRegion, TitleBar } from "@/app/TitleBar";
 import { useWorkspace } from "@/store/workspace";
 import { PdfImportDialog } from "@/features/import-pdf/PdfImportDialog";
 import { SeparationDialog } from "@/features/constraints/SeparationDialog";
 import { TwinReviewDialog, useTwinCandidates } from "@/features/constraints/TwinReviewDialog";
 import { twinCandidates } from "@/domain/siblings";
 import { ExportDialog } from "@/features/export/ExportDialog";
+import { SettingsDialog } from "@/features/settings/SettingsDialog";
+import { ShortcutsDialog } from "@/features/settings/ShortcutsDialog";
 import { BalanceMeters } from "@/features/stats/BalanceMeters";
 import { StatsPanel } from "@/features/stats/StatsPanel";
 import { actions } from "./actions";
@@ -76,13 +86,6 @@ const collision: CollisionDetection = (args) => {
   const student = list.find((c) => String(c.id).startsWith("s-"));
   return student ? [student] : list.filter((c) => String(c.id).startsWith("c-")).slice(0, 1);
 };
-
-const IS_MAC = typeof navigator !== "undefined" && /Mac/i.test(navigator.platform || navigator.userAgent);
-
-function isTypingTarget(t: Element | EventTarget | null) {
-  const el = t as HTMLElement | null;
-  return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable === true);
-}
 
 function isTyping(e: KeyboardEvent) {
   return isTypingTarget(e.target);
@@ -249,7 +252,23 @@ export function BoardScreen() {
         searchRef.current?.select();
         return;
       }
-      if (isTyping(e) || dialog) return;
+      if (dialog) return;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "o") {
+        e.preventDefault();
+        void openWorkFileWithDialog();
+        return;
+      }
+      if (mod && e.shiftKey && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        void saveWorkFileAsWithDialog();
+        return;
+      }
+      if (isHelpKey(e)) {
+        e.preventDefault();
+        openDialog({ kind: "shortcuts" });
+        return;
+      }
+      if (isTyping(e)) return;
       if (undoMod && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         if (!readOnly) void undo();
@@ -309,33 +328,33 @@ export function BoardScreen() {
   const dragStudent = dragId != null ? byId.get(dragId) : null;
 
   return (
-    <div className="flex h-svh flex-col bg-board">
-      <header className="z-20 flex h-14 shrink-0 items-center gap-1.5 border-b border-line-strong bg-background px-4">
-        <div className="mr-2 min-w-0 flex-1">
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-base font-semibold">{workspace.fileName}</h1>
+    <div className="flex h-full flex-col bg-board">
+      <TitleBar className="z-20 gap-1.5">
+        <div {...dragRegion} className="mr-2 min-w-0 flex-1">
+          <div {...dragRegion} className="flex items-center gap-2">
+            <h1 {...dragRegion} className="truncate text-sm leading-5 font-semibold">
+              {workspace.fileName}
+            </h1>
             {readOnly && <Badge variant="secondary">읽기 전용</Badge>}
           </div>
-          <p className="truncate text-xs text-muted-foreground">
+          <p {...dragRegion} className="truncate text-xs leading-4 text-muted-foreground">
             {workspace.targetGrade} · {classCount}개 반 · 학생 {workspace.studentCount}명
             {hasPdf ? ` · 기준성적 ${workspace.pdfLinkedCount}명` : " · 성적 없이 조정"}
           </p>
         </div>
 
-        <ToolButton
-          label={`되돌리기 (${IS_MAC ? "⌘Z" : "Ctrl+Z"})`}
-          disabled={!canUndo || readOnly}
-          onClick={() => void undo()}
-        >
-          <Undo2 />
-        </ToolButton>
-        <ToolButton
-          label={`다시 실행 (${IS_MAC ? "⌘⇧Z" : "Ctrl+Y"})`}
-          disabled={!canRedo || readOnly}
-          onClick={() => void redo()}
-        >
-          <Redo2 />
-        </ToolButton>
+        <GlassGroup>
+          <ToolButton label={`되돌리기 (${shortcut("Z")})`} disabled={!canUndo || readOnly} onClick={() => void undo()}>
+            <Undo2 />
+          </ToolButton>
+          <ToolButton
+            label={`다시 실행 (${IS_MAC ? "⌘⇧Z" : "Ctrl+Y"})`}
+            disabled={!canRedo || readOnly}
+            onClick={() => void redo()}
+          >
+            <Redo2 />
+          </ToolButton>
+        </GlassGroup>
 
         <div className="relative w-52">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -347,8 +366,8 @@ export function BoardScreen() {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) nextMatch();
               if (e.key === "Escape") setQuery("");
             }}
-            placeholder={`이름 (${IS_MAC ? "⌘F" : "Ctrl+F"})`}
-            className="h-8 pr-12 pl-8"
+            placeholder={`이름 (${shortcut("F")})`}
+            className="glass h-8 rounded-full pr-12 pl-8 shadow-none dark:bg-(--glass)"
           />
           {query && (
             <span className="absolute top-1/2 right-2 -translate-y-1/2 text-xs tabular-nums text-muted-foreground">
@@ -357,99 +376,103 @@ export function BoardScreen() {
           )}
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm" disabled={readOnly}>
-              <ArrowDownUp data-icon="inline-start" />
-              번호
-              <ChevronDown data-icon="inline-end" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-56">
-            <DropdownMenuItem
-              onSelect={() => void actions.renumber(Array.from({ length: classCount }, (_, i) => i + 1))}
-            >
-              전체 반 가나다순 재정렬
-            </DropdownMenuItem>
-            <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: "all" })}>
-              로마자 이름 한글 발음 입력…
-              {noReading > 0 && (
-                <Badge variant="outline" className="ml-auto h-4 px-1 text-[10px]">
-                  {noReading}
-                </Badge>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem variant="destructive" onSelect={() => openDialog({ kind: "reset" })}>
-              나이스 기본 편성으로 되돌리기…
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <GlassGroup>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="rounded-full" disabled={readOnly}>
+                <ArrowDownUp data-icon="inline-start" />
+                번호
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-56">
+              <DropdownMenuItem
+                onSelect={() => void actions.renumber(Array.from({ length: classCount }, (_, i) => i + 1))}
+              >
+                전체 반 가나다순 재정렬
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: "all" })}>
+                로마자 이름 한글 발음 입력…
+                {noReading > 0 && (
+                  <Badge variant="outline" className="ml-auto h-4 px-1 text-[10px]">
+                    {noReading}
+                  </Badge>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem variant="destructive" onSelect={() => openDialog({ kind: "reset" })}>
+                나이스 기본 편성으로 되돌리기…
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-        <Button variant="outline" size="sm" onClick={() => openDialog({ kind: "separation" })}>
-          <ShieldAlert data-icon="inline-start" />
-          분리 학생
-          {violations.length > 0 && (
-            <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
-              {violations.length}
-            </Badge>
-          )}
-        </Button>
-
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
-              보기
-              <ChevronDown data-icon="inline-end" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
-            <DropdownMenuLabel>표시</DropdownMenuLabel>
-            <DropdownMenuCheckboxItem checked={prefs.showPrev} onCheckedChange={(v) => setPrefs({ showPrev: !!v })}>
-              이전 반
-            </DropdownMenuCheckboxItem>
-            <DropdownMenuCheckboxItem checked={prefs.showMemo} onCheckedChange={(v) => setPrefs({ showMemo: !!v })}>
-              메모
-            </DropdownMenuCheckboxItem>
-            {hasPdf && (
-              <>
-                <DropdownMenuCheckboxItem
-                  checked={prefs.showGender}
-                  onCheckedChange={(v) => setPrefs({ showGender: !!v })}
-                >
-                  성별
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={prefs.showBirth}
-                  onCheckedChange={(v) => setPrefs({ showBirth: !!v })}
-                >
-                  생년월일
-                </DropdownMenuCheckboxItem>
-                <DropdownMenuCheckboxItem
-                  checked={prefs.showScore}
-                  onCheckedChange={(v) => setPrefs({ showScore: !!v })}
-                >
-                  기준성적
-                </DropdownMenuCheckboxItem>
-              </>
+          <Button variant="ghost" size="sm" className="rounded-full" onClick={() => openDialog({ kind: "separation" })}>
+            <ShieldAlert data-icon="inline-start" />
+            분리 학생
+            {violations.length > 0 && (
+              <Badge variant="destructive" className="ml-1 h-4 px-1 text-[10px]">
+                {violations.length}
+              </Badge>
             )}
-          </DropdownMenuContent>
-        </DropdownMenu>
+          </Button>
 
-        <ToolButton label="통계" active={prefs.statsOpen} onClick={() => setPrefs({ statsOpen: !prefs.statsOpen })}>
-          <BarChart3 />
-        </ToolButton>
-        <ToolButton
-          label="변경 이력"
-          active={prefs.historyOpen}
-          onClick={() => setPrefs({ historyOpen: !prefs.historyOpen })}
-        >
-          <History />
-        </ToolButton>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="rounded-full">
+                보기
+                <ChevronDown data-icon="inline-end" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuLabel>표시</DropdownMenuLabel>
+              <DropdownMenuCheckboxItem checked={prefs.showPrev} onCheckedChange={(v) => setPrefs({ showPrev: !!v })}>
+                이전 반
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuCheckboxItem checked={prefs.showMemo} onCheckedChange={(v) => setPrefs({ showMemo: !!v })}>
+                메모
+              </DropdownMenuCheckboxItem>
+              {hasPdf && (
+                <>
+                  <DropdownMenuCheckboxItem
+                    checked={prefs.showGender}
+                    onCheckedChange={(v) => setPrefs({ showGender: !!v })}
+                  >
+                    성별
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={prefs.showBirth}
+                    onCheckedChange={(v) => setPrefs({ showBirth: !!v })}
+                  >
+                    생년월일
+                  </DropdownMenuCheckboxItem>
+                  <DropdownMenuCheckboxItem
+                    checked={prefs.showScore}
+                    onCheckedChange={(v) => setPrefs({ showScore: !!v })}
+                  >
+                    기준성적
+                  </DropdownMenuCheckboxItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </GlassGroup>
+
+        <GlassGroup>
+          <ToolButton label="통계" active={prefs.statsOpen} onClick={() => setPrefs({ statsOpen: !prefs.statsOpen })}>
+            <BarChart3 />
+          </ToolButton>
+          <ToolButton
+            label="변경 이력"
+            active={prefs.historyOpen}
+            onClick={() => setPrefs({ historyOpen: !prefs.historyOpen })}
+          >
+            <History />
+          </ToolButton>
+        </GlassGroup>
 
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button variant="outline" size="sm">
+            <Button variant="ghost" size="sm" className="glass h-8 rounded-full pr-2.5! pl-3.5!">
               파일
               <ChevronDown data-icon="inline-end" />
             </Button>
@@ -469,18 +492,35 @@ export function BoardScreen() {
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onSelect={saveWorkFileAsWithDialog}>다른 이름으로 저장…</DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void openWorkFileWithDialog()}>
+              다른 파일 열기…
+              <DropdownMenuShortcut>{shortcut("O")}</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={saveWorkFileAsWithDialog}>
+              다른 이름으로 저장…
+              <DropdownMenuShortcut>{shortcut("S", { shift: true })}</DropdownMenuShortcut>
+            </DropdownMenuItem>
             <DropdownMenuItem onSelect={saveWorkFileCopyWithDialog}>사본 저장(백업)…</DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => openDialog({ kind: "shortcuts" })}>
+              단축키…
+              <DropdownMenuShortcut>F1</DropdownMenuShortcut>
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => openDialog({ kind: "settings" })}>설정 및 정보…</DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={closeWorkFile}>닫기</DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
 
-        <Button size="sm" onClick={() => openDialog({ kind: "export" })}>
+        <Button
+          size="sm"
+          className="h-8 rounded-full pr-3.5! pl-3! shadow-sm"
+          onClick={() => openDialog({ kind: "export" })}
+        >
           <Download data-icon="inline-start" />
           내보내기
         </Button>
-      </header>
+      </TitleBar>
 
       <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
@@ -488,7 +528,7 @@ export function BoardScreen() {
           {prefs.statsOpen && <StatsPanel stats={stats} showPdf={hasPdf} />}
 
           {(selStudents.length > 0 || highlight.size > 0) && (
-            <div className="fixed bottom-10 left-1/2 z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-xl border bg-background/95 px-4 py-2 text-sm shadow-lg backdrop-blur">
+            <div className="glass-strong fixed bottom-10 left-1/2 z-30 flex max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-wrap items-center gap-2 rounded-full py-1.5 pr-1.5 pl-5 text-sm">
               {selStudents.length > 0 ? (
                 <>
                   <span className="font-medium">
@@ -568,12 +608,12 @@ export function BoardScreen() {
             {/* 테두리는 스크롤 영역 자체에 둔다. 여백은 바깥 div가 맡아서, 스크롤된 칸이 테두리 밖으로 비치지 않는다. */}
             <div
               className={cn(
-                "flex min-h-0 flex-1 flex-col px-4 pb-4",
+                "flex min-h-0 flex-1 flex-col px-3 pb-2",
                 // 아래쪽 선택 막대가 마지막 줄을 가리지 않게
                 (selStudents.length > 0 || highlight.size > 0) && "pb-20",
               )}
             >
-              <main className="min-h-0 flex-1 overflow-auto rounded-md border border-line-strong bg-background select-none">
+              <main className="glass-strong min-h-0 flex-1 overflow-auto rounded-2xl select-none">
                 <div className="flex w-max min-w-full">
                   <NumberAxis rows={rows} pdf={hasPdf} />
                   {classes.map((c) => (
@@ -609,7 +649,7 @@ export function BoardScreen() {
             </DragOverlay>
           </DndContext>
 
-          <footer className="shrink-0 border-t bg-background px-4 py-1.5 text-xs text-muted-foreground">
+          <footer className="shrink-0 px-5 pt-0.5 pb-2 text-xs text-muted-foreground">
             모든 변경은 파일에 바로 저장됩니다. 학생을 끌어 다른 반 위에 놓으면 이동, 다른 반 학생 위에 놓으면 바꾸기.
             이동·바꾸기한 반은 가나다순으로 번호를 다시 매깁니다.
           </footer>
@@ -621,6 +661,8 @@ export function BoardScreen() {
       <SeparationDialog onOpenTwins={() => openDialog({ kind: "twins" })} />
       <TwinReviewDialog open={dialog?.kind === "twins"} onClose={closeDialog} />
       <ExportDialog />
+      <SettingsDialog open={dialog?.kind === "settings"} onOpenChange={(o) => !o && closeDialog()} />
+      <ShortcutsDialog open={dialog?.kind === "shortcuts"} onOpenChange={(o) => !o && closeDialog()} />
       <PdfImportDialog
         open={dialog?.kind === "pdf"}
         onOpenChange={(o) => !o && closeDialog()}
@@ -632,6 +674,11 @@ export function BoardScreen() {
       />
     </div>
   );
+}
+
+/** 유리 캡슐: 관련 도구 단추를 한 덩어리로 묶는다. */
+function GlassGroup({ children }: { children: React.ReactNode }) {
+  return <div className="glass flex h-8 items-center gap-0.5 rounded-full px-0.5">{children}</div>;
 }
 
 function ToolButton({
@@ -651,9 +698,9 @@ function ToolButton({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant={active ? "outline" : "ghost"}
+          variant="ghost"
           size="icon"
-          className={cn("size-8", active && "border-primary bg-accent text-accent-foreground hover:bg-accent")}
+          className={cn("size-7 rounded-full", active && "bg-accent text-accent-foreground hover:bg-accent")}
           disabled={disabled}
           onClick={onClick}
           aria-label={label}

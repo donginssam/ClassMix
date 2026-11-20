@@ -8,7 +8,7 @@ export function StatsPanel({ stats, showPdf }: { stats: OverallStats; showPdf: b
   const f2 = (v: number | null | undefined) => formatScore(v);
 
   return (
-    <div className="mx-4 mb-3 rounded-md border bg-background px-4 py-2 select-none">
+    <div className="glass mx-3 mb-3 rounded-2xl px-4 py-2 select-none">
       <div className="overflow-x-auto">
         <table className="w-full min-w-max text-xs tabular-nums">
           <thead className="text-muted-foreground">

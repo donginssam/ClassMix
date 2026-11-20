@@ -13,7 +13,7 @@ pub enum AppError {
     InvalidXlsx(String),
     #[error("{0}")]
     InvalidInput(String),
-    #[error("파일을 읽거나 쓰는 중 오류가 발생했습니다: {0}")]
+    #[error("{}", io_message(.0))]
     Io(#[from] std::io::Error),
     #[error("데이터베이스 오류: {0}")]
     Db(#[from] rusqlite::Error),
@@ -21,6 +21,23 @@ pub enum AppError {
     Xlsx(String),
     #[error("{0}")]
     Other(String),
+}
+
+/// 교사가 바로 조치할 수 있도록 흔한 파일 오류를 풀어 쓴다.
+fn io_message(e: &std::io::Error) -> String {
+    use std::io::ErrorKind;
+    // Windows: 32 = 다른 프로세스가 파일을 사용 중, 33 = 파일 일부가 잠김(엑셀에서 연 경우 등)
+    if matches!(e.raw_os_error(), Some(32 | 33)) {
+        return "다른 프로그램(엑셀 등)이 이 파일을 사용하고 있습니다. 그 프로그램에서 파일을 닫고 다시 시도하세요."
+            .into();
+    }
+    match e.kind() {
+        ErrorKind::NotFound => "파일이나 폴더를 찾을 수 없습니다. 옮겨졌거나 USB가 빠졌는지 확인하세요.".into(),
+        ErrorKind::PermissionDenied => "이 위치에 쓸 권한이 없거나 파일이 다른 프로그램에서 열려 있습니다. 다른 폴더를 고르거나 파일을 닫고 다시 시도하세요.".into(),
+        ErrorKind::StorageFull => "저장 공간이 부족합니다.".into(),
+        ErrorKind::ReadOnlyFilesystem => "읽기 전용 위치입니다. 다른 폴더를 고르세요.".into(),
+        _ => format!("파일을 읽거나 쓰는 중 오류가 발생했습니다: {e}"),
+    }
 }
 
 impl AppError {

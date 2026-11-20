@@ -67,8 +67,8 @@ export function BalanceMeters({ stats, showPdf }: { stats: OverallStats; showPdf
   }
 
   return (
-    <div className="flex flex-wrap items-stretch gap-3 px-4 pt-3 pb-3 select-none">
-      <div className="grid min-w-0 flex-1 grid-cols-1 divide-y rounded-md border bg-background sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+    <div className="flex flex-wrap items-stretch gap-3 px-3 pt-0.5 pb-3 select-none">
+      <div className="glass grid min-w-0 flex-1 grid-cols-1 divide-y divide-(--glass-border) rounded-2xl sm:grid-cols-3 sm:divide-x sm:divide-y-0">
         {meters.map((m) => (
           <MeterView key={m.label} m={m} />
         ))}

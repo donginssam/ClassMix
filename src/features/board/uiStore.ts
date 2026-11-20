@@ -10,7 +10,9 @@ export type BoardDialog =
   | { kind: "twins" }
   | { kind: "export" }
   | { kind: "reset" }
-  | { kind: "pdf" };
+  | { kind: "pdf" }
+  | { kind: "settings" }
+  | { kind: "shortcuts" };
 
 export interface ViewPrefs {
   showGender: boolean;

@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="tile" x1=".1" y1="0" x2=".9" y2="1">
+      <stop stop-color="#FFAB80"/>
+      <stop offset=".56" stop-color="#CF5F55"/>
+      <stop offset="1" stop-color="#852B4E"/>
+    </linearGradient>
+    <linearGradient id="pearl" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFF6DF"/>
+      <stop offset="1" stop-color="#FFCEBB"/>
+    </linearGradient>
+    <linearGradient id="apricot" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#FFD9A8"/>
+      <stop offset="1" stop-color="#FFAA7C"/>
+    </linearGradient>
+    <filter id="lift" x="-35%" y="-30%" width="170%" height="175%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="16" stdDeviation="19" flood-color="#70213B" flood-opacity=".49"/>
+    </filter>
+    <path id="cell" d="M-33-86h66a53 53 0 0 1 53 53v66a53 53 0 0 1-53 53h-66a53 53 0 0 1-53-53v-66a53 53 0 0 1 53-53Z"/>
+  </defs>
+  <rect x="56" y="62" width="912" height="912" rx="218" fill="#642441" opacity=".35"/>
+  <rect x="56" y="50" width="912" height="912" rx="218" fill="url(#tile)"/>
+  <rect x="59" y="53" width="906" height="906" rx="215" fill="none" stroke="#FFF3DF" stroke-opacity=".35" stroke-width="6"/>
+  <g stroke="#FFE3C7" stroke-opacity=".49" stroke-width="5" fill="none">
+    <path d="M276 643 643 276m-162 477 272-272" stroke-dasharray="5 23" stroke-linecap="round"/>
+    <rect x="257" y="517" width="172" height="172" rx="53" transform="rotate(-14 343 603)" stroke-dasharray="10 15"/>
+  </g>
+  <g filter="url(#lift)">
+    <use href="#cell" transform="translate(369 379) rotate(-14)" fill="url(#pearl)"/>
+    <use href="#cell" transform="translate(611 322) rotate(19)" fill="url(#apricot)"/>
+    <use href="#cell" transform="translate(660 565) rotate(-14)" fill="url(#pearl)"/>
+    <use href="#cell" transform="translate(474 665) rotate(-28)" fill="url(#apricot)"/>
+  </g>
+  <g fill="#B75256">
+    <circle cx="368" cy="376" r="22"/>
+    <circle cx="608" cy="318" r="22"/>
+    <circle cx="659" cy="562" r="22"/>
+    <circle cx="473" cy="663" r="22"/>
+  </g>
+</svg>

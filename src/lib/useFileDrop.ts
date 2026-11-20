@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 
 /**
@@ -14,7 +15,7 @@ export function useFileDrop(extensions: string[], onDrop: (path: string) => void
   const exts = extensions.map((e) => e.toLowerCase()).join(",");
 
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isTauri()) return;
     let unlisten: (() => void) | undefined;
     let cancelled = false;
     const allowed = exts.split(",");

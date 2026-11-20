@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FileSpreadsheet, Loader2 } from "lucide-react";
+import { FileSpreadsheet, Loader2, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { dragRegion, TitleBar } from "@/app/TitleBar";
 import { Button } from "@/components/ui/button";
+import { SettingsDialog } from "@/features/settings/SettingsDialog";
 import { api, errorMessage, type ImportReport } from "@/lib/api";
 import { closeWorkFile } from "@/lib/fileActions";
 import { useDevSamples } from "@/lib/useDevSamples";
@@ -18,6 +20,7 @@ export function ImportXlsxScreen() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [report, setReport] = useState<ImportReport | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const samples = useDevSamples();
 
   const importPath = async (path: string) => {
@@ -45,16 +48,25 @@ export function ImportXlsxScreen() {
   const hovering = useFileDrop(["xlsx"], importPath, !busy && !report && !workspace.readOnly);
 
   return (
-    <div className="flex min-h-svh flex-col bg-board">
-      <header className="flex items-center justify-between border-b bg-background px-6 py-3">
-        <div>
-          <p className="text-xs text-muted-foreground">ClassMix</p>
-          <h1 className="text-base font-semibold">{workspace.fileName}</h1>
+    <div className="flex min-h-full flex-col bg-board">
+      <TitleBar className="justify-between">
+        <div {...dragRegion}>
+          <h1 {...dragRegion} className="text-sm leading-5 font-semibold">
+            {workspace.fileName}
+          </h1>
+          <p {...dragRegion} className="text-xs leading-4 text-muted-foreground">
+            ClassMix
+          </p>
         </div>
-        <Button variant="ghost" onClick={closeWorkFile}>
-          닫기
-        </Button>
-      </header>
+        <div className="flex gap-1.5">
+          <Button variant="ghost" size="icon" aria-label="설정 및 정보" onClick={() => setSettingsOpen(true)}>
+            <Settings />
+          </Button>
+          <Button variant="ghost" onClick={closeWorkFile}>
+            닫기
+          </Button>
+        </div>
+      </TitleBar>
 
       <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col justify-center gap-6 p-8">
         <ol className="flex items-center gap-3 text-sm">
@@ -114,6 +126,7 @@ export function ImportXlsxScreen() {
         )}
       </main>
 
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
       <ImportReportDialog
         report={report}
         onClose={async () => {

@@ -12,6 +12,7 @@ use crate::changes::{self, ChangeSet};
 use crate::db::{self, FILE_EXTENSION};
 use crate::error::{AppError, AppResult};
 use crate::export::{self, ExportReport};
+use crate::os_integration::{self, AssociationStatus};
 use crate::roster::{self, GapDto, PdfApplyReport, PdfLink, PdfRowInput, StudentDto};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
@@ -25,9 +26,18 @@ pub struct WorkFile {
 #[derive(Default)]
 pub struct AppState {
     pub file: Mutex<Option<WorkFile>>,
+    /// 실행 인자·더블클릭·두 번째 실행으로 받은, 화면이 아직 열지 않은 `.mix` 경로
+    pub pending_open: Mutex<Option<PathBuf>>,
 }
 
 impl AppState {
+    /// 열 파일을 맡겨 둔다(화면이 `take_launch_file`로 가져감).
+    pub fn request_open(&self, path: PathBuf) {
+        if let Ok(mut p) = self.pending_open.lock() {
+            *p = Some(path);
+        }
+    }
+
     fn with_file<T>(&self, f: impl FnOnce(&mut WorkFile) -> AppResult<T>) -> AppResult<T> {
         let mut guard = self
             .file
@@ -190,8 +200,9 @@ pub async fn open_work_file(
     path: String,
 ) -> AppResult<OpenResult> {
     let path = PathBuf::from(path);
-    state.close();
+    // 새 파일을 먼저 열어 본 뒤에 지금 파일을 닫는다(ClassMix 파일이 아니거나 못 열면 지금 파일을 그대로 둔다).
     let (conn, outcome) = db::open_existing(&path)?;
+    state.close();
     let mut warnings = Vec::new();
     if outcome.newer_version {
         warnings.push("더 새로운 버전의 ClassMix로 저장된 파일이라 읽기 전용으로 열었습니다. 앱을 업데이트해 주세요.".into());
@@ -469,6 +480,35 @@ pub async fn export_xlsx(state: State<'_, AppState>, path: String) -> AppResult<
         }
         export::export_xlsx(&wf.conn, &target)
     })
+}
+
+// ───────────── 운영체제 연동(M8) ─────────────
+
+/// 더블클릭·끌어다 놓기(아이콘)·두 번째 실행으로 받은 `.mix` 경로를 한 번만 꺼내 준다.
+#[tauri::command]
+pub async fn take_launch_file(state: State<'_, AppState>) -> AppResult<Option<String>> {
+    let mut p = state
+        .pending_open
+        .lock()
+        .map_err(|_| AppError::Other("내부 잠금 오류".into()))?;
+    Ok(p.take().map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+pub async fn file_association_status() -> AppResult<AssociationStatus> {
+    Ok(os_integration::file_association_status())
+}
+
+#[tauri::command]
+pub async fn register_file_association() -> AppResult<AssociationStatus> {
+    os_integration::register()?;
+    Ok(os_integration::file_association_status())
+}
+
+#[tauri::command]
+pub async fn unregister_file_association() -> AppResult<AssociationStatus> {
+    os_integration::unregister()?;
+    Ok(os_integration::file_association_status())
 }
 
 #[derive(Debug, Clone, Serialize)]
