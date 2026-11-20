@@ -50,7 +50,7 @@
 
 ### 준비
 
-- Node.js 22, pnpm 10
+- Node.js 26, pnpm 12 (`packageManager`로 버전 고정)
 - Rust stable
 - [Tauri 2 사전 요구 사항](https://v2.tauri.app/start/prerequisites/)
 
@@ -91,3 +91,13 @@ GitHub Actions(`.github/workflows/build.yml`)를 통해 Windows·macOS에서 테
 ### 개인정보
 
 실제 학생 정보가 들어가는 `*.mix`·`*.xlsx`·`*.pdf`는 `.gitignore`로 커밋하지 않습니다. 테스트에는 `tests/fixtures/`의 더미 데이터만 사용합니다.
+
+### 버전
+
+앱 버전은 `package.json`의 `version` 한 곳에서 정합니다. `tauri.conf.json`이 이 파일을 가리키고, Rust 코드는 `build.rs`가 넣어 주는 `env!("APP_VERSION")`으로 읽습니다.
+
+## 라이선스
+
+[MIT](LICENSE) © 2026 Dongin Lee
+
+번들되는 서드파티 구성 요소는 각자의 라이선스를 따릅니다. 주요 예외: IBM Plex Sans KR 글꼴(SIL OFL 1.1), pdf.js(Apache-2.0), 일부 Rust 크레이트(MPL-2.0, Unicode-3.0).

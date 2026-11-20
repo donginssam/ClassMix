@@ -27,13 +27,11 @@ jobs:
         os: [windows-latest, macos-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -52,13 +50,11 @@ jobs:
     needs: test
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
@@ -74,7 +70,7 @@ jobs:
         id: dist
         shell: pwsh
         run: |
-          $version = (Get-Content src-tauri/tauri.conf.json -Raw | ConvertFrom-Json).version
+          $version = (Get-Content package.json -Raw | ConvertFrom-Json).version
           New-Item -ItemType Directory -Force dist-release | Out-Null
           $name = "ClassMix_${version}_x64.exe"
           Copy-Item src-tauri/target/release/classmix.exe "dist-release/$name"
@@ -87,7 +83,7 @@ jobs:
             if ($deps -match 'VCRUNTIME140|MSVCP140') { throw "VC 런타임 DLL에 의존합니다(crt-static이 적용되지 않음)." }
           }
           "name=$name" >> $env:GITHUB_OUTPUT
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ClassMix-windows-x64
           path: dist-release/${{ steps.dist.outputs.name }}
@@ -98,13 +94,11 @@ jobs:
     needs: test
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
-          version: 10
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
+          node-version: 26
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -117,7 +111,7 @@ jobs:
         run: pnpm icons
       - name: dmg 빌드
         run: pnpm tauri build --target universal-apple-darwin --bundles dmg
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: ClassMix-macos-universal
           path: src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg
@@ -131,11 +125,11 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: artifacts
           merge-multiple: true
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           draft: true
           files: artifacts/*

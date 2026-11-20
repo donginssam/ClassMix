@@ -44,7 +44,7 @@ pub fn create_new(path: &Path, title: &str) -> AppResult<Connection> {
     let ts = now();
     conn.execute(
         "INSERT INTO meta (id, title, app_version, created_at, updated_at) VALUES (1, ?1, ?2, ?3, ?3)",
-        params![title, env!("CARGO_PKG_VERSION"), ts],
+        params![title, env!("APP_VERSION"), ts],
     )?;
     conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     Ok(conn)
