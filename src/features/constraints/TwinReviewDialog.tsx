@@ -65,7 +65,7 @@ export function TwinReviewDialog({ open, onClose }: { open: boolean; onClose: ()
           <DialogTitle>쌍둥이 후보 {candidates.length}건</DialogTitle>
           <DialogDescription>
             나이스 자료에는 쌍둥이 여부가 없어 생년월일로 후보를 찾았습니다. <b>유력</b>은 생년월일과 성이 같고,{" "}
-            <b>가능</b>은 생년월일만 같습니다(생일이 겹치는 우연도 흔함). 쌍둥이로 등록하면 서로 다른 반이어야 하는
+            <b>가능</b>은 생년월일만 같습니다. 생일이 겹치는 우연도 흔하기 때문입니다. 쌍둥이로 등록하면 서로 다른 반이어야 하는
             규칙이 생깁니다.
           </DialogDescription>
         </DialogHeader>

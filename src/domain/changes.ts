@@ -93,7 +93,7 @@ export function isEmptyChange(cs: ChangeSet): boolean {
 
 /**
  * 반 하나를 가나다순으로 재정렬해 next에 기록한다.
- * @param members 재정렬 후 이 반에 있을 학생(한글 발음 변경 반영된 값)
+ * @param members 재정렬 후 이 반에 들어갈 학생(한글 발음 변경 반영된 값)
  */
 function resortInto(next: Next, cls: number, members: Student[], gaps: GapLike[]) {
   const { seats, gaps: numbered } = numberSlots(sortedSlots(members, gaps));

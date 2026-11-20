@@ -140,7 +140,7 @@ export function ExportDialog() {
           </Button>
           <Button onClick={() => void doExport()} disabled={busy || errors.length > 0}>
             {busy && <Loader2 className="animate-spin" data-icon="inline-start" />}
-            {warnings.length ? "경고를 확인했고 저장" : "저장"}
+            {warnings.length ? "경고를 확인하고 저장" : "저장"}
           </Button>
         </DialogFooter>
       </DialogContent>

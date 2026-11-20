@@ -16,7 +16,7 @@ import { StudentChip, StudentPicker } from "./StudentPicker";
 const TABS: RuleKind[] = ["group", "one_to_many", "twin", "same_name"];
 
 const TAB_HELP: Record<RuleKind, string> = {
-  group: "고른 학생이 모두 서로 다른 반이어야 합니다. (A:B:C)",
+  group: "선택한 학생이 모두 서로 다른 반이어야 합니다. (A:B:C)",
   one_to_many: "기준 학생(A)과 나머지(B·C·D)는 다른 반이어야 하고, 나머지끼리는 같은 반이어도 됩니다. (A:BCD)",
   twin: "쌍둥이(형제) 모두 서로 다른 반이어야 합니다. 학부모가 같은 반을 원하면 규칙을 끄고 사유를 적어 두세요.",
   same_name: "XLSX를 가져올 때 같은 이름(공백·대소문자 무시) 학생끼리 자동으로 만든 규칙입니다. 끄기만 할 수 있습니다.",

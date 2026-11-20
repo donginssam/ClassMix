@@ -101,7 +101,7 @@ export function ImportXlsxScreen() {
             {busy ? "가져오는 중…" : "나이스 진급반편성 XLSX를 끌어다 놓거나 눌러서 선택"}
           </span>
           <span className="max-w-md text-sm text-muted-foreground">
-            나이스에서 기본 편성(이름순·성적순 등)을 마친 뒤 내려받은 업로드 양식 파일입니다. 이 파일의 양식 그대로 최종
+            나이스에서 기본 편성(이름순·성적순 등)을 마친 뒤 내려받은 파일입니다. 이 파일의 양식 그대로 최종
             업로드 파일을 만듭니다.
           </span>
         </button>

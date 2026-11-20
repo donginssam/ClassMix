@@ -115,7 +115,7 @@ export const ClassColumn = memo(function ClassColumn(props: ClassColumnProps) {
     >
       <header
         className={cn(
-          // 머리는 아래로 스크롤되는 칸을 가리되, 유리처럼 살짝 비친다.
+          // 헤더는 아래로 스크롤되는 칸을 가리되, 유리처럼 살짝 비친다.
           "sticky top-0 z-10 flex flex-col gap-1.5 border-b border-(--glass-border) px-2.5 pt-2 pb-2 backdrop-blur-xl transition-colors",
           violations.length > 0 && "shadow-[inset_0_3px_0_var(--destructive)]",
           preview ? "bg-violation-soft" : isOver ? "bg-accent" : "bg-background/85",
