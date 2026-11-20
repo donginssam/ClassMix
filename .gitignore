@@ -9,21 +9,16 @@ lerna-debug.log*
 
 node_modules
 dist
-dist-ssr
-*.local
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
-.idea
 .DS_Store
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
 # 학생 개인정보가 들어가는 파일은 커밋하지 않는다
 *.mix
 *.xlsx
 *.pdf
+# 단, 테스트용 샘플(더미 데이터)은 커밋한다
+!tests/fixtures/*.xlsx
+!tests/fixtures/*.pdf

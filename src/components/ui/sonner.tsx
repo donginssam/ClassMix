@@ -37,6 +37,8 @@ const Toaster = ({ ...props }: ToasterProps) => {
       toastOptions={{
         classNames: {
           toast: "cn-toast",
+          // 설명의 줄바꿈(\n)을 살리고, 긴 경로는 아무 데서나 끊는다.
+          description: "whitespace-pre-line [overflow-wrap:anywhere]",
         },
       }}
       {...props}

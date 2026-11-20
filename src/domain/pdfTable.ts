@@ -5,9 +5,10 @@
  *   x 좌표로 열 경계를 정한다.
  * - 학년 열의 `n학년` 글자를 행 기준선으로 삼고, 성명 열에서 기준선 위·아래로 줄바꿈된
  *   이름 조각을 그 행에 합친다.
- * - 쪽 아래 `남(n명) 여(n명) 계:(n)`으로 쪽별 행 수를 검증한다.
+ * - 표 아래 나이스 표준 인원 요약 `남(n)명 여(n)명 계:(n)`의 계로 쪽별 행 수를 검증한다.
+ *   (그 아래 쪽 번호 꼬리말 `1 / 8`은 무시한다.)
  */
-import { collapseSpaces, toInt, toIsoDate, toScore } from "./normalize";
+import { collapseSpaces, toInt, toIsoDate, toBaseScore } from "./normalize";
 
 /** pdf.js 텍스트 조각. y는 PDF 좌표(아래가 0)이다. */
 export interface TextItem {
@@ -23,8 +24,6 @@ export interface PdfPage {
   items: TextItem[];
 }
 
-export type PdfRowStatus = "regular" | "transfer_in" | "transfer_out";
-
 export interface PdfRow {
   page: number;
   grade: string;
@@ -35,8 +34,10 @@ export interface PdfRow {
   birthRaw: string;
   birthDate: string | null;
   gender: "남" | "여" | null;
+  /** 원문 기준성적(예: `1,073.89`) */
+  scoreRaw: string;
+  /** 기준성적 ×100 정수(0.01점 단위). 예: 107389 */
   baseScore: number | null;
-  status: PdfRowStatus;
   prevGrade: string | null;
   prevClass: number | null;
   prevNumber: number | null;
@@ -46,10 +47,9 @@ export interface PdfRow {
 export interface PageCheck {
   page: number;
   rows: number;
-  transferOut: number;
   /** 쪽 아래 요약(없으면 null) */
   footer: { male: number; female: number; total: number } | null;
-  /** 요약과 행 수가 맞고 모든 행을 읽었는지(요약은 전출 학생을 빼고 센다) */
+  /** 요약과 행 수가 맞고 모든 행을 읽었는지 */
   ok: boolean;
   /** 실패 이유 또는 참고 안내 */
   message: string | null;
@@ -154,7 +154,31 @@ function columnOf(x: number, centers: Record<Col, number>): Col {
   return best;
 }
 
-const FOOTER_RE = /남\s*\((\d+)명\)[\s\S]*?여\s*\((\d+)명\)[\s\S]*?계\s*:?\s*\((\d+)\)/;
+// 나이스 표준 인원 요약: `남(18)명 여(12)명 계:(30)`
+const FOOTER_RE = /남\s*\(\s*(\d+)\s*\)\s*명[\s\S]*?여\s*\(\s*(\d+)\s*\)\s*명[\s\S]*?계\s*:\s*\(\s*(\d+)\s*\)/;
+
+/**
+ * 성명 칸 조각을 잇는다. 나이스 성명은 한국 국적이면 띄어쓰기 없는 한글, 외국 국적이면 여권상 대문자
+ * 로마자(단어 사이 한 칸)이므로, 한글과 한글 사이는 줄이 같든 다르든 항상 붙이고 그 밖은 한 칸 띄운다.
+ */
+export function pdfName(parts: string[]): string {
+  return collapseSpaces(joinWrapped(parts.flatMap((p) => p.split(/\s+/))));
+}
+
+/**
+ * 줄바꿈된 조각을 잇는다. 한글 사이에서 끊긴 경우(`귀여운제비` / `꽃`)는 붙이고,
+ * 그 밖(로마자 이름 `HANNAH CRUZ` / `QU`)은 한 칸 띄운다.
+ */
+export function joinWrapped(parts: string[]): string {
+  let out = "";
+  for (const raw of parts) {
+    const part = raw.trim();
+    if (!part) continue;
+    if (out && !(/[가-힣]$/.test(out) && /^[가-힣]/.test(part))) out += " ";
+    out += part;
+  }
+  return out;
+}
 
 function parsePage(page: PdfPage, problems: string[]): { rows: PdfRow[]; check: PageCheck } | null {
   const items = page.items.filter((it) => it.str.trim() !== "");
@@ -186,18 +210,16 @@ function parsePage(page: PdfPage, problems: string[]): { rows: PdfRow[]; check: 
       const inBand = it.y < upper && it.y >= lower;
       if (onLine || ((col === "name" || col === "note") && inBand)) cells[col].push(it);
     }
-    const text = (c: Col) =>
-      collapseSpaces(
-        cells[c]
-          .sort((a, b) => b.y - a.y || a.x - b.x)
-          .map((it) => it.str)
-          .join(" "),
-      );
-
-    const prevTexts = [text("prevGrade"), text("prevClass"), text("prevNumber")].join(" ");
-    let status: PdfRowStatus = "regular";
-    if (/전입/.test(prevTexts)) status = "transfer_in";
-    else if (/전출/.test(prevTexts)) status = "transfer_out";
+    // 같은 줄 조각은 띄어 잇고, 줄바꿈된 조각은 joinWrapped 규칙으로 잇는다(특이사항 등).
+    const text = (c: Col) => {
+      const lines: { y: number; parts: string[] }[] = [];
+      for (const it of cells[c].sort((a, b) => b.y - a.y || a.x - b.x)) {
+        const last = lines.at(-1);
+        if (last && Math.abs(last.y - it.y) <= lineTol) last.parts.push(it.str);
+        else lines.push({ y: it.y, parts: [it.str] });
+      }
+      return collapseSpaces(joinWrapped(lines.map((l) => collapseSpaces(l.parts.join(" ")))));
+    };
 
     const gender = text("gender");
     const birthRaw = text("birth");
@@ -206,15 +228,15 @@ function parsePage(page: PdfPage, problems: string[]): { rows: PdfRow[]; check: 
       grade: text("grade").replace(/\s+/g, ""),
       class: toInt(text("class")) ?? NaN,
       number: toInt(text("number")) ?? NaN,
-      name: text("name"),
+      name: pdfName(cells.name.sort((a, b) => b.y - a.y || a.x - b.x).map((it) => it.str)),
       birthRaw,
       birthDate: toIsoDate(birthRaw),
       gender: gender === "남" || gender === "여" ? gender : null,
-      baseScore: toScore(text("score")),
-      status,
-      prevGrade: status === "regular" ? text("prevGrade").replace(/\s+/g, "") || null : null,
-      prevClass: status === "regular" ? toInt(text("prevClass")) : null,
-      prevNumber: status === "regular" ? toInt(text("prevNumber")) : null,
+      scoreRaw: text("score"),
+      baseScore: toBaseScore(text("score")),
+      prevGrade: text("prevGrade").replace(/\s+/g, "") || null,
+      prevClass: toInt(text("prevClass")),
+      prevNumber: toInt(text("prevNumber")),
       note: text("note") || null,
     });
   });
@@ -226,24 +248,13 @@ function parsePage(page: PdfPage, problems: string[]): { rows: PdfRow[]; check: 
     .join(" ");
   const fm = footerText.match(FOOTER_RE);
   const footer = fm ? { male: Number(fm[1]), female: Number(fm[2]), total: Number(fm[3]) } : null;
-  const transferOut = rows.filter((r) => r.status === "transfer_out").length;
   let ok = true;
   let message: string | null = null;
   if (!footer) {
     message = `${page.pageNumber}쪽 아래 인원 요약을 찾지 못했습니다.`;
-  } else if (footer.total !== rows.length - transferOut) {
+  } else if (footer.total !== rows.length) {
     ok = false;
-    message = `${page.pageNumber}쪽: 표에서 읽은 학생 ${rows.length - transferOut}명과 쪽 요약 ${footer.total}명이 다릅니다.`;
-  } else {
-    // 인원은 맞음. 성별은 참고용 안내만 한다(원본 요약 자체가 틀린 경우가 있음).
-    const counted = rows.filter((r) => r.status !== "transfer_out");
-    const male = counted.filter((r) => r.gender === "남").length;
-    const female = counted.filter((r) => r.gender === "여").length;
-    if (footer.male + footer.female !== footer.total) {
-      message = `${page.pageNumber}쪽 요약의 남(${footer.male})+여(${footer.female})가 계(${footer.total})와 맞지 않습니다. 표에서 읽은 값: 남 ${male}, 여 ${female}.`;
-    } else if (male !== footer.male || female !== footer.female) {
-      message = `${page.pageNumber}쪽: 성별 인원(남 ${male}, 여 ${female})이 쪽 요약(남 ${footer.male}, 여 ${footer.female})과 다릅니다.`;
-    }
+    message = `${page.pageNumber}쪽: 표에서 읽은 학생 ${rows.length}명과 쪽 요약 ${footer.total}명이 다릅니다.`;
   }
   for (const r of rows) {
     if (Number.isNaN(r.class) || Number.isNaN(r.number) || !r.name) {
@@ -253,7 +264,7 @@ function parsePage(page: PdfPage, problems: string[]): { rows: PdfRow[]; check: 
   }
   return {
     rows,
-    check: { page: page.pageNumber, rows: rows.length, transferOut, footer, ok, message },
+    check: { page: page.pageNumber, rows: rows.length, footer, ok, message },
   };
 }
 

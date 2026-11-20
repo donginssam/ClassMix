@@ -1,4 +1,4 @@
-import { AlertTriangle, Info } from "lucide-react";
+import { AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -25,7 +25,7 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
 
           <div className="grid grid-cols-3 gap-2 text-center">
             <Stat label="가져온 학생" value={`${report.imported}명`} />
-            <Stat label="건너뛴 행" value={`${report.skipped.length}건`} />
+            <Stat label="로마자 이름" value={`${report.romanNameCount}명`} />
             <Stat label="동명이인" value={`${report.sameNameGroups.length}그룹`} />
           </div>
 
@@ -40,26 +40,6 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
                 ))}
               </div>
             </section>
-
-            {report.skipped.length > 0 && (
-              <section>
-                <h3 className="mb-1.5 flex items-center gap-1.5 text-sm font-semibold">
-                  <Info className="size-4 text-muted-foreground" />
-                  건너뛴 행
-                </h3>
-                <ul className="space-y-0.5 text-sm text-muted-foreground">
-                  {report.skipped.map((s) => (
-                    <li key={s.row}>
-                      {s.row}행 {s.name} ({s.studentNo}) — {s.reason}
-                    </li>
-                  ))}
-                </ul>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  건너뛴 행은 반편성과 최종 업로드 파일에서 빠집니다. 이 때문에 생긴 번호 빈자리는 빈 번호로 남겨
-                  두었습니다.
-                </p>
-              </section>
-            )}
 
             {report.sameNameGroups.length > 0 && (
               <section>

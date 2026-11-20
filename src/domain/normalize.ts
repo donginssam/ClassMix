@@ -27,12 +27,19 @@ export function toIsoDate(s: string | undefined | null): string | null {
   return `${m[1]}-${m[2].padStart(2, "0")}-${m[3].padStart(2, "0")}`;
 }
 
-/** 소수 점수. 해석할 수 없으면 null. */
-export function toScore(s: string | undefined | null): number | null {
+/**
+ * 기준성적 글자를 100배 정수(0.01점 단위)로 바꾼다. 예: `1,073.89` → 107389, `382.3` → 38230.
+ * 부동소수점을 거치지 않고 숫자 글자만으로 만들어 컴퓨터마다 결과가 달라지지 않는다.
+ * 천 단위 쉼표를 허용하고, 소수 셋째 자리 이상이 있거나 해석할 수 없으면 null.
+ */
+export function toBaseScore(s: string | undefined | null): number | null {
   if (!s) return null;
-  const t = s.trim();
-  if (!/^-?\d+(\.\d+)?$/.test(t)) return null;
-  return Number(t);
+  const m = s.trim().match(/^(-?)(\d{1,3}(?:,\d{3})+|\d+)(?:\.(\d{1,2}))?$/);
+  if (!m) return null;
+  const digits = m[2].replace(/,/g, "") + (m[3] ?? "").padEnd(2, "0");
+  const v = Number.parseInt(digits, 10);
+  if (!Number.isSafeInteger(v)) return null;
+  return m[1] === "-" ? -v : v;
 }
 
 /** 성명에 로마자가 있는지(외국 국적 학생 감지). */

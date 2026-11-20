@@ -45,7 +45,7 @@ export function ImportXlsxScreen() {
   const hovering = useFileDrop(["xlsx"], importPath, !busy && !report && !workspace.readOnly);
 
   return (
-    <div className="flex min-h-svh flex-col bg-muted/40">
+    <div className="flex min-h-svh flex-col bg-board">
       <header className="flex items-center justify-between border-b bg-background px-6 py-3">
         <div>
           <p className="text-xs text-muted-foreground">ClassMix</p>

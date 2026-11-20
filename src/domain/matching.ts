@@ -6,8 +6,6 @@
  * 2. (이전반, 이전번호) + 성명          → 자동 확정. 이전 반·번호가 XLSX 안에서 유일할 때만
  * 3. 성명 단독                          → 확인 필요. 남은 학생·남은 PDF 행 양쪽에서 유일할 때만
  * 그 외는 미매칭(사용자가 직접 연결).
- *
- * 전입·전출 행은 매핑하지 않는다.
  */
 import { nameKey } from "./normalize";
 import type { PdfRow } from "./pdfTable";
@@ -34,12 +32,10 @@ export interface Match {
 
 export interface MatchResult {
   matches: Match[];
-  /** 매핑 대상(전입·전출 아님)인데 연결되지 않은 PDF 행 */
+  /** 연결되지 않은 PDF 행 */
   unmatchedRows: number[];
   /** PDF에서 짝을 찾지 못한 학생 */
   unmatchedStudents: number[];
-  /** 전입·전출이라 건너뛴 PDF 행 */
-  skippedRows: number[];
 }
 
 const seat = (c: number | null, n: number | null) => `${c}-${n}`;
@@ -48,9 +44,7 @@ export function matchPdfRows(rows: PdfRow[], students: MatchStudent[]): MatchRes
   const matches: Match[] = [];
   const usedStudents = new Set<number>();
   const usedRows = new Set<number>();
-  const skippedRows: number[] = [];
-  const candidates: number[] = [];
-  rows.forEach((r, i) => (r.status === "regular" ? candidates.push(i) : skippedRows.push(i)));
+  const candidates = rows.map((_, i) => i);
 
   const link = (rowIndex: number, studentId: number, method: MatchMethod, confidence: Match["confidence"]) => {
     matches.push({ rowIndex, studentId, method, confidence });
@@ -103,6 +97,5 @@ export function matchPdfRows(rows: PdfRow[], students: MatchStudent[]): MatchRes
     matches,
     unmatchedRows: candidates.filter((i) => !usedRows.has(i)),
     unmatchedStudents: students.filter((s) => !usedStudents.has(s.id)).map((s) => s.id),
-    skippedRows,
   };
 }

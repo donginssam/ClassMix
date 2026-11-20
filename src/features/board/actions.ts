@@ -79,10 +79,10 @@ export const actions = {
     const r = setReadings(boardState(), readings);
     const ok = await run(r, { quiet: true });
     if (ok && r.ok && r.originalClasses?.length) {
-      toast.info(
-        `${r.originalClasses.sort((a, b) => a - b).join("·")}반은 나이스 번호 그대로라 번호를 바꾸지 않았습니다. 이 반을 재정렬하면 번호가 바뀝니다.`,
-        { duration: 8000 },
-      );
+      toast.info(`${r.originalClasses.sort((a, b) => a - b).join("·")}반은 번호를 바꾸지 않았습니다.`, {
+        description: "나이스 번호를 그대로 쓰는 반입니다.\n이 반을 가나다순으로 재정렬하면 번호가 바뀝니다.",
+        duration: 8000,
+      });
     }
     return ok;
   },

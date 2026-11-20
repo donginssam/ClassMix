@@ -4,16 +4,15 @@ import { Input } from "@/components/ui/input";
 import { nameKey } from "@/domain/normalize";
 import type { Student } from "@/lib/api";
 
-/** 동명이인을 구분하는 꼬리표가 붙은 학생 이름. 예) "바쿠 (이전 3반, 남, 0114)" */
+/** 동명이인을 구분하는 꼬리표가 붙은 학생 이름. 예) "바쿠 (이전 3-8, 남)" */
 export function studentLabel(s: Student): string {
   if (!s.sameName) return s.nameNorm;
-  const parts = [`이전 ${s.prevClass}반`];
+  const parts = [`이전 ${s.prevClass}-${s.prevNumber}`];
   if (s.gender) parts.push(s.gender);
-  parts.push(s.studentNo.slice(-4));
   return `${s.nameNorm} (${parts.join(", ")})`;
 }
 
-/** 이름·한글 발음·학번으로 찾아 고르는 자동완성 입력 */
+/** 이름·한글 발음으로 찾아 고르는 자동완성 입력 */
 export function StudentPicker({
   students,
   exclude,
@@ -31,10 +30,7 @@ export function StudentPicker({
     if (!k) return [];
     return students
       .filter((s) => !exclude.includes(s.id))
-      .filter(
-        (s) =>
-          nameKey(s.name).includes(k) || (s.sortName && nameKey(s.sortName).includes(k)) || s.studentNo.includes(k),
-      )
+      .filter((s) => nameKey(s.name).includes(k) || (s.sortName && nameKey(s.sortName).includes(k)))
       .slice(0, 8);
   }, [q, students, exclude]);
 
@@ -42,7 +38,7 @@ export function StudentPicker({
     <div className="relative">
       <Input
         value={q}
-        placeholder={placeholder ?? "이름·학번으로 찾기"}
+        placeholder={placeholder ?? "이름으로 찾기"}
         onChange={(e) => setQ(e.target.value)}
         onKeyDown={(e) => {
           if (e.key === "Enter" && !e.nativeEvent.isComposing && matches[0]) {

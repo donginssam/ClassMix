@@ -53,9 +53,9 @@ describe("쌍둥이 후보", () => {
   it("복성을 먼저 본다", () => {
     expect(koreanSurname("남궁민수")).toBe("남궁");
     expect(koreanSurname("남민수")).toBe("남");
-    expect(koreanSurname("Teddy")).toBeNull();
-    expect(sameSurname("NGUYEN VAN AN", "Nguyen Thi Hoa")).toBe(true);
-    expect(sameSurname("김하나", "Kim Hana")).toBe(false);
+    expect(koreanSurname("TEDDY")).toBeNull();
+    expect(sameSurname("NGUYEN VAN AN", "NGUYEN THI HOA")).toBe(true);
+    expect(sameSurname("김하나", "KIM HANA")).toBe(false);
   });
 
   const s = (id: number, nameNorm: string, birthDate: string | null) => ({ id, nameNorm, birthDate });
@@ -91,7 +91,7 @@ describe("쌍둥이 후보", () => {
 
 describe("내보내기 검증", () => {
   it("번호 중복은 오류, 빈 번호는 안내, 발음 미입력은 경고", () => {
-    const b = board([["김가람", "Teddy Srisuk"]]);
+    const b = board([["김가람", "TEDDY SRISUK"]]);
     b.classStates = [{ class: 1, numbering: "sorted" }];
     b.students.push(student({ name: "중복이", curClass: 1, curNumber: 2 }));
     const issues = validateForExport({
@@ -103,7 +103,7 @@ describe("내보내기 검증", () => {
       hasPdf: false,
     });
     expect(issues.filter((i) => i.level === "error").map((i) => i.message)).toEqual([
-      "1반 2번이 겹칩니다: Teddy Srisuk, 중복이",
+      "1반 2번이 겹칩니다: TEDDY SRISUK, 중복이",
     ]);
     expect(issues.some((i) => i.level === "warning" && i.message.startsWith("한글 발음 미입력 1명"))).toBe(true);
     expect(issues.some((i) => i.level === "info" && i.message.startsWith("빈 번호 1개"))).toBe(true);

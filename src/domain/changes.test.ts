@@ -24,8 +24,8 @@ const idOf = (b: BoardState, name: string) => b.students.find((s) => s.nameNorm 
 
 describe("compareKeys", () => {
   it("빈 키는 맨 앞, 로마자 키는 한글 뒤", () => {
-    const keys = ["Teddy Srisuk", "김나래", "", "홍하늘", "Ayu Lestari Tom", "응우옌"];
-    expect([...keys].sort(compareKeys)).toEqual(["", "김나래", "응우옌", "홍하늘", "Ayu Lestari Tom", "Teddy Srisuk"]);
+    const keys = ["TEDDY SRISUK", "김나래", "", "홍하늘", "AYU LESTARI TOM", "응우옌"];
+    expect([...keys].sort(compareKeys)).toEqual(["", "김나래", "응우옌", "홍하늘", "AYU LESTARI TOM", "TEDDY SRISUK"]);
   });
 });
 
@@ -125,33 +125,33 @@ describe("이동·바꾸기와 재정렬", () => {
 
 describe("로마자 이름 한글 발음", () => {
   it("발음을 넣으면 그 가나다 자리로, 없으면 반 끝", () => {
-    const b = board([["Teddy Srisuk", "김가람", "하늘", "박나래"]]);
+    const b = board([["TEDDY SRISUK", "김가람", "하늘", "박나래"]]);
     let s = apply(b, ok(renumberClasses(b, [1])));
-    expect(roster(s, 1)).toEqual(["1 김가람", "2 박나래", "3 하늘", "4 Teddy Srisuk"]);
-    s = apply(s, ok(setReadings(s, new Map([[idOf(s, "Teddy Srisuk"), "테디 스리숙"]]))));
-    expect(roster(s, 1)).toEqual(["1 김가람", "2 박나래", "3 Teddy Srisuk", "4 하늘"]);
-    expect(s.students.find((x) => x.nameNorm === "Teddy Srisuk")!.sortName).toBe("테디스리숙");
+    expect(roster(s, 1)).toEqual(["1 김가람", "2 박나래", "3 하늘", "4 TEDDY SRISUK"]);
+    s = apply(s, ok(setReadings(s, new Map([[idOf(s, "TEDDY SRISUK"), "테디 스리숙"]]))));
+    expect(roster(s, 1)).toEqual(["1 김가람", "2 박나래", "3 TEDDY SRISUK", "4 하늘"]);
+    expect(s.students.find((x) => x.nameNorm === "TEDDY SRISUK")!.sortName).toBe("테디스리숙");
   });
 
   it("나이스 번호 그대로인 반은 번호를 건드리지 않는다", () => {
-    const b = board([["Teddy Srisuk", "김가람"]]);
-    const r = setReadings(b, new Map([[idOf(b, "Teddy Srisuk"), "테디스리숙"]]));
+    const b = board([["TEDDY SRISUK", "김가람"]]);
+    const r = setReadings(b, new Map([[idOf(b, "TEDDY SRISUK"), "테디스리숙"]]));
     expect(r.ok && r.originalClasses).toEqual([1]);
     expect(ok(r).students).toEqual([]);
   });
 
   it("한글이 아니면 거절", () => {
-    const b = board([["Teddy Srisuk"]]);
-    expect(setReadings(b, new Map([[idOf(b, "Teddy Srisuk"), "Teddy"]])).ok).toBe(false);
+    const b = board([["TEDDY SRISUK"]]);
+    expect(setReadings(b, new Map([[idOf(b, "TEDDY SRISUK"), "TEDDY"]])).ok).toBe(false);
   });
 
   it("기준 학생의 발음이 바뀌면 빈 번호 기준 키도 따라간다", () => {
-    const b = board([["김가람", "Teddy Srisuk", "Zed"]]);
+    const b = board([["김가람", "TEDDY SRISUK", "ZED"]]);
     let s = apply(b, ok(renumberClasses(b, [1])));
-    s = apply(s, ok(addGapBefore(s, idOf(s, "Zed")))); // 기준: Teddy Srisuk
-    s = apply(s, ok(setReadings(s, new Map([[idOf(s, "Teddy Srisuk"), "테디"]]))));
+    s = apply(s, ok(addGapBefore(s, idOf(s, "ZED")))); // 기준: TEDDY SRISUK
+    s = apply(s, ok(setReadings(s, new Map([[idOf(s, "TEDDY SRISUK"), "테디"]]))));
     expect(s.gaps[0].anchorKey).toBe("테디");
-    expect(roster(s, 1)).toEqual(["1 김가람", "2 Teddy Srisuk", "3 (빈)", "4 Zed"]);
+    expect(roster(s, 1)).toEqual(["1 김가람", "2 TEDDY SRISUK", "3 (빈)", "4 ZED"]);
   });
 });
 

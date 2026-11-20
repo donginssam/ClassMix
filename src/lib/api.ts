@@ -28,13 +28,6 @@ export interface RecentFile {
   exists: boolean;
 }
 
-export interface SkippedRow {
-  row: number;
-  studentNo: string;
-  name: string;
-  reason: string;
-}
-
 export interface ClassSummary {
   class: number;
   count: number;
@@ -45,7 +38,6 @@ export interface ImportReport {
   fileName: string;
   totalRows: number;
   imported: number;
-  skipped: SkippedRow[];
   warnings: string[];
   targetGrade: string;
   classCount: number;
@@ -68,6 +60,7 @@ export interface Student {
   curNumber: number;
   gender: "남" | "여" | null;
   birthDate: string | null;
+  /** 기준성적 ×100 정수(0.01점 단위). 화면에서는 formatScore로 1/100 하여 표시 */
   baseScore: number | null;
   matchMethod: string | null;
   memo: string | null;
@@ -160,7 +153,6 @@ export interface ChangeSet {
 export interface ExportReport {
   path: string;
   rows: number;
-  removedRows: number;
   changedStudents: number;
 }
 
@@ -172,6 +164,7 @@ export interface PdfRowInput {
   name: string;
   birthDate: string | null;
   gender: "남" | "여" | null;
+  /** 기준성적 ×100 정수(0.01점 단위) */
   baseScore: number | null;
   prevGrade: string | null;
   prevClass: number | null;

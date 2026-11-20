@@ -41,7 +41,7 @@ CREATE TABLE student (
   cur_number      INTEGER NOT NULL,
   gender          TEXT CHECK (gender IN ('남','여')),
   birth_date      TEXT,
-  base_score      REAL,
+  base_score      INTEGER,            -- 기준성적 ×100 정수(0.01점 단위). 예) 1,073.89 → 107389
   match_method    TEXT,
   memo            TEXT,
   sort_name       TEXT
@@ -58,7 +58,7 @@ CREATE TABLE pdf_row (
   name        TEXT,
   birth_date  TEXT,
   gender      TEXT,
-  base_score  REAL,
+  base_score  INTEGER,                 -- 기준성적 ×100 정수
   prev_grade  TEXT,
   prev_class  INTEGER,
   prev_number INTEGER,

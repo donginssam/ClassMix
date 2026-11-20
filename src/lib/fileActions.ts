@@ -2,6 +2,7 @@
 import { open, save } from "@tauri-apps/plugin-dialog";
 import { toast } from "sonner";
 import { api, errorMessage } from "@/lib/api";
+import { fileNameOf } from "@/lib/path";
 import { useWorkspace } from "@/store/workspace";
 
 const MIX_FILTER = [{ name: "ClassMix 작업 파일", extensions: ["mix"] }];
@@ -54,7 +55,9 @@ export async function saveWorkFileAsWithDialog(): Promise<void> {
   try {
     const next = await api.saveWorkFileAs(path);
     await useWorkspace.getState().setWorkspace(next);
-    toast.success(`${next.fileName} 파일로 저장했습니다. 이제 이 파일에서 작업합니다.`);
+    toast.success("다른 이름으로 저장했습니다.", {
+      description: `${fileNameOf(next.path)}\n이제 이 파일에서 작업합니다.`,
+    });
   } catch (e) {
     toast.error("저장하지 못했습니다.", { description: errorMessage(e) });
   }
@@ -75,7 +78,9 @@ export async function saveWorkFileCopyWithDialog(): Promise<void> {
   if (!path) return;
   try {
     const saved = await api.saveWorkFileCopy(path);
-    toast.success("사본을 저장했습니다. 지금 파일에서 계속 작업합니다.", { description: saved });
+    toast.success("사본을 저장했습니다.", {
+      description: `${fileNameOf(saved)}\n지금 파일에서 계속 작업합니다.`,
+    });
   } catch (e) {
     toast.error("사본을 저장하지 못했습니다.", { description: errorMessage(e) });
   }

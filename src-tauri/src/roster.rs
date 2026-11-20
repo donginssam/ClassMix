@@ -25,7 +25,8 @@ pub struct StudentDto {
     pub cur_number: i64,
     pub gender: Option<String>,
     pub birth_date: Option<String>,
-    pub base_score: Option<f64>,
+    /// 기준성적 ×100 정수(0.01점 단위)
+    pub base_score: Option<i64>,
     pub match_method: Option<String>,
     pub memo: Option<String>,
     pub sort_name: Option<String>,
@@ -112,7 +113,8 @@ pub struct PdfRowInput {
     pub name: String,
     pub birth_date: Option<String>,
     pub gender: Option<String>,
-    pub base_score: Option<f64>,
+    /// 기준성적 ×100 정수(0.01점 단위)
+    pub base_score: Option<i64>,
     pub prev_grade: Option<String>,
     pub prev_class: Option<i64>,
     pub prev_number: Option<i64>,
@@ -254,7 +256,7 @@ mod tests {
             name: name.into(),
             birth_date: Some("2010-01-01".into()),
             gender: Some("남".into()),
-            base_score: Some(900.5),
+            base_score: Some(90050),
             prev_grade: Some("1학년".into()),
             prev_class: Some(1),
             prev_number: Some(1),
@@ -266,9 +268,9 @@ mod tests {
     fn lists_students_with_same_name_flag() {
         let (_d, conn) = setup();
         let s = list_students(&conn).unwrap();
-        assert_eq!(s.len(), 231);
-        assert_eq!(s.iter().filter(|x| x.same_name).count(), 6);
-        assert_eq!(list_gaps(&conn).unwrap().len(), 3);
+        assert_eq!(s.len(), 240);
+        assert_eq!(s.iter().filter(|x| x.same_name).count(), 24);
+        assert!(list_gaps(&conn).unwrap().is_empty());
     }
 
     #[test]
@@ -276,12 +278,12 @@ mod tests {
         let (_d, mut conn) = setup();
         let id: i64 = conn
             .query_row(
-                "SELECT id FROM student WHERE student_no='2025000114'",
+                "SELECT id FROM student WHERE student_no='2026510398'",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        let rows = vec![row("갑돌이"), row("없는학생")];
+        let rows = vec![row("갈매기"), row("없는학생")];
         let links = vec![PdfLink {
             row_index: 0,
             student_id: id,
@@ -289,16 +291,16 @@ mod tests {
         }];
         let rep = apply_pdf(&mut conn, "sample.pdf", b"%PDF-", &rows, &links).unwrap();
         assert_eq!((rep.linked, rep.unlinked_rows), (1, 1));
-        let score: Option<f64> = conn
+        let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
                 r.get(0)
             })
             .unwrap();
-        assert_eq!(score, Some(900.5));
+        assert_eq!(score, Some(90050));
 
         // 다시 반영하면 이전 값은 지워진다
         apply_pdf(&mut conn, "sample.pdf", b"%PDF-", &rows, &[]).unwrap();
-        let score: Option<f64> = conn
+        let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
                 r.get(0)
             })

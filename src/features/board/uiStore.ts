@@ -13,7 +13,6 @@ export type BoardDialog =
   | { kind: "pdf" };
 
 export interface ViewPrefs {
-  columns: 2 | 3 | 4;
   showGender: boolean;
   showBirth: boolean;
   showScore: boolean;
@@ -25,13 +24,12 @@ export interface ViewPrefs {
 
 const PREFS_KEY = "classmix.viewPrefs";
 const DEFAULT_PREFS: ViewPrefs = {
-  columns: 4,
   showGender: true,
   showBirth: false,
   showScore: true,
   showPrev: true,
   showMemo: true,
-  statsOpen: true,
+  statsOpen: false,
   historyOpen: false,
 };
 
@@ -93,5 +91,5 @@ export const useBoardUi = create<BoardUi>((set, get) => ({
 /** 학생 카드로 스크롤하고 잠깐 강조한다. */
 export function scrollToStudent(id: number) {
   const el = document.querySelector(`[data-student-id="${id}"]`);
-  el?.scrollIntoView({ behavior: "smooth", block: "center" });
+  el?.scrollIntoView({ behavior: "smooth", block: "center", inline: "nearest" });
 }

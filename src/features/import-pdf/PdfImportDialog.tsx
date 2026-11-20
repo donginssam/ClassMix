@@ -19,6 +19,7 @@ import { matchPdfRows, type Match, type MatchResult } from "@/domain/matching";
 import type { PdfParseResult, PdfRow } from "@/domain/pdfTable";
 import { api, errorMessage, type PdfLink, type PdfRowInput, type Student } from "@/lib/api";
 import { useDevSamples } from "@/lib/useDevSamples";
+import { formatScore } from "@/lib/format";
 import { useFileDrop } from "@/lib/useFileDrop";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/store/workspace";
@@ -103,12 +104,9 @@ export function PdfImportDialog({
   ) => {
     setStage({ kind: "applying" });
     try {
-      // 전입·전출 행은 저장하지 않는다. 남은 행으로 번호를 다시 매긴다.
-      const keep = parsed.rows.map((r, i) => ({ r, i })).filter(({ r }) => r.status === "regular");
-      const newIndex = new Map(keep.map(({ i }, n) => [i, n]));
-      const rows: PdfRowInput[] = keep.map(({ r }) => toInput(r));
+      const rows: PdfRowInput[] = parsed.rows.map(toInput);
       const linkList: PdfLink[] = [...links].map(([i, l]) => ({
-        rowIndex: newIndex.get(i)!,
+        rowIndex: i,
         studentId: l.studentId,
         method: l.method,
       }));
@@ -250,12 +248,11 @@ function Review({
   const pendingRows = unmatchedRows.filter((i) => !manual.has(i));
   const notes = [...parsed.problems, ...parsed.pages.filter((p) => p.message).map((p) => p.message!)];
   const failedPages = parsed.pages.filter((p) => !p.ok);
-  const regularCount = parsed.rows.filter((r) => r.status === "regular").length;
 
   return (
     <>
       <div className="grid grid-cols-4 gap-2 text-center">
-        <Stat label="PDF 학생 행" value={`${regularCount}행`} sub={`전입·전출 ${match.skippedRows.length}행 제외`} />
+        <Stat label="PDF 학생 행" value={`${parsed.rows.length}행`} sub={`${parsed.pages.length}쪽`} />
         <Stat label="연결됨" value={`${links.size}명`} sub={`/ XLSX ${students.length}명`} tone="ok" />
         <Stat label="확인 필요" value={`${review.length}건`} tone={review.length ? "warn" : undefined} />
         <Stat
@@ -289,7 +286,6 @@ function Review({
           <TabsTrigger value="review">확인 필요 {review.length}</TabsTrigger>
           <TabsTrigger value="unmatched">PDF에만 있음 {unmatchedRows.length}</TabsTrigger>
           <TabsTrigger value="xlsx-only">XLSX에만 있음 {students.length - links.size}</TabsTrigger>
-          <TabsTrigger value="skipped">전입·전출 {match.skippedRows.length}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="auto" className="min-h-0 overflow-y-auto">
@@ -308,6 +304,7 @@ function Review({
                 rows={parsed.rows}
                 items={review.map((m) => ({ m, s: byId.get(m.studentId)! }))}
                 rejected={rejected}
+                showPrev
                 onToggle={(row) =>
                   setRejected((prev) => {
                     const next = new Set(prev);
@@ -361,7 +358,7 @@ function Review({
                             <SelectItem value="none">연결 안 함</SelectItem>
                             {options.map((s) => (
                               <SelectItem key={s.id} value={String(s.id)}>
-                                {s.origClass}반 {s.origNumber}번 {s.nameNorm} ({s.studentNo})
+                                {s.origClass}반 {s.origNumber}번 {s.nameNorm} (이전 {s.prevClass}반 {s.prevNumber}번)
                               </SelectItem>
                             ))}
                           </SelectContent>
@@ -386,26 +383,17 @@ function Review({
               <ul className="grid grid-cols-2 gap-x-6 text-sm md:grid-cols-3">
                 {freeStudents.map((s) => (
                   <li key={s.id} className="py-0.5 tabular-nums">
-                    {s.origClass}반 {s.origNumber}번 {s.nameNorm}{" "}
-                    <span className="text-muted-foreground">({s.studentNo})</span>
+                    <span className="text-muted-foreground">
+                      {s.origClass}반 {s.origNumber}번
+                    </span>{" "}
+                    <span className="font-medium">{s.nameNorm}</span>{" "}
+                    <span className="text-muted-foreground">
+                      (이전 {s.prevClass}반 {s.prevNumber}번)
+                    </span>
                   </li>
                 ))}
               </ul>
             </>
-          )}
-        </TabsContent>
-
-        <TabsContent value="skipped" className="min-h-0 overflow-y-auto">
-          {match.skippedRows.length === 0 ? (
-            <Empty>전입·전출 행이 없습니다.</Empty>
-          ) : (
-            <ul className="text-sm">
-              {match.skippedRows.map((i) => (
-                <li key={i} className="py-0.5">
-                  <PdfCell r={parsed.rows[i]} />
-                </li>
-              ))}
-            </ul>
           )}
         </TabsContent>
       </Tabs>
@@ -423,7 +411,7 @@ function Review({
   );
 }
 
-function PdfCell({ r }: { r: PdfRow }) {
+function PdfCell({ r, showPrev = false }: { r: PdfRow; showPrev?: boolean }) {
   return (
     <span className="tabular-nums">
       <span className="text-muted-foreground">
@@ -431,8 +419,8 @@ function PdfCell({ r }: { r: PdfRow }) {
       </span>{" "}
       <span className="font-medium">{r.name}</span>{" "}
       <span className="text-muted-foreground">
-        {r.gender ?? ""} {r.birthRaw} · {r.baseScore ?? "-"} ·{" "}
-        {r.status === "regular" ? `이전 ${r.prevClass}-${r.prevNumber}` : r.status === "transfer_in" ? "전입" : "전출"}
+        {r.gender ?? ""} {r.birthRaw} · {formatScore(r.baseScore)}
+        {showPrev && r.prevClass != null && ` · 이전 ${r.prevClass}반 ${r.prevNumber ?? "?"}번`}
       </span>
     </span>
   );
@@ -443,11 +431,14 @@ function LinkTable({
   items,
   rejected,
   onToggle,
+  showPrev = false,
 }: {
   rows: PdfRow[];
   items: { m: Match; s: Student }[];
   rejected?: Set<number>;
   onToggle?: (row: number) => void;
+  /** 성명만으로 이은 연결을 사람이 확인할 때, 양쪽 이전 반·번호를 함께 보여 준다. */
+  showPrev?: boolean;
 }) {
   return (
     <table className="w-full text-sm">
@@ -465,13 +456,19 @@ function LinkTable({
           return (
             <tr key={m.rowIndex} className={cn("border-b last:border-0", off && "opacity-40")}>
               <td className="py-1">
-                <PdfCell r={rows[m.rowIndex]} />
+                <PdfCell r={rows[m.rowIndex]} showPrev={showPrev} />
               </td>
               <td className="py-1 tabular-nums">
-                {s.origClass}반 {s.origNumber}번 {s.nameNorm}{" "}
                 <span className="text-muted-foreground">
-                  ({s.studentNo}, 이전 {s.prevClass}-{s.prevNumber})
-                </span>
+                  {s.origClass}반 {s.origNumber}번
+                </span>{" "}
+                <span className="font-medium">{s.nameNorm}</span>
+                {showPrev && (
+                  <span className="text-muted-foreground">
+                    {" "}
+                    (이전 {s.prevClass}반 {s.prevNumber}번)
+                  </span>
+                )}
               </td>
               <td className="py-1">
                 <Badge variant={m.confidence === "auto" ? "secondary" : "outline"}>{METHOD_LABEL[m.method]}</Badge>

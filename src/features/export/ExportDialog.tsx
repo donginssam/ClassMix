@@ -13,6 +13,7 @@ import {
 } from "@/components/ui/dialog";
 import { validateForExport, type Issue } from "@/domain/validate";
 import { api, errorMessage, type WorkspaceInfo } from "@/lib/api";
+import { fileNameOf } from "@/lib/path";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/store/workspace";
 import { scrollToStudent, useBoardUi } from "@/features/board/uiStore";
@@ -78,9 +79,11 @@ export function ExportDialog() {
     try {
       const rep = await api.exportXlsx(path);
       toast.success("나이스 업로드용 XLSX를 저장했습니다.", {
-        description: `${rep.path}\n학생 ${rep.rows}명 · 반·번호가 바뀐 학생 ${rep.changedStudents}명${
-          rep.removedRows ? ` · 제외한 행(전입·전출) ${rep.removedRows}개` : ""
-        } · 다시 읽어 확인 완료`,
+        description: [
+          fileNameOf(rep.path),
+          `학생 ${rep.rows}명 · 반·번호가 바뀐 학생 ${rep.changedStudents}명`,
+          "저장한 파일을 다시 읽어 확인했습니다.",
+        ].join("\n"),
         duration: 10000,
       });
       close();

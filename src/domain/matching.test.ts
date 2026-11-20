@@ -11,8 +11,8 @@ const row = (p: Partial<PdfRow>): PdfRow => ({
   birthRaw: "",
   birthDate: null,
   gender: "남",
-  baseScore: 500,
-  status: "regular",
+  scoreRaw: "500.00",
+  baseScore: 50000,
   prevGrade: "1학년",
   prevClass: 1,
   prevNumber: 1,
@@ -57,11 +57,5 @@ describe("matchPdfRows", () => {
     const res = matchPdfRows(rows, students);
     expect(res.matches).toEqual([]);
     expect(res.unmatchedStudents).toEqual([1, 2]);
-  });
-
-  it("skips transfer rows", () => {
-    const res = matchPdfRows([row({ status: "transfer_in" })], [student({})]);
-    expect(res.skippedRows).toEqual([0]);
-    expect(res.matches).toEqual([]);
   });
 });

@@ -1,7 +1,7 @@
 //! 나이스 업로드용 XLSX 내보내기.
 //!
 //! 가져온 원본 XLSX(작업 파일 안 BLOB)를 템플릿으로 열어 `진급반코드`·`진급반번호` 셀 값만 바꾸고,
-//! 가져올 때 건너뛴 행(전입·전출)은 지운다. 행 순서·서식·학번 텍스트 형식·열 너비·시트 이름은 그대로 둔다.
+//! 행 순서·서식·학번 텍스트 형식·열 너비·시트 이름은 그대로 둔다.
 //! 저장한 뒤 같은 파일을 다시 읽어 행 수·학번·반·번호가 맞는지 확인한다(왕복 검증).
 
 use std::collections::{HashMap, HashSet};
@@ -19,7 +19,6 @@ use crate::xlsx_import::{header_columns, parse_roster};
 pub struct ExportReport {
     pub path: String,
     pub rows: usize,
-    pub removed_rows: usize,
     pub changed_students: usize,
 }
 
@@ -147,17 +146,24 @@ pub fn export_xlsx(conn: &Connection, path: &Path) -> AppResult<ExportReport> {
             .set_value_number(s.number as f64);
     }
 
-    // 2) 가져올 때 건너뛴 행(전입·전출 등) 지우기 — 아래에서부터 지워야 위 행 번호가 그대로다.
-    let mut remove: Vec<u32> = (2..=max_row)
+    // 2) 가져올 때 모든 행을 학생으로 저장했으므로, 학생과 이어지지 않은 행이 있으면 원본과 작업 파일이 어긋난 것이다.
+    let stray: Vec<u32> = (2..=max_row)
         .filter(|row| !by_row.contains_key(row))
         .filter(|row| {
             cols.values()
                 .any(|col| !sheet.value((*col, *row)).trim().is_empty())
         })
         .collect();
-    remove.sort_unstable_by(|a, b| b.cmp(a));
-    for row in &remove {
-        sheet.remove_row(*row, 1);
+    if !stray.is_empty() {
+        return Err(AppError::Other(format!(
+            "원본 XLSX의 {}행이 작업 파일의 학생과 이어지지 않습니다.",
+            stray
+                .iter()
+                .take(5)
+                .map(u32::to_string)
+                .collect::<Vec<_>>()
+                .join(", ")
+        )));
     }
 
     // 3) 임시 파일에 쓴 뒤 바꿔치기(쓰다가 실패해도 기존 파일이 깨지지 않게)
@@ -217,7 +223,6 @@ pub fn export_xlsx(conn: &Connection, path: &Path) -> AppResult<ExportReport> {
     Ok(ExportReport {
         path: path.to_string_lossy().to_string(),
         rows: seats.len(),
-        removed_rows: remove.len(),
         changed_students: seats
             .iter()
             .filter(|s| (s.class, s.number) != (s.orig_class, s.orig_number))
@@ -250,15 +255,12 @@ mod tests {
     }
 
     #[test]
-    fn unchanged_export_matches_original_minus_transfers() {
+    fn unchanged_export_matches_original() {
         let (dir, conn) = setup();
         let out = dir.path().join("한글 폴더/업로드.xlsx");
         std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let rep = export_xlsx(&conn, &out).unwrap();
-        assert_eq!(
-            (rep.rows, rep.removed_rows, rep.changed_students),
-            (231, 4, 0)
-        );
+        assert_eq!((rep.rows, rep.changed_students), (240, 0));
         assert!(!temp_path_for(&out).exists());
 
         let orig: Vec<_> = parse_roster(&fixture())
@@ -359,11 +361,26 @@ mod tests {
         let book = umya_spreadsheet::reader::xlsx::read(&out).unwrap();
         let ws = book.sheet(0).unwrap();
         let cols = header_columns(ws).unwrap();
-        let r = (2..=232u32)
+        let r = (2..=ws.highest_column_and_row().1)
             .find(|r| ws.value((cols["학번"], *r)).trim() == no)
             .unwrap();
         let cell = ws.cell((cols["진급반코드"], r)).unwrap();
         assert_eq!(cell.data_type(), "n");
+    }
+
+    /// 원본 XLSX에 학생과 이어지지 않는 행이 있으면(작업 파일이 어긋남) 지우지 않고 멈춘다.
+    #[test]
+    fn refuses_rows_without_student() {
+        let (dir, conn) = setup();
+        conn.execute("DELETE FROM student WHERE row_index = 3", [])
+            .unwrap();
+        let out = dir.path().join("o.xlsx");
+        let err = export_xlsx(&conn, &out).unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("3행이 작업 파일의 학생과 이어지지 않습니다")
+        );
+        assert!(!out.exists());
     }
 
     #[test]

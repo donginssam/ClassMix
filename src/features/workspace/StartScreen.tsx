@@ -39,7 +39,7 @@ export function StartScreen() {
   return (
     <div
       className={cn(
-        "flex min-h-svh items-center justify-center bg-muted/40 p-8 transition-colors",
+        "flex min-h-svh items-center justify-center bg-board p-8 transition-colors",
         hovering && "bg-primary/5",
       )}
     >

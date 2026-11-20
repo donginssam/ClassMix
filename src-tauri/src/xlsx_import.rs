@@ -1,7 +1,8 @@
 //! 나이스 진급반편성 XLSX 가져오기.
 //!
 //! 1. `parse_roster`: 첫 시트를 헤더 이름으로 읽어 행 목록을 만든다(순수 함수).
-//! 2. `plan_import`: 전입·전출 행을 건너뛰고 검증해 저장할 학생·경고를 정한다(순수 함수).
+//! 2. `plan_import`: 행을 검증해 저장할 학생·경고를 정한다(순수 함수).
+//!    현행 나이스 진급반편성 파일에는 전입·전출 행이 없으므로 모든 행이 대상이다.
 //! 3. `apply_import`: 한 트랜잭션으로 DB에 저장한다(원본 BLOB, 학생, 반 상태, 가져온 결번, 동명이인 규칙).
 
 use std::collections::{BTreeMap, HashMap};
@@ -140,15 +141,6 @@ pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
-pub struct SkippedRow {
-    pub row: u32,
-    pub student_no: String,
-    pub name: String,
-    pub reason: String,
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ClassSummary {
     pub class: i64,
     pub count: usize,
@@ -162,7 +154,6 @@ pub struct ImportReport {
     pub file_name: String,
     pub total_rows: usize,
     pub imported: usize,
-    pub skipped: Vec<SkippedRow>,
     pub warnings: Vec<String>,
     pub target_grade: String,
     pub class_count: i64,
@@ -177,14 +168,6 @@ pub struct ImportReport {
 pub struct ImportPlan {
     pub students: Vec<RosterRow>,
     pub report: ImportReport,
-}
-
-fn is_transfer(grade: &str) -> Option<&'static str> {
-    match grade {
-        "전입" => Some("전입"),
-        "전출" => Some("전출"),
-        _ => None,
-    }
 }
 
 fn list_rows(rows: &[&RosterRow]) -> String {
@@ -204,29 +187,7 @@ fn list_rows(rows: &[&RosterRow]) -> String {
 /// 행 목록을 검증해 저장할 학생과 보고서를 만든다.
 pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPlan> {
     let total_rows = rows.len();
-    let mut skipped = Vec::new();
-    let mut students = Vec::new();
-    for r in rows {
-        if let Some(kind) = is_transfer(&r.prev_grade) {
-            skipped.push(SkippedRow {
-                row: r.row_index,
-                student_no: r.student_no.clone(),
-                name: collapse_spaces(&r.name),
-                reason: format!("{kind} 학생(진급 반편성 대상 아님)"),
-            });
-            continue;
-        }
-        if r.prev_class.is_none() || r.prev_number.is_none() {
-            skipped.push(SkippedRow {
-                row: r.row_index,
-                student_no: r.student_no.clone(),
-                name: collapse_spaces(&r.name),
-                reason: "이전반·이전번호가 비어 있음".into(),
-            });
-            continue;
-        }
-        students.push(r);
-    }
+    let students = rows;
 
     if students.is_empty() {
         return Err(AppError::InvalidXlsx("가져올 학생이 없습니다.".into()));
@@ -252,6 +213,17 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
         return Err(AppError::InvalidXlsx(format!(
             "학번 또는 성명이 비어 있습니다: {}",
             list_rows(&no_id)
+        )));
+    }
+    // 오류: 이전학적 누락
+    let no_prev: Vec<&RosterRow> = students
+        .iter()
+        .filter(|r| r.prev_class.is_none() || r.prev_number.is_none())
+        .collect();
+    if !no_prev.is_empty() {
+        return Err(AppError::InvalidXlsx(format!(
+            "이전반·이전번호가 비어 있습니다: {}",
+            list_rows(&no_prev)
         )));
     }
     // 오류: 학번 중복
@@ -386,7 +358,6 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
         file_name: file_name.to_string(),
         total_rows,
         imported: students.len(),
-        skipped,
         warnings,
         target_grade,
         class_count,
@@ -507,38 +478,92 @@ mod tests {
     #[test]
     fn parses_sample() {
         let rows = parse_roster(&fixture()).unwrap();
-        assert_eq!(rows.len(), 235);
+        assert_eq!(rows.len(), 240);
         let first = &rows[0];
-        assert_eq!(first.student_no, "2025000114");
-        assert_eq!(first.name, "갑돌이");
+        assert_eq!(first.student_no, "2026510398");
+        assert_eq!(first.name, "갈매기");
         assert_eq!((first.prev_class, first.prev_number), (Some(1), Some(1)));
-        assert_eq!((first.next_class, first.next_number), (Some(5), Some(1)));
+        assert_eq!((first.next_class, first.next_number), (Some(2), Some(1)));
     }
 
     #[test]
     fn plans_sample_import() {
         let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
         let r = &plan.report;
-        assert_eq!(r.imported, 231);
-        assert_eq!(r.skipped.len(), 4);
+        assert_eq!((r.total_rows, r.imported), (240, 240));
         assert_eq!(r.class_count, 8);
         assert_eq!(r.target_grade, "2학년");
-        // 이전학적 중복 경고 2건(4-6, 6-28)
+        assert!(r.warnings.is_empty(), "{:?}", r.warnings);
+        assert!(r.classes.iter().all(|c| c.count == 30 && c.gaps.is_empty()));
+        // 동명이인 12그룹(각 2명)
+        assert_eq!(r.same_name_groups.len(), 12);
+        assert!(r.same_name_groups.iter().all(|g| g.len() == 2));
+        assert_eq!(r.roman_name_count, 45);
+    }
+
+    /// 샘플에는 없는 경우를 행을 고쳐 확인한다: 나이스 번호 결번, 이전학적 중복, 앞뒤 공백 이름.
+    #[test]
+    fn plans_numbering_gaps_duplicate_prev_seats_and_spaces() {
+        let mut rows = parse_roster(&fixture()).unwrap();
+        // 고구마(진급 8-1), GRACE BRIAR(진급 5-2) 행을 빼서 결번을 만든다.
+        assert_eq!(
+            (rows[1].next_class, rows[1].next_number),
+            (Some(8), Some(1))
+        );
+        assert_eq!(
+            (rows[2].next_class, rows[2].next_number),
+            (Some(5), Some(2))
+        );
+        rows.drain(1..3);
+        // 이전학적 중복
+        rows[2].prev_class = rows[1].prev_class;
+        rows[2].prev_number = rows[1].prev_number;
+        // 앞뒤 공백
+        rows[3].name = format!("{} ", rows[3].name);
+        let norm3 = collapse_spaces(&rows[3].name);
+
+        let plan = plan_import("x.xlsx", rows).unwrap();
+        let r = &plan.report;
+        assert_eq!(r.imported, 238);
         assert_eq!(
             r.warnings.iter().filter(|w| w.starts_with("이전 ")).count(),
-            2
+            1
         );
-        // 동명이인 3그룹(바쿠, 오로라, 토순이)
-        assert_eq!(r.same_name_groups.len(), 3);
-        // 전입·전출 행을 빼서 생긴 결번
         let gaps: Vec<(i64, Vec<i64>)> = r
             .classes
             .iter()
             .filter(|c| !c.gaps.is_empty())
             .map(|c| (c.class, c.gaps.clone()))
             .collect();
-        assert_eq!(gaps, vec![(1, vec![26]), (3, vec![10]), (6, vec![19])]);
-        assert_eq!(r.roman_name_count, 3);
+        assert_eq!(gaps, vec![(5, vec![2]), (8, vec![1])]);
+
+        let dir = tempfile::tempdir().unwrap();
+        let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
+        apply_import(&mut conn, "x.xlsx", b"PK", &plan).unwrap();
+        let gaps: i64 = conn
+            .query_row(
+                "SELECT COUNT(*) FROM number_gap WHERE origin='import'",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(gaps, 2);
+        let norm: String = conn
+            .query_row(
+                "SELECT name_norm FROM student WHERE name LIKE '% '",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap();
+        assert_eq!(norm, norm3);
+    }
+
+    #[test]
+    fn rejects_missing_previous_seat() {
+        let mut rows = parse_roster(&fixture()).unwrap();
+        rows[0].prev_class = None;
+        let err = plan_import("x.xlsx", rows).unwrap_err();
+        assert!(err.to_string().contains("이전반·이전번호가 비어 있습니다"));
     }
 
     #[test]
@@ -559,7 +584,7 @@ mod tests {
         let n: i64 = conn
             .query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(n, 231);
+        assert_eq!(n, 240);
         let rules: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM separation_rule WHERE kind='same_name'",
@@ -567,21 +592,21 @@ mod tests {
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(rules, 3);
+        assert_eq!(rules, 12);
         let gaps: i64 = conn
             .query_row("SELECT COUNT(*) FROM number_gap", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(gaps, 3);
+        assert_eq!(gaps, 0);
         let (no, name, norm): (String, String, String) = conn
             .query_row(
-                "SELECT student_no, name, name_norm FROM student WHERE student_no='2025000083'",
+                "SELECT student_no, name, name_norm FROM student WHERE student_no='2026802400'",
                 [],
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .unwrap();
         assert_eq!(
             (no.as_str(), name.as_str(), norm.as_str()),
-            ("2025000083", "앙꼬 ", "앙꼬")
+            ("2026802400", "GRACE BRIAR", "GRACE BRIAR")
         );
         // 두 번 가져오기 거절
         assert!(apply_import(&mut conn, "sample.xlsx", &bytes, &plan).is_err());

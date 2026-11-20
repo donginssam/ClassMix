@@ -18,7 +18,6 @@ import {
   BarChart3,
   ChevronDown,
   Download,
-  FileText,
   History,
   Redo2,
   Search,
@@ -34,8 +33,6 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
-  DropdownMenuRadioGroup,
-  DropdownMenuRadioItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -52,7 +49,8 @@ import {
   violationsByClass,
   violationsByStudent,
 } from "@/domain/separation";
-import { overallStats } from "@/domain/stats";
+import { overallStats, THRESHOLDS } from "@/domain/stats";
+import { roundDiv } from "@/lib/format";
 import { closeWorkFile, saveWorkFileAsWithDialog, saveWorkFileCopyWithDialog } from "@/lib/fileActions";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/store/workspace";
@@ -61,9 +59,10 @@ import { SeparationDialog } from "@/features/constraints/SeparationDialog";
 import { TwinReviewDialog, useTwinCandidates } from "@/features/constraints/TwinReviewDialog";
 import { twinCandidates } from "@/domain/siblings";
 import { ExportDialog } from "@/features/export/ExportDialog";
+import { BalanceMeters } from "@/features/stats/BalanceMeters";
 import { StatsPanel } from "@/features/stats/StatsPanel";
 import { actions } from "./actions";
-import { ClassCard, type ClassSlot } from "./ClassCard";
+import { ClassColumn, columnMinWidth, NumberAxis, type ClassSlot, type MatrixRow } from "./ClassColumn";
 import { BoardDialogs } from "./dialogs";
 import { HistoryPanel } from "./HistoryPanel";
 import { scrollToStudent, useBoardUi } from "./uiStore";
@@ -140,20 +139,41 @@ export function BoardScreen() {
     [students],
   );
 
-  const classes = useMemo(
-    () =>
-      Array.from({ length: classCount }, (_, i) => {
-        const cls = i + 1;
-        const slots: ClassSlot[] = [
-          ...students
-            .filter((s) => s.curClass === cls)
-            .map((s) => ({ kind: "student" as const, number: s.curNumber, student: s })),
-          ...gaps.filter((g) => g.class === cls).map((g) => ({ kind: "gap" as const, number: g.number, gap: g })),
-        ].sort((a, b) => a.number - b.number || (a.kind === "student" ? -1 : 1));
-        return { cls, slots };
-      }),
-    [students, gaps, classCount],
-  );
+  // 편성표: 반마다 번호 → 칸 목록. 줄 높이는 그 번호에서 칸이 가장 많은 반에 맞춘다.
+  const { classes, rows } = useMemo(() => {
+    const classes = Array.from({ length: classCount }, (_, i) => ({
+      cls: i + 1,
+      slotsByNumber: new Map<number, ClassSlot[]>(),
+    }));
+    const put = (cls: number, slot: ClassSlot) => {
+      const m = classes[cls - 1]?.slotsByNumber;
+      if (!m) return;
+      const list = m.get(slot.number);
+      if (list) list.push(slot);
+      else m.set(slot.number, [slot]);
+    };
+    for (const s of students) put(s.curClass, { kind: "student", number: s.curNumber, student: s });
+    for (const g of gaps) put(g.class, { kind: "gap", number: g.number, gap: g });
+    let max = 0;
+    for (const c of classes)
+      for (const [n, list] of c.slotsByNumber) {
+        max = Math.max(max, n);
+        list.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "student" ? -1 : 1));
+      }
+    const rows: MatrixRow[] = Array.from({ length: max }, (_, i) => ({
+      number: i + 1,
+      units: Math.max(1, ...classes.map((c) => c.slotsByNumber.get(i + 1)?.length ?? 0)),
+    }));
+    return { classes, rows };
+  }, [students, gaps, classCount]);
+  // 편차 막대 끝 = 경고 기준(학년 평균의 n%)과 가장 큰 편차 중 큰 쪽(모두 100배 정수, 막대 길이 계산용)
+  const devScale = useMemo(() => {
+    const om = stats.overallMean;
+    if (om == null) return 1;
+    const devs = stats.classes.flatMap((c) => (c.mean != null ? [Math.abs(c.mean - om)] : []));
+    return Math.max(roundDiv(om * THRESHOLDS.meanDiffPercent, 100), ...devs, 1);
+  }, [stats]);
+  const colMinWidth = columnMinWidth(prefs, hasPdf);
 
   // XLSX를 막 가져왔으면 로마자 이름 한글 발음 입력 단계를 띄운다(대상이 있을 때만).
   useEffect(() => {
@@ -172,10 +192,7 @@ export function BoardScreen() {
     const k = nameKey(query);
     if (!k) return [];
     return students
-      .filter(
-        (s) =>
-          nameKey(s.name).includes(k) || (s.sortName && nameKey(s.sortName).includes(k)) || s.studentNo.includes(k),
-      )
+      .filter((s) => nameKey(s.name).includes(k) || (s.sortName && nameKey(s.sortName).includes(k)))
       .sort((a, b) => a.curClass - b.curClass || a.curNumber - b.curNumber);
   }, [query, students]);
   // 검색어가 바뀌면 커서는 첫 결과로 돌아간다.
@@ -291,15 +308,9 @@ export function BoardScreen() {
   };
   const dragStudent = dragId != null ? byId.get(dragId) : null;
 
-  const gridCols = {
-    2: "lg:grid-cols-2",
-    3: "lg:grid-cols-2 xl:grid-cols-3",
-    4: "lg:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4",
-  }[prefs.columns];
-
   return (
-    <div className="flex min-h-svh flex-col bg-muted/40">
-      <header className="sticky top-0 z-20 flex h-[57px] items-center gap-2 border-b bg-background/95 px-4 backdrop-blur">
+    <div className="flex h-svh flex-col bg-board">
+      <header className="z-20 flex h-14 shrink-0 items-center gap-1.5 border-b border-line-strong bg-background px-4">
         <div className="mr-2 min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <h1 className="truncate text-base font-semibold">{workspace.fileName}</h1>
@@ -336,7 +347,7 @@ export function BoardScreen() {
               if (e.key === "Enter" && !e.nativeEvent.isComposing) nextMatch();
               if (e.key === "Escape") setQuery("");
             }}
-            placeholder={`이름·발음·학번 (${IS_MAC ? "⌘F" : "Ctrl+F"})`}
+            placeholder={`이름 (${IS_MAC ? "⌘F" : "Ctrl+F"})`}
             className="h-8 pr-12 pl-8"
           />
           {query && (
@@ -393,19 +404,9 @@ export function BoardScreen() {
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="min-w-48">
-            <DropdownMenuLabel>열 수</DropdownMenuLabel>
-            <DropdownMenuRadioGroup
-              value={String(prefs.columns)}
-              onValueChange={(v) => setPrefs({ columns: Number(v) as 2 | 3 | 4 })}
-            >
-              <DropdownMenuRadioItem value="2">2열</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="3">3열</DropdownMenuRadioItem>
-              <DropdownMenuRadioItem value="4">4열</DropdownMenuRadioItem>
-            </DropdownMenuRadioGroup>
-            <DropdownMenuSeparator />
             <DropdownMenuLabel>표시</DropdownMenuLabel>
             <DropdownMenuCheckboxItem checked={prefs.showPrev} onCheckedChange={(v) => setPrefs({ showPrev: !!v })}>
-              이전 반·번호
+              이전 반
             </DropdownMenuCheckboxItem>
             <DropdownMenuCheckboxItem checked={prefs.showMemo} onCheckedChange={(v) => setPrefs({ showMemo: !!v })}>
               메모
@@ -453,10 +454,9 @@ export function BoardScreen() {
               <ChevronDown data-icon="inline-end" />
             </Button>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="min-w-48">
+          <DropdownMenuContent align="end" className="w-max min-w-48 whitespace-nowrap">
             <DropdownMenuItem disabled={readOnly} onSelect={() => openDialog({ kind: "pdf" })}>
-              <FileText />
-              {workspace.pdfFileName ? "PDF 다시 가져오기(교체)…" : "PDF 가져오기(기준성적)…"}
+              {workspace.pdfFileName ? "PDF 다시 가져오기…" : "기준성적 PDF 가져오기…"}
             </DropdownMenuItem>
             {hasPdf && (
               <DropdownMenuItem disabled={readOnly} onSelect={() => openDialog({ kind: "twins" })}>
@@ -482,8 +482,9 @@ export function BoardScreen() {
         </Button>
       </header>
 
-      <div className="flex flex-1">
+      <div className="flex min-h-0 flex-1">
         <div className="flex min-w-0 flex-1 flex-col">
+          <BalanceMeters stats={stats} showPdf={hasPdf} />
           {prefs.statsOpen && <StatsPanel stats={stats} showPdf={hasPdf} />}
 
           {(selStudents.length > 0 || highlight.size > 0) && (
@@ -564,24 +565,40 @@ export function BoardScreen() {
               setPreviewViolation(new Set());
             }}
           >
-            <main className={cn("grid flex-1 grid-cols-1 content-start gap-4 p-5 select-none", gridCols)}>
-              {classes.map((c) => (
-                <ClassCard
-                  key={c.cls}
-                  cls={c.cls}
-                  classCount={classCount}
-                  slots={c.slots}
-                  stats={stats.classes[c.cls - 1]}
-                  numbering={numberingOf({ students, gaps, classStates, classCount }, c.cls)}
-                  violations={vByClass.get(c.cls) ?? []}
-                  studentIssues={studentIssues}
-                  ruleKinds={ruleKinds}
-                  showPdf={hasPdf}
-                  readOnly={readOnly}
-                  nameOf={nameOf}
-                />
-              ))}
-            </main>
+            {/* 테두리는 스크롤 영역 자체에 둔다. 여백은 바깥 div가 맡아서, 스크롤된 칸이 테두리 밖으로 비치지 않는다. */}
+            <div
+              className={cn(
+                "flex min-h-0 flex-1 flex-col px-4 pb-4",
+                // 아래쪽 선택 막대가 마지막 줄을 가리지 않게
+                (selStudents.length > 0 || highlight.size > 0) && "pb-20",
+              )}
+            >
+              <main className="min-h-0 flex-1 overflow-auto rounded-md border border-line-strong bg-background select-none">
+                <div className="flex w-max min-w-full">
+                  <NumberAxis rows={rows} pdf={hasPdf} />
+                  {classes.map((c) => (
+                    <ClassColumn
+                      key={c.cls}
+                      cls={c.cls}
+                      classCount={classCount}
+                      rows={rows}
+                      slotsByNumber={c.slotsByNumber}
+                      stats={stats.classes[c.cls - 1]}
+                      overallMean={stats.overallMean}
+                      devScale={devScale}
+                      minWidth={colMinWidth}
+                      numbering={numberingOf({ students, gaps, classStates, classCount }, c.cls)}
+                      violations={vByClass.get(c.cls) ?? []}
+                      studentIssues={studentIssues}
+                      ruleKinds={ruleKinds}
+                      showPdf={hasPdf}
+                      readOnly={readOnly}
+                      nameOf={nameOf}
+                    />
+                  ))}
+                </div>
+              </main>
+            </div>
             <DragOverlay dropAnimation={null}>
               {dragStudent && (
                 <div className="rounded-md border bg-background px-3 py-1.5 text-sm font-medium shadow-lg">
@@ -592,7 +609,7 @@ export function BoardScreen() {
             </DragOverlay>
           </DndContext>
 
-          <footer className="border-t bg-background px-5 py-1.5 text-xs text-muted-foreground">
+          <footer className="shrink-0 border-t bg-background px-4 py-1.5 text-xs text-muted-foreground">
             모든 변경은 파일에 바로 저장됩니다. 학생을 끌어 다른 반 위에 놓으면 이동, 다른 반 학생 위에 놓으면 바꾸기.
             이동·바꾸기한 반은 가나다순으로 번호를 다시 매깁니다.
           </footer>
@@ -634,9 +651,9 @@ function ToolButton({
     <Tooltip>
       <TooltipTrigger asChild>
         <Button
-          variant={active ? "secondary" : "ghost"}
+          variant={active ? "outline" : "ghost"}
           size="icon"
-          className="size-8"
+          className={cn("size-8", active && "border-primary bg-accent text-accent-foreground hover:bg-accent")}
           disabled={disabled}
           onClick={onClick}
           aria-label={label}
