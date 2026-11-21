@@ -21,5 +21,9 @@ export function TitleBar({ children, className }: { children?: ReactNode; classN
   );
 }
 
-/** 이 속성이 붙은 요소를 끌면 창이 움직인다(자식 요소에는 따로 붙여야 한다). */
-export const dragRegion = { "data-tauri-drag-region": true } as const;
+/**
+ * 이 속성이 붙은 요소를 끌면 창이 움직인다(자식 요소에는 따로 붙여야 한다).
+ * 맥 앱 창에서만 붙인다. 다른 OS는 자체 제목 표시줄로 창을 움직일 수 있고, 창 드래그 권한도
+ * 맥에만 주므로(capabilities/macos-titlebar.json) 붙이면 "start_dragging not allowed by ACL" 오류가 난다.
+ */
+export const dragRegion: { "data-tauri-drag-region"?: true } = HAS_MAC_CHROME ? { "data-tauri-drag-region": true } : {};

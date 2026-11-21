@@ -109,7 +109,9 @@ ClassMix/
 ├─ scripts/generate-icons.mjs        # pnpm icons
 ├─ scripts/generate-third-party-licenses.mjs  # pnpm licenses:generate → THIRD_PARTY_LICENSES.txt
 ├─ tests/fixtures/                   # 더미 sample.xlsx / sample.pdf / 기대 결과 JSON
-└─ .github/workflows/build.yml       # CI
+└─ .github/workflows/
+   ├─ CI.yml                         # main 푸시·PR 테스트
+   └─ build.yml                      # 새 v* 태그의 배포물 및 Release 초안
 ```
 
 > 계획 단계에서는 Rust를 `db/`, `commands/` 하위 모듈로 나눌 예정이었으나, 모듈이 작아 기능별 평평한 파일로 두었다.
@@ -216,9 +218,10 @@ ClassMix/
 
 ## 6. 빌드와 CI
 
-`.github/workflows/build.yml`
+`.github/workflows/CI.yml`은 `main` 푸시와 PR에서 Vitest, Clippy, `cargo test`를 Windows·macOS에서 실행한다. 실제로 테스트하는 커밋 SHA(푸시의 커밋 또는 PR의 병합 커밋)에 대해 두 환경이 모두 통과한 기록을 찾으면 테스트를 생략한다.
 
-- **test**: Windows·macOS에서 Vitest + `cargo test`
+`.github/workflows/build.yml`은 새 `v*` 태그에서 CI를 호출한다. 테스트 기록이 없으면 태그의 커밋을 테스트한 뒤 배포물을 빌드한다.
+
 - **windows portable exe**: 아이콘 생성(`pnpm icons`) → `pnpm build:win` → `dumpbin /dependents`로 VCRUNTIME 의존 여부 검사 → `ClassMix-windows-x64` 아티팩트
 - **macos universal dmg**: `ClassMix-macos-universal` 아티팩트
 - **github release (draft)**: `v*` 태그에서 Release 초안에 배포물 첨부

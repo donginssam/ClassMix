@@ -9,7 +9,8 @@ import { useWorkspace } from "@/store/workspace";
 const MIX_FILTER = [{ name: "ClassMix 작업 파일", extensions: ["mix"] }];
 
 function defaultFileName() {
-  const year = new Date().getFullYear();
+  const now = new Date();
+  const year = now.getFullYear() + (now.getMonth() >= 2 ? 1 : 0);
   return `${year}_반편성.mix`;
 }
 

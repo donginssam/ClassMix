@@ -80,7 +80,7 @@ pnpm tauri dev
 | `pnpm build:win`                    | Windows 포터블 exe 빌드(`tauri build --no-bundle`)                                                                                                                                            |
 | `pnpm tauri build`                  | 플랫폼별 배포물 빌드(macOS `.dmg` 등)                                                                                                                                                         |
 
-GitHub Actions(`.github/workflows/build.yml`)를 통해 Windows·macOS에서 테스트하고 포터블 exe와 유니버설 dmg를 만듭니다. `v*` 태그를 올리면 Release 초안이 생성됩니다.
+`main`에 푸시하거나 PR을 열고 업데이트하면 `.github/workflows/CI.yml`에서 Windows·macOS 테스트를 실행합니다. 같은 SHA의 두 테스트가 이미 통과했다면 기존 결과를 사용합니다. 새 `v*` 태그를 푸시하면 `.github/workflows/build.yml`에서 CI를 확인한 뒤 포터블 exe와 유니버설 dmg를 생성해 Release 초안에 첨부합니다.
 
 ### 구조
 
