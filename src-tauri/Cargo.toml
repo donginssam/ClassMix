@@ -29,6 +29,7 @@ thiserror = "2"
 sha2 = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 gethostname = "1"
+same-file = "1.0.6"
 tauri-plugin-single-instance = "2"
 pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
 aes-gcm = { version = "0.11", features = ["zeroize"] }

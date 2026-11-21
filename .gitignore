@@ -9,10 +9,12 @@ lerna-debug.log*
 
 node_modules
 dist
+dist-release
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .DS_Store
 
 # 학생 개인정보가 들어가는 파일은 커밋하지 않는다

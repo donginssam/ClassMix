@@ -2,8 +2,10 @@
 
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, OpenFlags, params};
+use rusqlite::{Connection, OpenFlags, Transaction, params};
+use sha2::{Digest, Sha256};
 
+use crate::crypto::Codec;
 use crate::error::{AppError, AppResult};
 
 /// `PRAGMA application_id` 값. ASCII 'CMIX'.
@@ -193,6 +195,27 @@ pub fn next_id(conn: &Connection, table: &str) -> AppResult<i64> {
         [],
         |r| r.get(0),
     )?)
+}
+
+/// 가져온 파일의 원본과 해시를 같은 트랜잭션에서 저장한다.
+pub fn insert_source_file(
+    tx: &Transaction<'_>,
+    codec: Codec,
+    kind: &str,
+    file_name: &str,
+    bytes: &[u8],
+    imported_at: &str,
+) -> AppResult<()> {
+    let id = next_id(tx, "source_file")?;
+    let sha256: String = Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    tx.execute(
+        "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![id, kind, file_name, sha256, codec.blob("source_file.content", id, bytes)?, imported_at],
+    )?;
+    Ok(())
 }
 
 /// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 사본에는 열림 표시를 남기지 않는다.

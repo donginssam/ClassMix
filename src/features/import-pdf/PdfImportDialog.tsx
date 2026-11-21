@@ -60,18 +60,7 @@ export function PdfImportDialog({
         setStage({ kind: "pick", error: parsed.problems.join(" ") || "PDF에서 학생 행을 찾지 못했습니다." });
         return;
       }
-      const match = matchPdfRows(
-        parsed.rows,
-        students.map((s) => ({
-          id: s.id,
-          studentNo: s.studentNo,
-          name: s.name,
-          prevClass: s.prevClass,
-          prevNumber: s.prevNumber,
-          origClass: s.origClass,
-          origNumber: s.origNumber,
-        })),
-      );
+      const match = matchPdfRows(parsed.rows, students);
       setStage({ kind: "review", path, parsed, match });
     } catch (e) {
       setStage({ kind: "pick", error: `PDF를 읽지 못했습니다. ${errorMessage(e)}` });
@@ -87,7 +76,7 @@ export function PdfImportDialog({
     if (path) await load(path);
   };
 
-  const hovering = useFileDrop(["pdf"], load, open && stage.kind === "pick");
+  const hovering = useFileDrop("pdf", load, open && stage.kind === "pick");
   const samples = useDevSamples();
 
   const close = (o: boolean) => {
@@ -222,7 +211,7 @@ function Review({
   onCancel: () => void;
   onApply: (links: LinkMap) => void;
 }) {
-  const byId = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const byId = useWorkspace((s) => s.studentsById);
   const auto = match.matches.filter((m) => m.confidence === "auto");
   const review = match.matches.filter((m) => m.confidence === "review");
   const [rejected, setRejected] = useState<Set<number>>(new Set());

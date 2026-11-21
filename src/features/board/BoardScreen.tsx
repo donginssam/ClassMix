@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   DndContext,
   DragOverlay,
@@ -59,6 +61,7 @@ import {
   saveWorkFileCopyWithDialog,
 } from "@/lib/fileActions";
 import { IS_MAC, isHelpKey, isTypingTarget, shortcut } from "@/lib/platform";
+import { subscribeToTauri } from "@/lib/tauriListener";
 import { cn } from "@/lib/utils";
 import { dragRegion, TitleBar } from "@/app/TitleBar";
 import { useWorkspace } from "@/store/workspace";
@@ -121,7 +124,7 @@ export function BoardScreen() {
   const hasPdf = workspace.pdfLinkedCount > 0;
   const twinCount = useTwinCandidates().length;
 
-  const byId = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const byId = useWorkspace((s) => s.studentsById);
   const nameOf = useCallback((id: number) => byId.get(id)?.nameNorm ?? `#${id}`, [byId]);
   const classOf = useCallback((id: number) => byId.get(id)?.curClass, [byId]);
 
@@ -216,8 +219,7 @@ export function BoardScreen() {
   // ───────── 단축키 ─────────
   // macOS: 메뉴의 [실행 취소/복귀](Cmd+Z, Cmd+Shift+Z)가 이벤트로 온다. 입력칸에서는 글자 되돌리기로 쓴다.
   useEffect(() => {
-    let disposed = false;
-    const unlisten: (() => void)[] = [];
+    if (!IS_MAC || !isTauri()) return;
     const handle = (kind: "undo" | "redo") => {
       if (isTypingTarget(document.activeElement)) {
         document.execCommand(kind);
@@ -226,19 +228,17 @@ export function BoardScreen() {
       if (useBoardUi.getState().dialog || readOnly) return;
       void (kind === "undo" ? undo() : redo());
     };
-    import("@tauri-apps/api/event")
-      .then(async ({ listen }) => {
-        const a = await listen("menu-undo", () => handle("undo"));
-        const b = await listen("menu-redo", () => handle("redo"));
-        if (disposed) {
-          a();
-          b();
-        } else unlisten.push(a, b);
-      })
-      .catch(() => undefined);
+    const stopUndo = subscribeToTauri(
+      (listener) => listen("menu-undo", listener),
+      () => handle("undo"),
+    );
+    const stopRedo = subscribeToTauri(
+      (listener) => listen("menu-redo", listener),
+      () => handle("redo"),
+    );
     return () => {
-      disposed = true;
-      unlisten.forEach((f) => f());
+      stopUndo();
+      stopRedo();
     };
   }, [readOnly, undo, redo]);
 

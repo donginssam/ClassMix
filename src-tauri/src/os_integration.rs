@@ -71,13 +71,16 @@ pub fn same_path(a: &str, b: &str) -> bool {
 #[serde(rename_all = "snake_case")]
 pub enum AssociationState {
     /// 이 운영체제에서는 앱 안에서 등록하지 않는다(macOS: 번들이 자동 등록).
-    #[cfg_attr(windows, allow(dead_code))]
+    #[cfg(not(windows))]
     Unsupported,
     /// 등록되어 있지 않다.
+    #[cfg(windows)]
     None,
     /// 지금 실행 중인 exe로 등록되어 있다.
+    #[cfg(windows)]
     Current,
     /// 다른 위치의 exe로 등록되어 있다(exe를 옮겼거나 다른 사본).
+    #[cfg(windows)]
     Moved,
 }
 

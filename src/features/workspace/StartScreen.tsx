@@ -51,7 +51,7 @@ export function StartScreen() {
     [loadRecent],
   );
 
-  const hovering = useFileDrop(["mix"], (path) => run(() => openWorkFilePath(path)));
+  const hovering = useFileDrop("mix", (path) => run(() => openWorkFilePath(path)));
 
   // 단축키: Ctrl+N 새로 만들기, Ctrl+O 열기, F1/? 단축키 목록
   const dialogOpen = settingsOpen || helpOpen;

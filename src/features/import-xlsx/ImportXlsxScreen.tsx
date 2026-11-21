@@ -45,7 +45,7 @@ export function ImportXlsxScreen() {
     if (path) await importPath(path);
   };
 
-  const hovering = useFileDrop(["xlsx"], importPath, !busy && !report && !workspace.readOnly);
+  const hovering = useFileDrop("xlsx", importPath, !busy && !report && !workspace.readOnly);
 
   return (
     <div className="flex min-h-full flex-col bg-board">

@@ -9,6 +9,7 @@ import type { ChangeAction, ChangeSet, ClassState, Gap, GapRow, Numbering, Stude
 import {
   cleanReading,
   currentSlots,
+  isHangulOnly,
   numberSlots,
   setStudentNumber,
   sortKeyOf,
@@ -96,9 +97,7 @@ export function isEmptyChange(cs: ChangeSet): boolean {
  * @param members 재정렬 후 이 반에 들어갈 학생(한글 표기 변경 반영된 값)
  */
 function resortInto(next: Next, cls: number, members: Student[], gaps: GapLike[]) {
-  const { seats, gaps: numbered } = numberSlots(sortedSlots(members, gaps));
-  for (const [id, n] of seats) next.seats.set(id, { c: cls, n });
-  next.gaps.set(cls, numbered.map(toRow));
+  keepOrderInto(next, cls, sortedSlots(members, gaps));
   next.numbering.set(cls, "sorted");
 }
 
@@ -266,7 +265,7 @@ export function setReadings(
     const s = byId.get(id);
     if (!s) return { ok: false, error: "학생을 찾을 수 없습니다." };
     const to = cleanReading(raw);
-    if (to && !/^[가-힣]+$/.test(to)) return { ok: false, error: `${name(s)}: 한글만 입력할 수 있습니다.` };
+    if (to && !isHangulOnly(to)) return { ok: false, error: `${name(s)}: 한글만 입력할 수 있습니다.` };
     if (to === cleanReading(s.sortName)) continue;
     next.readings.set(id, to);
     updated.set(id, { ...s, sortName: to });
@@ -310,19 +309,15 @@ export function resetToOriginal(board: BoardState): Result {
   for (let cls = 1; cls <= board.classCount; cls++) {
     next.numbering.set(cls, "original");
     const members = board.students.filter((s) => s.origClass === cls).sort((a, b) => a.origNumber - b.origNumber);
-    const used = new Set(members.map((s) => s.origNumber));
-    const last = members.length ? members[members.length - 1].origNumber : 0;
     const gaps: GapLike[] = [];
-    for (let n = 1; n < last; n++) {
-      if (used.has(n)) continue;
-      const prev = [...members].reverse().find((s) => s.origNumber < n);
-      gaps.push({
-        number: n,
-        anchorKey: prev ? sortKeyOf(prev) : "",
-        plannedName: null,
-        origin: "import",
-        createdAt: null,
-      });
+    let nextNumber = 1;
+    let anchorKey = "";
+    for (const student of members) {
+      for (; nextNumber < student.origNumber; nextNumber++) {
+        gaps.push({ number: nextNumber, anchorKey, plannedName: null, origin: "import", createdAt: null });
+      }
+      nextNumber = Math.max(nextNumber, student.origNumber + 1);
+      anchorKey = sortKeyOf(student);
     }
     next.gaps.set(cls, gaps);
   }

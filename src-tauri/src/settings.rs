@@ -9,6 +9,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::error::AppResult;
+use crate::paths::file_name;
 
 const MAX_RECENT: usize = 10;
 
@@ -110,10 +111,7 @@ pub fn recent_files(settings: &Settings) -> Vec<RecentFile> {
             let p = Path::new(&e.path);
             RecentFile {
                 path: e.path.clone(),
-                name: p
-                    .file_name()
-                    .map(|s| s.to_string_lossy().to_string())
-                    .unwrap_or_default(),
+                name: file_name(p),
                 opened_at: e.opened_at.clone(),
                 exists: p.is_file(),
             }

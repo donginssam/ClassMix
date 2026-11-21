@@ -1,47 +1,34 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useEffectEvent, useState } from "react";
 import { isTauri } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { getCurrentWebview, type DragDropEvent } from "@tauri-apps/api/webview";
+import { subscribeToTauri } from "./tauriListener";
 
 /**
  * 창에 파일을 끌어다 놓을 때 경로를 받는다(Tauri 드래그 앤 드롭 이벤트).
- * `extensions`에 맞는 첫 파일만 넘긴다.
+ * 지정한 확장자와 일치하는 첫 파일만 넘긴다.
  */
-export function useFileDrop(extensions: string[], onDrop: (path: string) => void, enabled = true) {
+export function useFileDrop(extension: string, onDrop: (path: string) => void, enabled = true) {
   const [hovering, setHovering] = useState(false);
-  const handler = useRef(onDrop);
-  useEffect(() => {
-    handler.current = onDrop;
-  }, [onDrop]);
-  const exts = extensions.map((e) => e.toLowerCase()).join(",");
+  const handleDrop = useEffectEvent((path: string) => onDrop(path));
 
   useEffect(() => {
     if (!enabled || !isTauri()) return;
-    let unlisten: (() => void) | undefined;
-    let cancelled = false;
-    const allowed = exts.split(",");
-    getCurrentWebview()
-      .onDragDropEvent((event) => {
-        const p = event.payload;
-        if (p.type === "enter" || p.type === "over") setHovering(true);
-        else if (p.type === "leave") setHovering(false);
-        else if (p.type === "drop") {
-          setHovering(false);
-          const path = p.paths.find((x) => allowed.some((e) => x.toLowerCase().endsWith(`.${e}`)));
-          if (path) handler.current(path);
+    const suffix = `.${extension.toLowerCase()}`;
+    const stop = subscribeToTauri<DragDropEvent>(
+      (listener) => getCurrentWebview().onDragDropEvent(listener),
+      ({ payload }) => {
+        setHovering(payload.type === "enter" || payload.type === "over");
+        if (payload.type === "drop") {
+          const path = payload.paths.find((p) => p.toLowerCase().endsWith(suffix));
+          if (path) handleDrop(path);
         }
-      })
-      .then((fn) => {
-        if (cancelled) fn();
-        else unlisten = fn;
-      })
-      .catch(() => {
-        // Tauri 밖(브라우저)에서는 무시
-      });
+      },
+    );
     return () => {
-      cancelled = true;
-      unlisten?.();
+      stop();
+      setHovering(false);
     };
-  }, [exts, enabled]);
+  }, [extension, enabled]);
 
-  return hovering;
+  return enabled && hovering;
 }

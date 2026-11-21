@@ -1,11 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "shadcn/tailwind.css";
 @import "@fontsource/ibm-plex-sans-kr/400.css";
 @import "@fontsource/ibm-plex-sans-kr/500.css";
 @import "@fontsource/ibm-plex-sans-kr/600.css";
 @import "@fontsource/ibm-plex-sans-kr/700.css";
 
+/* Radix 컴포넌트의 상태와 방향을 나타내는 변형 */
+@custom-variant data-open (&:where([data-state="open"], [data-open]:not([data-open="false"])));
+@custom-variant data-closed (&:where([data-state="closed"], [data-closed]:not([data-closed="false"])));
+@custom-variant data-disabled (&:where([data-disabled]:not([data-disabled="false"])));
+@custom-variant data-active (&:where([data-state="active"], [data-active]:not([data-active="false"])));
+@custom-variant data-horizontal (&:where([data-orientation="horizontal"]));
+@custom-variant data-vertical (&:where([data-orientation="vertical"]));
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {

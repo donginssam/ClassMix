@@ -1,7 +1,7 @@
 //! 프런트엔드에서 호출하는 Tauri 커맨드.
 
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::{Connection, params};
 use serde::Serialize;
@@ -14,7 +14,8 @@ use crate::db::{self, FILE_EXTENSION};
 use crate::error::{AppError, AppResult};
 use crate::export::{self, ExportReport};
 use crate::os_integration::{self, AssociationStatus};
-use crate::roster::{self, GapDto, PdfApplyReport, PdfLink, PdfRowInput, StudentDto};
+use crate::paths::{ensure_extension, file_name, has_extension, is_same_file};
+use crate::roster::{self, PdfApplyReport, PdfLink, PdfRowInput};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
 
@@ -43,6 +44,48 @@ impl WorkFile {
     fn locked(&self) -> bool {
         self.encrypted && self.cipher.is_none()
     }
+
+    /// 지금 열린 파일 자리에 덮어쓰지 않도록 막는다.
+    fn ensure_not_current(&self, target: &Path, message: &str) -> AppResult<()> {
+        if is_same_file(&self.path, target)? {
+            return Err(AppError::InvalidInput(message.into()));
+        }
+        Ok(())
+    }
+
+    fn copy_to(&self, target: &Path) -> AppResult<()> {
+        self.ensure_not_current(
+            target,
+            "지금 열려 있는 작업 파일에는 사본을 저장할 수 없습니다.",
+        )?;
+        db::vacuum_into(&self.conn, target)
+    }
+
+    fn save_as(&mut self, target: &Path) -> AppResult<WorkspaceInfo> {
+        self.copy_to(target)?;
+        let (conn, outcome) = db::open_existing(target)?;
+        conn.execute(
+            "UPDATE meta SET opened_by = ?1, opened_at = ?2, updated_at = ?2 WHERE id = 1",
+            params![host_name(), db::now()],
+        )?;
+        let mut next = Self::new(target.to_path_buf(), conn, outcome.read_only)?;
+        let mut info = workspace_info(&next)?;
+        // 사본을 열 준비가 끝나면 같은 키를 넘겨 비밀번호를 다시 묻지 않는다.
+        next.cipher = self.cipher.take();
+        info.locked = next.locked();
+        self.clear_open_marker();
+        *self = next;
+        Ok(info)
+    }
+
+    fn clear_open_marker(&self) {
+        if !self.read_only {
+            let _ = self.conn.execute(
+                "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
+                [],
+            );
+        }
+    }
 }
 
 /// 열린 파일의 부호기. `wf.conn`을 따로 빌릴 수 있도록 필드만 빌린다.
@@ -68,15 +111,12 @@ impl AppState {
     }
 
     fn with_file<T>(&self, f: impl FnOnce(&mut WorkFile) -> AppResult<T>) -> AppResult<T> {
-        let mut guard = self
-            .file
-            .lock()
-            .map_err(|_| AppError::Other("내부 잠금 오류".into()))?;
-        let wf = guard.as_mut().ok_or(AppError::NoOpenFile)?;
-        if wf.locked() {
-            return Err(AppError::Locked);
-        }
-        f(wf)
+        self.with_file_even_locked(|wf| {
+            if wf.locked() {
+                return Err(AppError::Locked);
+            }
+            f(wf)
+        })
     }
 
     /// 잠긴 파일이어도 부르는 동작(비밀번호 입력 등)
@@ -84,10 +124,7 @@ impl AppState {
         &self,
         f: impl FnOnce(&mut WorkFile) -> AppResult<T>,
     ) -> AppResult<T> {
-        let mut guard = self
-            .file
-            .lock()
-            .map_err(|_| AppError::Other("내부 잠금 오류".into()))?;
+        let mut guard = self.lock_file()?;
         let wf = guard.as_mut().ok_or(AppError::NoOpenFile)?;
         f(wf)
     }
@@ -101,16 +138,18 @@ impl AppState {
         })
     }
 
+    fn lock_file(&self) -> AppResult<MutexGuard<'_, Option<WorkFile>>> {
+        self.file
+            .lock()
+            .map_err(|_| AppError::Other("내부 잠금 오류".into()))
+    }
+
     /// 열린 파일을 닫는다(열림 표시를 지움).
     pub fn close(&self) {
-        if let Ok(mut guard) = self.file.lock()
+        if let Ok(mut guard) = self.lock_file()
             && let Some(wf) = guard.take()
-            && !wf.read_only
         {
-            let _ = wf.conn.execute(
-                "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
-                [],
-            );
+            wf.clear_open_marker();
         }
     }
 }
@@ -165,11 +204,7 @@ fn workspace_info(wf: &WorkFile) -> AppResult<WorkspaceInfo> {
     )?;
     Ok(WorkspaceInfo {
         path: wf.path.to_string_lossy().to_string(),
-        file_name: wf
-            .path
-            .file_name()
-            .map(|s| s.to_string_lossy().to_string())
-            .unwrap_or_default(),
+        file_name: file_name(&wf.path),
         title,
         read_only: wf.read_only,
         target_grade,
@@ -192,20 +227,6 @@ fn remember(app: &AppHandle, path: &Path) {
     let _ = settings::save_to(&sp, &s);
 }
 
-fn with_extension(path: &str) -> PathBuf {
-    let mut p = PathBuf::from(path);
-    if p.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case(FILE_EXTENSION))
-        != Some(true)
-    {
-        let mut name = p.file_name().map(|s| s.to_os_string()).unwrap_or_default();
-        name.push(format!(".{FILE_EXTENSION}"));
-        p.set_file_name(name);
-    }
-    p
-}
-
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct OpenResult {
@@ -219,7 +240,7 @@ pub async fn create_work_file(
     state: State<'_, AppState>,
     path: String,
 ) -> AppResult<WorkspaceInfo> {
-    let path = with_extension(&path);
+    let path = ensure_extension(&path, FILE_EXTENSION);
     let title = path
         .file_stem()
         .map(|s| s.to_string_lossy().to_string())
@@ -232,10 +253,7 @@ pub async fn create_work_file(
     )?;
     let wf = WorkFile::new(path.clone(), conn, false)?;
     let info = workspace_info(&wf)?;
-    *state
-        .file
-        .lock()
-        .map_err(|_| AppError::Other("내부 잠금 오류".into()))? = Some(wf);
+    *state.lock_file()? = Some(wf);
     remember(&app, &path);
     Ok(info)
 }
@@ -276,10 +294,7 @@ pub async fn open_work_file(
     }
     let wf = WorkFile::new(path.clone(), conn, outcome.read_only)?;
     let workspace = workspace_info(&wf)?;
-    *state
-        .file
-        .lock()
-        .map_err(|_| AppError::Other("내부 잠금 오류".into()))? = Some(wf);
+    *state.lock_file()? = Some(wf);
     remember(&app, &path);
     Ok(OpenResult {
         workspace,
@@ -293,13 +308,30 @@ pub async fn close_work_file(state: State<'_, AppState>) -> AppResult<()> {
     Ok(())
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct WorkspaceSnapshot {
+    workspace: WorkspaceInfo,
+    board: Option<BoardData>,
+}
+
+fn workspace_snapshot(state: &AppState) -> AppResult<Option<WorkspaceSnapshot>> {
+    let guard = state.lock_file()?;
+    let Some(wf) = guard.as_ref() else {
+        return Ok(None);
+    };
+    let workspace = workspace_info(wf)?;
+    let board = (!workspace.locked)
+        .then(|| board::board_data(&wf.conn, codec!(wf)))
+        .transpose()?;
+    Ok(Some(WorkspaceSnapshot { workspace, board }))
+}
+
 #[tauri::command]
-pub async fn get_workspace(state: State<'_, AppState>) -> AppResult<Option<WorkspaceInfo>> {
-    let guard = state
-        .file
-        .lock()
-        .map_err(|_| AppError::Other("내부 잠금 오류".into()))?;
-    guard.as_ref().map(workspace_info).transpose()
+pub async fn get_workspace_snapshot(
+    state: State<'_, AppState>,
+) -> AppResult<Option<WorkspaceSnapshot>> {
+    workspace_snapshot(&state)
 }
 
 /// 다른 이름으로 저장: 사본을 만들고 그 파일로 전환한다.
@@ -309,30 +341,8 @@ pub async fn save_work_file_as(
     state: State<'_, AppState>,
     path: String,
 ) -> AppResult<WorkspaceInfo> {
-    let target = with_extension(&path);
-    // 사본은 같은 키로 암호화되어 있으므로, 지금 파일의 키를 넘겨받아 다시 묻지 않는다.
-    let cipher = state.with_file(|wf| {
-        if target == wf.path {
-            return Err(AppError::InvalidInput(
-                "지금 열려 있는 파일과 같은 경로입니다.".into(),
-            ));
-        }
-        db::vacuum_into(&wf.conn, &target)?;
-        Ok(wf.cipher.take())
-    })?;
-    state.close();
-    let (conn, outcome) = db::open_existing(&target)?;
-    conn.execute(
-        "UPDATE meta SET opened_by = ?1, opened_at = ?2, updated_at = ?2 WHERE id = 1",
-        params![host_name(), db::now()],
-    )?;
-    let mut wf = WorkFile::new(target.clone(), conn, outcome.read_only)?;
-    wf.cipher = cipher;
-    let info = workspace_info(&wf)?;
-    *state
-        .file
-        .lock()
-        .map_err(|_| AppError::Other("내부 잠금 오류".into()))? = Some(wf);
+    let target = ensure_extension(&path, FILE_EXTENSION);
+    let info = state.with_file(|wf| wf.save_as(&target))?;
     remember(&app, &target);
     Ok(info)
 }
@@ -340,15 +350,9 @@ pub async fn save_work_file_as(
 /// 사본 저장(백업): 지금 파일은 그대로 두고 사본만 만든다.
 #[tauri::command]
 pub async fn save_work_file_copy(state: State<'_, AppState>, path: String) -> AppResult<String> {
-    let target = with_extension(&path);
+    let target = ensure_extension(&path, FILE_EXTENSION);
     state.with_file(|wf| {
-        if target == wf.path {
-            return Err(AppError::InvalidInput(
-                "지금 열려 있는 파일과 같은 경로입니다.".into(),
-            ));
-        }
-        // 사본의 열림 표시 지우기까지 임시 파일에서 마친 뒤 바꿔 넣는다(db::vacuum_into).
-        db::vacuum_into(&wf.conn, &target)?;
+        wf.copy_to(&target)?;
         Ok(target.to_string_lossy().to_string())
     })
 }
@@ -378,12 +382,9 @@ pub struct ImportXlsxResult {
 #[tauri::command]
 pub async fn import_xlsx(state: State<'_, AppState>, path: String) -> AppResult<ImportXlsxResult> {
     let src = PathBuf::from(&path);
-    let file_name = src
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let file_name = file_name(&src);
     let bytes = std::fs::read(&src)?;
-    let plan = xlsx_import::plan_import(&file_name, xlsx_import::parse_roster(&src)?)?;
+    let plan = xlsx_import::plan_import(&file_name, xlsx_import::parse_roster_bytes(&bytes)?)?;
     state.with_writable(|wf| {
         xlsx_import::apply_import(&mut wf.conn, codec!(wf), &file_name, &bytes, &plan)?;
         Ok(ImportXlsxResult {
@@ -393,25 +394,11 @@ pub async fn import_xlsx(state: State<'_, AppState>, path: String) -> AppResult<
     })
 }
 
-#[tauri::command]
-pub async fn list_students(state: State<'_, AppState>) -> AppResult<Vec<StudentDto>> {
-    state.with_file(|wf| roster::list_students(&wf.conn, codec!(wf)))
-}
-
-#[tauri::command]
-pub async fn list_gaps(state: State<'_, AppState>) -> AppResult<Vec<GapDto>> {
-    state.with_file(|wf| roster::list_gaps(&wf.conn, codec!(wf)))
-}
-
 /// PDF 파일 내용을 그대로 돌려준다(프런트엔드에서 pdf.js로 파싱).
 #[tauri::command]
 pub async fn read_pdf_file(path: String) -> AppResult<tauri::ipc::Response> {
     let p = PathBuf::from(&path);
-    if p.extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("pdf"))
-        != Some(true)
-    {
+    if !has_extension(&p, "pdf") {
         return Err(AppError::InvalidInput("PDF 파일이 아닙니다.".into()));
     }
     Ok(tauri::ipc::Response::new(std::fs::read(p)?))
@@ -425,10 +412,7 @@ pub async fn apply_pdf_mapping(
     links: Vec<PdfLink>,
 ) -> AppResult<PdfApplyReport> {
     let src = PathBuf::from(&path);
-    let file_name = src
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .unwrap_or_default();
+    let file_name = file_name(&src);
     let bytes = std::fs::read(&src)?;
     state.with_writable(|wf| {
         roster::apply_pdf(&mut wf.conn, codec!(wf), &file_name, &bytes, &rows, &links)
@@ -436,11 +420,6 @@ pub async fn apply_pdf_mapping(
 }
 
 // ───────────── 반편성 보드(M4~M7) ─────────────
-
-#[tauri::command]
-pub async fn get_board(state: State<'_, AppState>) -> AppResult<BoardData> {
-    state.with_file(|wf| board::board_data(&wf.conn, codec!(wf)))
-}
 
 #[tauri::command]
 pub async fn apply_change(state: State<'_, AppState>, change: ChangeSet) -> AppResult<()> {
@@ -499,26 +478,9 @@ pub async fn resolve_twin_candidates(
 
 #[tauri::command]
 pub async fn export_xlsx(state: State<'_, AppState>, path: String) -> AppResult<ExportReport> {
-    let mut target = PathBuf::from(&path);
-    if target
-        .extension()
-        .and_then(|e| e.to_str())
-        .map(|e| e.eq_ignore_ascii_case("xlsx"))
-        != Some(true)
-    {
-        let mut name = target
-            .file_name()
-            .map(|s| s.to_os_string())
-            .unwrap_or_default();
-        name.push(".xlsx");
-        target.set_file_name(name);
-    }
+    let target = ensure_extension(&path, "xlsx");
     state.with_file(|wf| {
-        if target == wf.path {
-            return Err(AppError::InvalidInput(
-                "작업 파일 자리에 저장할 수 없습니다.".into(),
-            ));
-        }
+        wf.ensure_not_current(&target, "작업 파일 자리에 저장할 수 없습니다.")?;
         export::export_xlsx(&wf.conn, codec!(wf), &target)
     })
 }
@@ -722,9 +684,9 @@ mod tests {
             Err(AppError::Locked)
         ));
         // 화면이 잠김을 알 수 있도록 정보는 읽힌다(학생 자료는 없음)
-        let info = state
-            .with_file_even_locked(|wf| workspace_info(wf))
-            .unwrap();
+        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        assert!(snapshot.board.is_none());
+        let info = snapshot.workspace;
         assert!(info.encrypted && info.locked);
         assert_eq!(info.student_count, 240);
         assert_eq!(info.xlsx_file_name.as_deref(), Some("sample.xlsx"));
@@ -749,8 +711,9 @@ mod tests {
             .unwrap();
         assert_eq!(students.len(), 240);
         assert!(students.iter().any(|s| s.name == "GRACE BRIAR"));
-        let info = state.with_file(|wf| workspace_info(wf)).unwrap();
-        assert!(info.encrypted && !info.locked);
+        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        assert_eq!(snapshot.board.unwrap().students.len(), 240);
+        assert!(snapshot.workspace.encrypted && !snapshot.workspace.locked);
     }
 
     #[test]
@@ -809,12 +772,60 @@ mod tests {
     }
 
     #[test]
-    fn appends_mix_extension() {
-        assert_eq!(with_extension("/a/b"), PathBuf::from("/a/b.mix"));
-        assert_eq!(with_extension("/a/b.MIX"), PathBuf::from("/a/b.MIX"));
-        assert_eq!(
-            with_extension("/a/2026 2학년.v1"),
-            PathBuf::from("/a/2026 2학년.v1.mix")
-        );
+    fn copying_work_file_rejects_another_path_to_the_same_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("original.mix");
+        let conn = db::create_new(&path, "t").unwrap();
+        let wf = WorkFile::new(path.clone(), conn, false).unwrap();
+        let subdir = dir.path().join("subdir");
+        std::fs::create_dir(&subdir).unwrap();
+        let alternate_path = subdir.join("..").join("original.mix");
+        assert_ne!(path, alternate_path);
+
+        assert!(matches!(
+            wf.copy_to(&alternate_path),
+            Err(AppError::InvalidInput(_))
+        ));
+        let case_variant = path.with_file_name("ORIGINAL.mix");
+        if case_variant.exists() {
+            assert!(matches!(
+                wf.copy_to(&case_variant),
+                Err(AppError::InvalidInput(_))
+            ));
+        }
+        let backup = dir.path().join("backup.mix");
+        wf.copy_to(&backup).unwrap();
+        assert!(backup.is_file());
+    }
+
+    #[test]
+    fn save_as_switches_files_only_after_copy_succeeds_and_keeps_the_key() {
+        let (dir, path, state) = locked_state();
+        state
+            .with_file_even_locked(|wf| {
+                let header = crypto::header(&wf.conn)?.unwrap();
+                wf.cipher = Some(crypto::unlock(&header, TEST_PASSWORD)?);
+                wf.conn
+                    .execute("UPDATE meta SET opened_by = 'test' WHERE id = 1", [])?;
+                Ok(())
+            })
+            .unwrap();
+
+        let invalid = dir.path().join("no-such-directory").join("copy.mix");
+        assert!(state.with_file(|wf| wf.save_as(&invalid)).is_err());
+        assert_eq!(state.with_file(|wf| Ok(wf.path.clone())).unwrap(), path);
+
+        let target = dir.path().join("copy.mix");
+        let info = state.with_file(|wf| wf.save_as(&target)).unwrap();
+        assert!(info.encrypted && !info.locked);
+        assert_eq!(state.with_file(|wf| Ok(wf.path.clone())).unwrap(), target);
+        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        assert_eq!(snapshot.board.unwrap().students.len(), 240);
+
+        let previous = Connection::open(&path).unwrap();
+        let opened_by: Option<String> = previous
+            .query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))
+            .unwrap();
+        assert!(opened_by.is_none());
     }
 }

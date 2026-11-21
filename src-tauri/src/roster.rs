@@ -1,14 +1,13 @@
 //! 학생 목록 조회와 PDF(기준성적) 반영.
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 use rusqlite::types::Value;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 
 use crate::crypto::Codec;
-use crate::db::{next_id, now};
+use crate::db::{insert_source_file, next_id, now};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -151,7 +150,7 @@ pub fn apply_pdf(
     rows: &[PdfRowInput],
     links: &[PdfLink],
 ) -> AppResult<PdfApplyReport> {
-    let mut seen_rows = HashSet::new();
+    let mut links_by_row = HashMap::with_capacity(links.len());
     let mut seen_students = HashSet::new();
     for l in links {
         if l.row_index >= rows.len() {
@@ -160,7 +159,7 @@ pub fn apply_pdf(
                 l.row_index
             )));
         }
-        if !seen_rows.insert(l.row_index) || !seen_students.insert(l.student_id) {
+        if links_by_row.insert(l.row_index, l).is_some() || !seen_students.insert(l.student_id) {
             return Err(AppError::InvalidInput(
                 "한 학생 또는 PDF 행이 두 번 연결되었습니다.".into(),
             ));
@@ -191,25 +190,10 @@ pub fn apply_pdf(
     tx.execute("DELETE FROM pdf_row", [])?;
     tx.execute("DELETE FROM source_file WHERE kind = 'pdf'", [])?;
     tx.execute("UPDATE student SET gender = NULL, birth_date = NULL, base_score = NULL, match_method = NULL", [])?;
-    let sha: String = Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
-    let sid = next_id(&tx, "source_file")?;
-    tx.execute(
-        "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, 'pdf', ?2, ?3, ?4, ?5)",
-        params![
-            sid,
-            file_name,
-            sha,
-            codec.blob("source_file.content", sid, bytes)?,
-            ts
-        ],
-    )?;
+    insert_source_file(&tx, codec, "pdf", file_name, bytes, &ts)?;
 
-    let link_of = |i: usize| links.iter().find(|l| l.row_index == i);
     for (i, r) in rows.iter().enumerate() {
-        let link = link_of(i);
+        let link = links_by_row.get(&i).copied();
         let pid = next_id(&tx, "pdf_row")?;
         tx.execute(
             "INSERT INTO pdf_row (id, page, grade, class, number, name, birth_date, gender, base_score, prev_grade, prev_class, prev_number, note, student_id)

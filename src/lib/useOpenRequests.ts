@@ -1,6 +1,9 @@
 import { useEffect } from "react";
+import { isTauri } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { api } from "@/lib/api";
 import { openRequestedFile } from "@/lib/fileActions";
+import { subscribeToTauri } from "./tauriListener";
 
 /**
  * 탐색기·Finder에서 .mix를 열었을 때(앱 시작 시 실행 인자, 이미 실행 중일 때 두 번째 실행,
@@ -9,11 +12,10 @@ import { openRequestedFile } from "@/lib/fileActions";
  */
 export function useOpenRequests(enabled: boolean) {
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !isTauri()) return;
     let disposed = false;
     let busy = false;
     let again = false;
-    let unlisten: (() => void) | undefined;
 
     const take = async () => {
       if (busy) {
@@ -28,25 +30,26 @@ export function useOpenRequests(enabled: boolean) {
           const path = await api.takeLaunchFile();
           if (path && !disposed) await openRequestedFile(path);
         } while (again && !disposed);
-      } catch {
-        // Tauri 밖(브라우저 미리보기)에서는 무시
+      } catch (error) {
+        console.warn("열기 요청을 처리하지 못했습니다.", error);
       } finally {
         busy = false;
       }
     };
 
-    import("@tauri-apps/api/event")
-      .then(async ({ listen }) => {
-        const fn = await listen("open-file-requested", () => void take());
-        if (disposed) fn();
-        else unlisten = fn;
-      })
-      .catch(() => undefined);
-    void take();
+    // 먼저 구독한 뒤 Rust가 보관해 둔 첫 요청을 가져온다.
+    const request = () => void take();
+    const stop = subscribeToTauri(
+      (listener) =>
+        listen("open-file-requested", listener).finally(() => {
+          if (!disposed) request();
+        }),
+      request,
+    );
 
     return () => {
       disposed = true;
-      unlisten?.();
+      stop();
     };
   }, [enabled]);
 }

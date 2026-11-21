@@ -1,28 +1,11 @@
 import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
-import {
-  api,
-  errorMessage,
-  type ChangeSet,
-  type ClassState,
-  type Gap,
-  type HistoryEntry,
-  type Rule,
-  type Student,
-  type WorkspaceInfo,
-} from "@/lib/api";
+import { api, errorMessage, type BoardData, type ChangeSet, type Student, type WorkspaceInfo } from "@/lib/api";
 
-interface WorkspaceState {
+interface WorkspaceState extends BoardData {
   workspace: WorkspaceInfo | null;
-  students: Student[];
-  gaps: Gap[];
-  classStates: ClassState[];
-  rules: Rule[];
-  dismissedTwins: [number, number][];
-  history: HistoryEntry[];
-  canUndo: boolean;
-  canRedo: boolean;
+  studentsById: ReadonlyMap<number, Student>;
   /** XLSX를 막 가져와 로마자 성명 한글 표기 입력 단계를 띄워야 하는지 */
   pendingReadingPrompt: boolean;
   setPendingReadingPrompt: (v: boolean) => void;
@@ -43,8 +26,9 @@ async function updateTitle(w: WorkspaceInfo | null) {
   }
 }
 
-const EMPTY_BOARD = {
+const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById"> = {
   students: [],
+  studentsById: new Map(),
   gaps: [],
   classStates: [],
   rules: [],
@@ -54,69 +38,58 @@ const EMPTY_BOARD = {
   canRedo: false,
 };
 
-export const useWorkspace = create<WorkspaceState>((set, get) => ({
-  workspace: null,
-  ...EMPTY_BOARD,
-  pendingReadingPrompt: false,
-  setPendingReadingPrompt: (v) => set({ pendingReadingPrompt: v }),
-  refresh: async () => {
-    const workspace = await api.getWorkspace();
-    if (!workspace) {
-      set({ workspace: null, ...EMPTY_BOARD });
-      await updateTitle(null);
-      return;
-    }
-    if (workspace.locked) {
-      // 비밀번호를 넣기 전에는 학생 자료를 읽을 수 없다.
-      set({ workspace, ...EMPTY_BOARD });
-      await updateTitle(workspace);
-      return;
-    }
-    const board = await api.getBoard();
-    set({ workspace, ...board });
+export const useWorkspace = create<WorkspaceState>((set) => {
+  let refreshVersion = 0;
+
+  const refresh = async () => {
+    const version = ++refreshVersion;
+    const snapshot = await api.getWorkspaceSnapshot();
+    if (version !== refreshVersion) return;
+    const workspace = snapshot?.workspace ?? null;
+    const board = snapshot?.board;
+    set({
+      workspace,
+      ...(board ? { ...board, studentsById: new Map(board.students.map((s) => [s.id, s])) } : EMPTY_BOARD),
+    });
     await updateTitle(workspace);
-  },
-  setWorkspace: async (w) => {
-    set({ workspace: w });
-    await updateTitle(w);
-    if (w) await get().refresh();
-    else set(EMPTY_BOARD);
-  },
-  applyChange: async (cs) => {
+  };
+
+  const mutate = async (operation: () => Promise<unknown>, failure: string) => {
     try {
-      await api.applyChange(cs);
+      await operation();
       return true;
     } catch (e) {
-      toast.error("변경하지 못했습니다.", { description: errorMessage(e) });
+      toast.error(failure, { description: errorMessage(e) });
       return false;
     } finally {
-      await get()
-        .refresh()
-        .catch(() => undefined);
+      await refresh().catch(() => undefined);
     }
-  },
-  undo: async () => {
-    try {
-      const label = await api.undoChange();
-      if (label) toast(`되돌리기: ${label}`);
-    } catch (e) {
-      toast.error("되돌리지 못했습니다.", { description: errorMessage(e) });
-    } finally {
-      await get()
-        .refresh()
-        .catch(() => undefined);
-    }
-  },
-  redo: async () => {
-    try {
-      const label = await api.redoChange();
-      if (label) toast(`다시 실행하기: ${label}`);
-    } catch (e) {
-      toast.error("다시 실행하지 못했습니다.", { description: errorMessage(e) });
-    } finally {
-      await get()
-        .refresh()
-        .catch(() => undefined);
-    }
-  },
-}));
+  };
+
+  const replay = async (operation: () => Promise<string | null>, action: string, failure: string) => {
+    await mutate(async () => {
+      const label = await operation();
+      if (label) toast(`${action}: ${label}`);
+    }, failure);
+  };
+
+  return {
+    workspace: null,
+    ...EMPTY_BOARD,
+    pendingReadingPrompt: false,
+    setPendingReadingPrompt: (v) => set({ pendingReadingPrompt: v }),
+    refresh,
+    setWorkspace: async (workspace) => {
+      if (workspace && !workspace.locked) {
+        await refresh();
+      } else {
+        ++refreshVersion;
+        set({ workspace, ...EMPTY_BOARD });
+        await updateTitle(workspace);
+      }
+    },
+    applyChange: (cs) => mutate(() => api.applyChange(cs), "변경하지 못했습니다."),
+    undo: () => replay(api.undoChange, "되돌리기", "되돌리지 못했습니다."),
+    redo: () => replay(api.redoChange, "다시 실행하기", "다시 실행하지 못했습니다."),
+  };
+});

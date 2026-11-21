@@ -12,7 +12,7 @@ rusqlite가 함께 빌드하는 SQLite는 퍼블릭 도메인입니다.
 1. 구성 요소 목록
 ================================================================================
 
-[프런트엔드: npm 패키지 91개]
+[프런트엔드: npm 패키지 90개]
 
 @dnd-kit/accessibility 3.1.1 — MIT — [L1]
 @dnd-kit/core 6.3.1 — MIT — [L1]
@@ -97,309 +97,308 @@ react-remove-scroll 2.7.2 — MIT — [L8]
 react-remove-scroll-bar 2.3.8 — MIT — [L17] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
 react-style-singleton 2.2.3 — MIT — [L8]
 scheduler 0.28.0 — MIT — [L16]
-shadcn 4.23.0 — MIT — [L18]
-sonner 2.0.8 — MIT — [L19]
-tailwindcss 4.3.5 — MIT — [L20]
-tslib 2.9.1 — 0BSD — [L21]
-tw-animate-css 1.4.0 — MIT — [L22]
+sonner 2.0.8 — MIT — [L18]
+tailwindcss 4.3.5 — MIT — [L19]
+tslib 2.9.1 — 0BSD — [L20]
+tw-animate-css 1.4.0 — MIT — [L21]
 use-callback-ref 1.3.3 — MIT — [L8]
 use-sidecar 1.1.3 — MIT — [L8]
-zustand 5.1.0 — MIT — [L23]
+zustand 5.1.0 — MIT — [L22]
 
 [앱 본체: Rust 크레이트 292개]
 
-adler2 2.0.1 — 0BSD OR MIT OR Apache-2.0 — [L24, L25, L26]
-aead 0.6.1 — MIT OR Apache-2.0 — [L27, L28]
-aes 0.9.4 — MIT OR Apache-2.0 — [L27, L29]
-aes-gcm 0.11.1 — Apache-2.0 OR MIT — [L27, L30]
-aho-corasick 1.1.5 — Unlicense OR MIT — [L31, L32, L33]
-alloc-no-stdlib 3.0.0 — BSD-3-Clause — [L34]
-alloc-stdlib 0.3.0 — BSD-3-Clause — [L35] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-anyhow 1.0.104 — MIT OR Apache-2.0 — [L36, L26]
-base64 0.21.7 — MIT OR Apache-2.0 — [L37, L38]
-base64 0.22.1 — MIT OR Apache-2.0 — [L37, L38]
-base64 0.23.1 — MIT OR Apache-2.0 — [L37, L39]
-bit-set 0.8.0 — Apache-2.0 OR MIT — [L40, L41]
-bit-vec 0.8.0 — Apache-2.0 OR MIT — [L40, L41]
-bitflags 2.13.2 — MIT OR Apache-2.0 — [L37, L42]
-block-buffer 0.12.1 — MIT OR Apache-2.0 — [L27, L43]
-block-padding 0.4.2 — MIT OR Apache-2.0 — [L27, L43]
-block2 0.6.2 — MIT — [L44] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-brotli 9.1.3 — BSD-3-Clause AND MIT — [L34, L45]
-brotli-decompressor 6.3.2 — BSD-3-Clause/MIT — [L34]
-bumpalo 3.20.4 — MIT OR Apache-2.0 — [L37, L46]
-bytemuck 1.25.2 — Zlib OR Apache-2.0 OR MIT — [L47, L48, L49]
-byteorder 1.5.0 — Unlicense OR MIT — [L31, L32, L33]
-bytes 1.12.2 — MIT — [L50]
-camino 1.2.6 — MIT OR Apache-2.0 — [L37, L26]
-cargo_metadata 0.19.2 — MIT — [L26]
-cargo-platform 0.1.9 — MIT OR Apache-2.0 — [L25, L26]
-cbc 0.2.1 — MIT OR Apache-2.0 — [L27, L51]
-cfb 0.14.0 — MIT — [L52]
-cfg-if 1.0.5 — MIT OR Apache-2.0 — [L37, L53]
-chacha20 0.10.2 — MIT OR Apache-2.0 — [L27, L30]
-chrono 0.4.45 — MIT OR Apache-2.0 — [L54]
-cipher 0.5.2 — MIT OR Apache-2.0 — [L27, L55]
-cmov 0.5.4 — Apache-2.0 OR MIT — [L56, L57]
-const-oid 0.10.3 — Apache-2.0 OR MIT — [L27, L58]
-cookie 0.18.2 — MIT OR Apache-2.0 — [L59, L60]
-core_detect 1.0.0 — MIT/Apache-2.0 — [L37, L61]
-core-foundation 0.10.1 — MIT OR Apache-2.0 — [L37, L62]
-core-foundation-sys 0.8.7 — MIT OR Apache-2.0 — [L37, L62]
-core-graphics 0.25.0 — MIT OR Apache-2.0 — [L37, L62]
-core-graphics-types 0.2.0 — MIT OR Apache-2.0 — [L37, L62]
-cpubits 0.1.1 — MIT OR Apache-2.0 — [L27, L63]
-cpufeatures 0.3.1 — MIT OR Apache-2.0 — [L27, L58]
-crc32fast 1.5.5 — MIT OR Apache-2.0 — [L64, L65]
-crossbeam-channel 0.5.17 — MIT OR Apache-2.0 — [L37, L66, L67]
-crossbeam-utils 0.8.23 — MIT OR Apache-2.0 — [L37, L66]
-crypto-common 0.2.2 — MIT OR Apache-2.0 — [L27, L68]
-cssparser 0.37.0 — MPL-2.0 — [L69]
-cssparser-macros 0.7.1 — MPL-2.0 — [L69]
-ctor 1.0.14 — Apache-2.0 OR MIT — [L64, L70]
-ctr 0.10.1 — MIT OR Apache-2.0 — [L27, L51]
-ctutils 0.4.8 — Apache-2.0 OR MIT — [L56, L71]
-darling 0.24.1 — MIT — [L72]
-darling_core 0.24.1 — MIT — [L72]
-darling_macro 0.24.1 — MIT — [L72]
-deranged 0.5.9 — MIT OR Apache-2.0 — [L73, L74]
-derive_more 2.1.1 — MIT — [L75]
-derive_more-impl 2.1.1 — MIT — [L75]
-digest 0.11.3 — MIT OR Apache-2.0 — [L27, L76]
-dirs 7.0.0 — MIT OR Apache-2.0 — [L77, L78]
-dirs-sys 0.5.0 — MIT OR Apache-2.0 — [L77, L78]
-dispatch2 0.3.1 — Zlib OR Apache-2.0 OR MIT — [L79] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-displaydoc 0.2.7 — MIT OR Apache-2.0 — [L37, L26]
-dom_query 0.28.0 — MIT — [L80]
-dpi 0.1.2 — Apache-2.0 AND MIT — [L64, L81]
-dtoa 1.0.11 — MIT OR Apache-2.0 — [L36, L26]
-dtoa-short 0.3.5 — MPL-2.0 — [L69]
-dunce 1.0.5 — CC0-1.0 OR MIT-0 OR Apache-2.0 — [L82]
-dyn-clone 1.0.20 — MIT OR Apache-2.0 — [L36, L26]
-embed_plist 1.2.2 — MIT OR Apache-2.0 — [L56, L83]
-encoding_rs 0.8.44 — (Apache-2.0 OR MIT) AND BSD-3-Clause — [L56, L84, L85]
-equivalent 1.0.3 — Apache-2.0 OR MIT — [L37, L86]
-erased-serde 0.4.11 — MIT OR Apache-2.0 — [L36, L26]
-errno 0.3.15 — MIT OR Apache-2.0 — [L37, L87]
-fallible-iterator 0.3.0 — MIT/Apache-2.0 — [L64, L88]
-fallible-streaming-iterator 0.1.9 — MIT/Apache-2.0 — [L64, L89]
-fancy-regex 0.18.0 — MIT — [L90]
-fastrand 2.5.0 — Apache-2.0 OR MIT — [L37, L26]
-fdeflate 0.3.7 — MIT OR Apache-2.0 — [L5, L91]
-flate2 1.1.11 — MIT OR Apache-2.0 — [L37, L92]
-fnv 1.0.7 — Apache-2.0 / MIT — [L37, L93]
-foldhash 0.2.0 — Zlib — [L94]
-foreign-types 0.5.0 — MIT/Apache-2.0 — [L64, L95]
-foreign-types-macros 0.2.4 — MIT/Apache-2.0 — [L64, L95]
-foreign-types-shared 0.3.1 — MIT/Apache-2.0 — [L64, L95]
-form_urlencoded 1.2.2 — MIT OR Apache-2.0 — [L37, L96]
-gethostname 1.1.0 — Apache-2.0 — [L37]
-getrandom 0.3.4 — MIT OR Apache-2.0 — [L97, L98]
-getrandom 0.4.3 — MIT OR Apache-2.0 — [L97, L99]
-ghash 0.6.0 — Apache-2.0 OR MIT — [L27, L30]
-glob 0.3.4 — MIT OR Apache-2.0 — [L37, L42]
-hashbrown 0.12.3 — MIT OR Apache-2.0 — [L37, L100]
-hashbrown 0.17.1 — MIT OR Apache-2.0 — [L37, L100]
-hashlink 0.12.2 — MIT OR Apache-2.0 — [L40, L101]
-heck 0.5.0 — MIT OR Apache-2.0 — [L37, L102]
-hmac 0.13.0 — MIT OR Apache-2.0 — [L27, L103]
-html5ever 0.39.0 — MIT OR Apache-2.0 — [L37, L104]
-html5gum 0.8.4 — MIT — [L105]
-http 1.5.0 — MIT OR Apache-2.0 — [L106, L107]
-hybrid-array 0.4.15 — MIT OR Apache-2.0 — [L27, L57]
-iana-time-zone 0.1.65 — MIT OR Apache-2.0 — [L108, L109]
-ico 0.6.0 — MIT — [L110]
-icu_collections 2.4.0 — Unicode-3.0 — [L111]
-icu_locale_core 2.4.0 — Unicode-3.0 — [L111]
-icu_normalizer 2.4.0 — Unicode-3.0 — [L111]
-icu_normalizer_data 2.4.0 — Unicode-3.0 — [L111]
-icu_properties 2.4.0 — Unicode-3.0 — [L111]
-icu_properties_data 2.4.0 — Unicode-3.0 — [L111]
-icu_provider 2.4.0 — Unicode-3.0 — [L111]
-ident_case 1.0.1 — MIT/Apache-2.0 — [L112]
-idna 1.1.0 — MIT OR Apache-2.0 — [L37, L113]
-idna_adapter 1.2.2 — Apache-2.0 OR MIT — [L37, L114]
-imagesize 0.14.0 — MIT — [L115]
-indexmap 1.9.3 — Apache-2.0 OR MIT — [L37, L116]
-indexmap 2.14.2 — Apache-2.0 OR MIT — [L37, L116]
-infer 0.22.0 — MIT — [L117]
-inout 0.2.6 — MIT OR Apache-2.0 — [L27, L118]
-itoa 1.0.19 — MIT OR Apache-2.0 — [L36, L26]
-jetscii 0.5.3 — MIT OR Apache-2.0 — [L119, L120]
-jiff 0.2.46 — Unlicense OR MIT — [L31, L32, L33]
-jiff-core 0.1.8 — Unlicense OR MIT — [L31, L32, L33]
-json-patch 4.2.0 — MIT/Apache-2.0 — [L64, L121]
-jsonptr 0.7.1 — MIT OR Apache-2.0 — [L122, L123]
-keyboard-types 0.8.3 — MIT OR Apache-2.0 — [L37, L124]
-libc 0.2.191 — MIT OR Apache-2.0 — [L36, L125]
-libsqlite3-sys 0.40.0 — MIT — [L126]
-litemap 0.8.3 — Unicode-3.0 — [L111]
-lock_api 0.4.14 — MIT OR Apache-2.0 — [L37, L127]
-log 0.4.35 — MIT OR Apache-2.0 — [L37, L42]
-markup5ever 0.39.0 — MIT OR Apache-2.0 — [L37, L104]
-md-5 0.11.0 — MIT OR Apache-2.0 — [L27, L128]
-memchr 2.8.3 — Unlicense OR MIT — [L31, L32, L33]
-mime 0.3.18 — MIT OR Apache-2.0 — [L37, L129]
-miniz_oxide 0.8.9 — MIT OR Zlib OR Apache-2.0 — [L130, L5, L131, L132]
-miniz_oxide 0.9.1 — MIT OR Zlib OR Apache-2.0 — [L130, L5, L131, L132]
-mio 1.2.5 — MIT — [L133]
-muda 0.20.0 — Apache-2.0 OR MIT — [L37, L134, L135]
-multiversion_no_op 1.0.0 — Apache-2.0 OR MIT — [L56, L84]
-new_debug_unreachable 1.0.6 — MIT — [L136]
-num-conv 0.2.2 — MIT OR Apache-2.0 — [L5, L137]
-num-traits 0.2.19 — MIT OR Apache-2.0 — [L37, L42]
-objc2 0.6.5 — MIT — [L44] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-app-kit 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L138] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-core-foundation 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L139] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-encode 4.1.0 — MIT — [L44] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-exception-helper 0.1.1 — Zlib OR Apache-2.0 OR MIT — [L44] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-foundation 0.3.2 — MIT — [L140] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-quartz-core 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L141] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-objc2-web-kit 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L142] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-once_cell 1.21.4 — MIT OR Apache-2.0 — [L37, L26]
-option-ext 0.2.0 — MPL-2.0 — [L143]
-parking_lot 0.12.5 — MIT OR Apache-2.0 — [L37, L127]
-parking_lot_core 0.9.12 — MIT OR Apache-2.0 — [L37, L127]
-pbkdf2 0.13.0 — MIT OR Apache-2.0 — [L27, L144]
-percent-encoding 2.3.2 — MIT OR Apache-2.0 — [L37, L113]
-phf 0.13.1 — MIT — [L145]
-phf 0.14.0 — MIT — [L145]
-phf_generator 0.13.1 — MIT — [L145]
-phf_generator 0.14.0 — MIT — [L145]
-phf_macros 0.13.1 — MIT — [L145]
-phf_macros 0.14.0 — MIT — [L145]
-phf_shared 0.13.1 — MIT — [L145]
-phf_shared 0.14.0 — MIT — [L145]
-pin-project-lite 0.2.18 — Apache-2.0 OR MIT — [L5, L26]
-plist 1.10.4 — MIT — [L146]
-png 0.18.1 — MIT OR Apache-2.0 — [L37, L147]
-polyval 0.7.3 — Apache-2.0 OR MIT — [L27, L30]
-potential_utf 0.1.6 — Unicode-3.0 — [L111]
-powerfmt 0.2.1 — MIT OR Apache-2.0 — [L148, L149]
-precomputed-hash 0.1.1 — MIT — [L150]
-proc-macro2 1.0.107 — MIT OR Apache-2.0 — [L36, L26]
-quick-xml 0.41.0 — MIT — [L151]
-quick-xml 0.42.0 — MIT — [L151]
-quote 1.0.47 — MIT OR Apache-2.0 — [L36, L26]
-rand 0.10.4 — MIT OR Apache-2.0 — [L152, L153]
-rand_core 0.10.1 — MIT OR Apache-2.0 — [L154, L155]
-raw-window-handle 0.6.2 — MIT OR Apache-2.0 OR Zlib — [L5, L156, L157]
-regex 1.13.2 — MIT OR Apache-2.0 — [L37, L42]
-regex-automata 0.4.19 — MIT OR Apache-2.0 — [L37, L42]
-regex-syntax 0.8.12 — MIT OR Apache-2.0 — [L37, L42]
-rfd 0.17.2 — MIT — [L158]
-rgb 0.8.53 — MIT — [L159]
-rusqlite 0.43.0 — MIT — [L126]
-rustc-hash 2.1.3 — Apache-2.0 OR MIT — [L36, L26]
-rustix 1.1.6 — Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT — [L37, L160, L26]
-same-file 1.0.6 — Unlicense/MIT — [L31, L161, L33]
-schemars 0.8.22 — MIT — [L162]
-schemars_derive 0.8.22 — MIT — [L162]
-scopeguard 1.2.0 — MIT OR Apache-2.0 — [L37, L163]
-selectors 0.38.0 — MPL-2.0 — [L69] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-semver 1.0.28 — MIT OR Apache-2.0 — [L36, L26]
-serde 1.0.229 — MIT OR Apache-2.0 — [L36, L26]
-serde_core 1.0.229 — MIT OR Apache-2.0 — [L36, L26]
-serde_derive 1.0.229 — MIT OR Apache-2.0 — [L36, L26]
-serde_derive_internals 0.29.1 — MIT OR Apache-2.0 — [L36, L26]
-serde_json 1.0.154 — MIT OR Apache-2.0 — [L36, L26]
-serde_repr 0.1.21 — MIT OR Apache-2.0 — [L36, L26]
-serde_spanned 1.1.3 — MIT OR Apache-2.0 — [L164, L165]
-serde_with 3.25.0 — MIT OR Apache-2.0 — [L37, L166]
-serde_with_macros 3.25.0 — MIT OR Apache-2.0 — [L37, L166]
-serde-untagged 0.1.9 — MIT OR Apache-2.0 — [L36, L26]
-serialize-to-javascript 0.1.2 — MIT OR Apache-2.0 — [L56, L167]
-serialize-to-javascript-impl 0.1.2 — MIT OR Apache-2.0 — [L56, L167]
-servo_arc 0.4.3 — MIT OR Apache-2.0 — [L37, L26]
-sha2 0.11.1 — MIT OR Apache-2.0 — [L27, L128]
-simd-adler32 0.3.10 — MIT — [L168]
-simdutf8 0.1.5 — MIT OR Apache-2.0 — [L5, L112]
-siphasher 1.0.4 — MIT OR Apache-2.0 — [L169, L56, L170]
-smallvec 1.16.6 — MIT OR Apache-2.0 — [L37, L171]
-socket2 0.6.5 — MIT OR Apache-2.0 — [L37, L53]
-softbuffer 0.4.8 — MIT OR Apache-2.0 — [L172, L173]
-stable_deref_trait 1.2.1 — MIT OR Apache-2.0 — [L37, L174]
-string_cache 0.9.0 — MIT OR Apache-2.0 — [L37, L62]
-strsim 0.11.1 — MIT — [L175]
-swift-rs 1.0.9 — MIT OR Apache-2.0 — [L176, L177]
-syn 2.0.119 — MIT OR Apache-2.0 — [L36, L26]
-syn 3.0.10 — MIT OR Apache-2.0 — [L36, L26]
-synstructure 0.14.0 — MIT — [L178]
-tao 0.37.3 — Apache-2.0 — [L64, L179]
+adler2 2.0.1 — 0BSD OR MIT OR Apache-2.0 — [L23, L24, L25]
+aead 0.6.1 — MIT OR Apache-2.0 — [L26, L27]
+aes 0.9.4 — MIT OR Apache-2.0 — [L26, L28]
+aes-gcm 0.11.1 — Apache-2.0 OR MIT — [L26, L29]
+aho-corasick 1.1.5 — Unlicense OR MIT — [L30, L31, L32]
+alloc-no-stdlib 3.0.0 — BSD-3-Clause — [L33]
+alloc-stdlib 0.3.0 — BSD-3-Clause — [L34] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+anyhow 1.0.104 — MIT OR Apache-2.0 — [L35, L25]
+base64 0.21.7 — MIT OR Apache-2.0 — [L36, L37]
+base64 0.22.1 — MIT OR Apache-2.0 — [L36, L37]
+base64 0.23.1 — MIT OR Apache-2.0 — [L36, L38]
+bit-set 0.8.0 — Apache-2.0 OR MIT — [L39, L40]
+bit-vec 0.8.0 — Apache-2.0 OR MIT — [L39, L40]
+bitflags 2.13.2 — MIT OR Apache-2.0 — [L36, L41]
+block-buffer 0.12.1 — MIT OR Apache-2.0 — [L26, L42]
+block-padding 0.4.2 — MIT OR Apache-2.0 — [L26, L42]
+block2 0.6.2 — MIT — [L43] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+brotli 9.1.3 — BSD-3-Clause AND MIT — [L33, L44]
+brotli-decompressor 6.3.2 — BSD-3-Clause/MIT — [L33]
+bumpalo 3.20.4 — MIT OR Apache-2.0 — [L36, L45]
+bytemuck 1.25.2 — Zlib OR Apache-2.0 OR MIT — [L46, L47, L48]
+byteorder 1.5.0 — Unlicense OR MIT — [L30, L31, L32]
+bytes 1.12.2 — MIT — [L49]
+camino 1.2.6 — MIT OR Apache-2.0 — [L36, L25]
+cargo_metadata 0.19.2 — MIT — [L25]
+cargo-platform 0.1.9 — MIT OR Apache-2.0 — [L24, L25]
+cbc 0.2.1 — MIT OR Apache-2.0 — [L26, L50]
+cfb 0.14.0 — MIT — [L51]
+cfg-if 1.0.5 — MIT OR Apache-2.0 — [L36, L52]
+chacha20 0.10.2 — MIT OR Apache-2.0 — [L26, L29]
+chrono 0.4.45 — MIT OR Apache-2.0 — [L53]
+cipher 0.5.2 — MIT OR Apache-2.0 — [L26, L54]
+cmov 0.5.4 — Apache-2.0 OR MIT — [L55, L56]
+const-oid 0.10.3 — Apache-2.0 OR MIT — [L26, L57]
+cookie 0.18.2 — MIT OR Apache-2.0 — [L58, L59]
+core_detect 1.0.0 — MIT/Apache-2.0 — [L36, L60]
+core-foundation 0.10.1 — MIT OR Apache-2.0 — [L36, L61]
+core-foundation-sys 0.8.7 — MIT OR Apache-2.0 — [L36, L61]
+core-graphics 0.25.0 — MIT OR Apache-2.0 — [L36, L61]
+core-graphics-types 0.2.0 — MIT OR Apache-2.0 — [L36, L61]
+cpubits 0.1.1 — MIT OR Apache-2.0 — [L26, L62]
+cpufeatures 0.3.1 — MIT OR Apache-2.0 — [L26, L57]
+crc32fast 1.5.5 — MIT OR Apache-2.0 — [L63, L64]
+crossbeam-channel 0.5.17 — MIT OR Apache-2.0 — [L36, L65, L66]
+crossbeam-utils 0.8.23 — MIT OR Apache-2.0 — [L36, L65]
+crypto-common 0.2.2 — MIT OR Apache-2.0 — [L26, L67]
+cssparser 0.37.0 — MPL-2.0 — [L68]
+cssparser-macros 0.7.1 — MPL-2.0 — [L68]
+ctor 1.0.14 — Apache-2.0 OR MIT — [L63, L69]
+ctr 0.10.1 — MIT OR Apache-2.0 — [L26, L50]
+ctutils 0.4.8 — Apache-2.0 OR MIT — [L55, L70]
+darling 0.24.1 — MIT — [L71]
+darling_core 0.24.1 — MIT — [L71]
+darling_macro 0.24.1 — MIT — [L71]
+deranged 0.5.9 — MIT OR Apache-2.0 — [L72, L73]
+derive_more 2.1.1 — MIT — [L74]
+derive_more-impl 2.1.1 — MIT — [L74]
+digest 0.11.3 — MIT OR Apache-2.0 — [L26, L75]
+dirs 7.0.0 — MIT OR Apache-2.0 — [L76, L77]
+dirs-sys 0.5.0 — MIT OR Apache-2.0 — [L76, L77]
+dispatch2 0.3.1 — Zlib OR Apache-2.0 OR MIT — [L78] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+displaydoc 0.2.7 — MIT OR Apache-2.0 — [L36, L25]
+dom_query 0.28.0 — MIT — [L79]
+dpi 0.1.2 — Apache-2.0 AND MIT — [L63, L80]
+dtoa 1.0.11 — MIT OR Apache-2.0 — [L35, L25]
+dtoa-short 0.3.5 — MPL-2.0 — [L68]
+dunce 1.0.5 — CC0-1.0 OR MIT-0 OR Apache-2.0 — [L81]
+dyn-clone 1.0.20 — MIT OR Apache-2.0 — [L35, L25]
+embed_plist 1.2.2 — MIT OR Apache-2.0 — [L55, L82]
+encoding_rs 0.8.44 — (Apache-2.0 OR MIT) AND BSD-3-Clause — [L55, L83, L84]
+equivalent 1.0.3 — Apache-2.0 OR MIT — [L36, L85]
+erased-serde 0.4.11 — MIT OR Apache-2.0 — [L35, L25]
+errno 0.3.15 — MIT OR Apache-2.0 — [L36, L86]
+fallible-iterator 0.3.0 — MIT/Apache-2.0 — [L63, L87]
+fallible-streaming-iterator 0.1.9 — MIT/Apache-2.0 — [L63, L88]
+fancy-regex 0.18.0 — MIT — [L89]
+fastrand 2.5.0 — Apache-2.0 OR MIT — [L36, L25]
+fdeflate 0.3.7 — MIT OR Apache-2.0 — [L5, L90]
+flate2 1.1.11 — MIT OR Apache-2.0 — [L36, L91]
+fnv 1.0.7 — Apache-2.0 / MIT — [L36, L92]
+foldhash 0.2.0 — Zlib — [L93]
+foreign-types 0.5.0 — MIT/Apache-2.0 — [L63, L94]
+foreign-types-macros 0.2.4 — MIT/Apache-2.0 — [L63, L94]
+foreign-types-shared 0.3.1 — MIT/Apache-2.0 — [L63, L94]
+form_urlencoded 1.2.3 — MIT OR Apache-2.0 — [L36, L95]
+gethostname 1.1.0 — Apache-2.0 — [L36]
+getrandom 0.3.4 — MIT OR Apache-2.0 — [L96, L97]
+getrandom 0.4.3 — MIT OR Apache-2.0 — [L96, L98]
+ghash 0.6.0 — Apache-2.0 OR MIT — [L26, L29]
+glob 0.3.4 — MIT OR Apache-2.0 — [L36, L41]
+hashbrown 0.12.3 — MIT OR Apache-2.0 — [L36, L99]
+hashbrown 0.17.1 — MIT OR Apache-2.0 — [L36, L99]
+hashlink 0.12.2 — MIT OR Apache-2.0 — [L39, L100]
+heck 0.5.0 — MIT OR Apache-2.0 — [L36, L101]
+hmac 0.13.0 — MIT OR Apache-2.0 — [L26, L102]
+html5ever 0.39.0 — MIT OR Apache-2.0 — [L36, L103]
+html5gum 0.8.4 — MIT — [L104]
+http 1.5.0 — MIT OR Apache-2.0 — [L105, L106]
+hybrid-array 0.4.15 — MIT OR Apache-2.0 — [L26, L56]
+iana-time-zone 0.1.65 — MIT OR Apache-2.0 — [L107, L108]
+ico 0.6.0 — MIT — [L109]
+icu_collections 2.4.0 — Unicode-3.0 — [L110]
+icu_locale_core 2.4.0 — Unicode-3.0 — [L110]
+icu_normalizer 2.4.0 — Unicode-3.0 — [L110]
+icu_normalizer_data 2.4.0 — Unicode-3.0 — [L110]
+icu_properties 2.4.0 — Unicode-3.0 — [L110]
+icu_properties_data 2.4.0 — Unicode-3.0 — [L110]
+icu_provider 2.4.0 — Unicode-3.0 — [L110]
+ident_case 1.0.1 — MIT/Apache-2.0 — [L111]
+idna 1.1.0 — MIT OR Apache-2.0 — [L36, L112]
+idna_adapter 1.2.2 — Apache-2.0 OR MIT — [L36, L113]
+imagesize 0.14.0 — MIT — [L114]
+indexmap 1.9.3 — Apache-2.0 OR MIT — [L36, L115]
+indexmap 2.14.2 — Apache-2.0 OR MIT — [L36, L115]
+infer 0.22.0 — MIT — [L116]
+inout 0.2.6 — MIT OR Apache-2.0 — [L26, L117]
+itoa 1.0.19 — MIT OR Apache-2.0 — [L35, L25]
+jetscii 0.5.3 — MIT OR Apache-2.0 — [L118, L119]
+jiff 0.2.46 — Unlicense OR MIT — [L30, L31, L32]
+jiff-core 0.1.8 — Unlicense OR MIT — [L30, L31, L32]
+json-patch 4.2.0 — MIT/Apache-2.0 — [L63, L120]
+jsonptr 0.7.1 — MIT OR Apache-2.0 — [L121, L122]
+keyboard-types 0.8.3 — MIT OR Apache-2.0 — [L36, L123]
+libc 0.2.191 — MIT OR Apache-2.0 — [L35, L124]
+libsqlite3-sys 0.40.0 — MIT — [L125]
+litemap 0.8.3 — Unicode-3.0 — [L110]
+lock_api 0.4.14 — MIT OR Apache-2.0 — [L36, L126]
+log 0.4.35 — MIT OR Apache-2.0 — [L36, L41]
+markup5ever 0.39.0 — MIT OR Apache-2.0 — [L36, L103]
+md-5 0.11.0 — MIT OR Apache-2.0 — [L26, L127]
+memchr 2.8.3 — Unlicense OR MIT — [L30, L31, L32]
+mime 0.3.18 — MIT OR Apache-2.0 — [L36, L128]
+miniz_oxide 0.8.9 — MIT OR Zlib OR Apache-2.0 — [L129, L5, L130, L131]
+miniz_oxide 0.9.1 — MIT OR Zlib OR Apache-2.0 — [L129, L5, L130, L131]
+mio 1.2.5 — MIT — [L132]
+muda 0.20.0 — Apache-2.0 OR MIT — [L36, L133, L134]
+multiversion_no_op 1.0.0 — Apache-2.0 OR MIT — [L55, L83]
+new_debug_unreachable 1.0.6 — MIT — [L135]
+num-conv 0.2.2 — MIT OR Apache-2.0 — [L5, L136]
+num-traits 0.2.19 — MIT OR Apache-2.0 — [L36, L41]
+objc2 0.6.5 — MIT — [L43] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-app-kit 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L137] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-core-foundation 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L138] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-encode 4.1.0 — MIT — [L43] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-exception-helper 0.1.1 — Zlib OR Apache-2.0 OR MIT — [L43] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-foundation 0.3.2 — MIT — [L139] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-quartz-core 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L140] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+objc2-web-kit 0.3.2 — Zlib OR Apache-2.0 OR MIT — [L141] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+once_cell 1.21.4 — MIT OR Apache-2.0 — [L36, L25]
+option-ext 0.2.0 — MPL-2.0 — [L142]
+parking_lot 0.12.5 — MIT OR Apache-2.0 — [L36, L126]
+parking_lot_core 0.9.12 — MIT OR Apache-2.0 — [L36, L126]
+pbkdf2 0.13.0 — MIT OR Apache-2.0 — [L26, L143]
+percent-encoding 2.3.2 — MIT OR Apache-2.0 — [L36, L112]
+phf 0.13.1 — MIT — [L144]
+phf 0.14.0 — MIT — [L144]
+phf_generator 0.13.1 — MIT — [L144]
+phf_generator 0.14.0 — MIT — [L144]
+phf_macros 0.13.1 — MIT — [L144]
+phf_macros 0.14.0 — MIT — [L144]
+phf_shared 0.13.1 — MIT — [L144]
+phf_shared 0.14.0 — MIT — [L144]
+pin-project-lite 0.2.18 — Apache-2.0 OR MIT — [L5, L25]
+plist 1.10.4 — MIT — [L145]
+png 0.18.1 — MIT OR Apache-2.0 — [L36, L146]
+polyval 0.7.3 — Apache-2.0 OR MIT — [L26, L29]
+potential_utf 0.1.6 — Unicode-3.0 — [L110]
+powerfmt 0.2.1 — MIT OR Apache-2.0 — [L147, L148]
+precomputed-hash 0.1.1 — MIT — [L149]
+proc-macro2 1.0.107 — MIT OR Apache-2.0 — [L35, L25]
+quick-xml 0.41.0 — MIT — [L150]
+quick-xml 0.42.0 — MIT — [L150]
+quote 1.0.47 — MIT OR Apache-2.0 — [L35, L25]
+rand 0.10.4 — MIT OR Apache-2.0 — [L151, L152]
+rand_core 0.10.1 — MIT OR Apache-2.0 — [L153, L154]
+raw-window-handle 0.6.2 — MIT OR Apache-2.0 OR Zlib — [L5, L155, L156]
+regex 1.13.2 — MIT OR Apache-2.0 — [L36, L41]
+regex-automata 0.4.19 — MIT OR Apache-2.0 — [L36, L41]
+regex-syntax 0.8.12 — MIT OR Apache-2.0 — [L36, L41]
+rfd 0.17.2 — MIT — [L157]
+rgb 0.8.53 — MIT — [L158]
+rusqlite 0.43.0 — MIT — [L125]
+rustc-hash 2.1.3 — Apache-2.0 OR MIT — [L35, L25]
+rustix 1.1.6 — Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT — [L36, L159, L25]
+same-file 1.0.6 — Unlicense/MIT — [L30, L160, L32]
+schemars 0.8.22 — MIT — [L161]
+schemars_derive 0.8.22 — MIT — [L161]
+scopeguard 1.2.0 — MIT OR Apache-2.0 — [L36, L162]
+selectors 0.38.0 — MPL-2.0 — [L68] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+semver 1.0.28 — MIT OR Apache-2.0 — [L35, L25]
+serde 1.0.229 — MIT OR Apache-2.0 — [L35, L25]
+serde_core 1.0.229 — MIT OR Apache-2.0 — [L35, L25]
+serde_derive 1.0.229 — MIT OR Apache-2.0 — [L35, L25]
+serde_derive_internals 0.29.1 — MIT OR Apache-2.0 — [L35, L25]
+serde_json 1.0.154 — MIT OR Apache-2.0 — [L35, L25]
+serde_repr 0.1.21 — MIT OR Apache-2.0 — [L35, L25]
+serde_spanned 1.1.3 — MIT OR Apache-2.0 — [L163, L164]
+serde_with 3.25.0 — MIT OR Apache-2.0 — [L36, L165]
+serde_with_macros 3.25.0 — MIT OR Apache-2.0 — [L36, L165]
+serde-untagged 0.1.9 — MIT OR Apache-2.0 — [L35, L25]
+serialize-to-javascript 0.1.2 — MIT OR Apache-2.0 — [L55, L166]
+serialize-to-javascript-impl 0.1.2 — MIT OR Apache-2.0 — [L55, L166]
+servo_arc 0.4.3 — MIT OR Apache-2.0 — [L36, L25]
+sha2 0.11.1 — MIT OR Apache-2.0 — [L26, L127]
+simd-adler32 0.3.10 — MIT — [L167]
+simdutf8 0.1.5 — MIT OR Apache-2.0 — [L5, L111]
+siphasher 1.0.4 — MIT OR Apache-2.0 — [L168, L55, L169]
+smallvec 1.16.6 — MIT OR Apache-2.0 — [L36, L170]
+socket2 0.6.5 — MIT OR Apache-2.0 — [L36, L52]
+softbuffer 0.4.8 — MIT OR Apache-2.0 — [L171, L172]
+stable_deref_trait 1.2.1 — MIT OR Apache-2.0 — [L36, L173]
+string_cache 0.9.0 — MIT OR Apache-2.0 — [L36, L61]
+strsim 0.11.1 — MIT — [L174]
+swift-rs 1.0.9 — MIT OR Apache-2.0 — [L175, L176]
+syn 2.0.119 — MIT OR Apache-2.0 — [L35, L25]
+syn 3.0.10 — MIT OR Apache-2.0 — [L35, L25]
+synstructure 0.14.0 — MIT — [L177]
+tao 0.37.3 — Apache-2.0 — [L63, L178]
 tauri 2.12.7 — Apache-2.0 OR MIT — [L5, L6]
 tauri-codegen 2.7.6 — Apache-2.0 OR MIT — [L5, L6]
 tauri-macros 2.7.6 — Apache-2.0 OR MIT — [L5, L6]
 tauri-plugin-dialog 2.8.4 — Apache-2.0 OR MIT — [L7, L5, L6]
 tauri-plugin-fs 2.7.1 — Apache-2.0 OR MIT — [L7, L5, L6]
-tauri-plugin-single-instance 2.5.5 — Apache-2.0 OR MIT — [L7, L5, L180]
+tauri-plugin-single-instance 2.5.5 — Apache-2.0 OR MIT — [L7, L5, L179]
 tauri-runtime 2.12.4 — Apache-2.0 OR MIT — [L5, L6]
 tauri-runtime-wry 2.12.5 — Apache-2.0 OR MIT — [L5, L6]
 tauri-utils 2.10.4 — Apache-2.0 OR MIT — [L5, L6]
-tendril 0.5.1 — MIT OR Apache-2.0 — [L37, L181]
-thiserror 2.0.21 — MIT OR Apache-2.0 — [L36, L26]
-thiserror-impl 2.0.21 — MIT OR Apache-2.0 — [L36, L26]
-thousands 0.2.0 — MIT/Apache-2.0 — [L37, L182]
-time 0.3.55 — MIT OR Apache-2.0 — [L5, L183]
-time-core 0.1.9 — MIT OR Apache-2.0 — [L5, L183]
-time-macros 0.2.32 — MIT OR Apache-2.0 — [L5, L183]
-tinystr 0.8.5 — Unicode-3.0 — [L111]
-tokio 1.54.1 — MIT — [L184]
-toml 1.2.1+spec-1.1.0 — MIT OR Apache-2.0 — [L164, L165]
-toml_datetime 1.1.3+spec-1.1.0 — MIT OR Apache-2.0 — [L164, L165]
-toml_parser 1.1.5+spec-1.1.0 — MIT OR Apache-2.0 — [L164, L165]
-toml_writer 1.2.0+spec-1.1.0 — MIT OR Apache-2.0 — [L164, L165]
-tracing 0.1.44 — MIT — [L185]
-tracing-attributes 0.1.31 — MIT — [L185]
-tracing-core 0.1.36 — MIT — [L185]
-typed-path 0.12.4 — MIT OR Apache-2.0 — [L36, L26]
-typeid 1.0.3 — MIT OR Apache-2.0 — [L36, L26]
-typenum 1.20.1 — MIT OR Apache-2.0 — [L186, L187, L188]
-umya-spreadsheet 3.1.1 — MIT — [L189]
-unicode-ident 1.0.27 — (MIT OR Apache-2.0) AND Unicode-3.0 — [L36, L26, L190]
-unicode-segmentation 1.13.3 — MIT OR Apache-2.0 — [L37, L102]
-universal-hash 0.6.1 — MIT OR Apache-2.0 — [L27, L191]
-url 2.5.8 — MIT OR Apache-2.0 — [L37, L113]
-urlpattern 0.6.0 — MIT — [L192]
-utf_types 1.0.0 — Apache-2.0 OR MIT — [L56, L84]
-utf8_iter 1.1.0 — Apache-2.0 OR MIT — [L56, L84]
-uuid 1.29.3 — Apache-2.0 OR MIT — [L37, L193]
-walkdir 2.5.0 — Unlicense/MIT — [L31, L32, L33]
-web_atoms 0.2.6 — MIT OR Apache-2.0 — [L37, L104]
-web-time 1.1.0 — MIT OR Apache-2.0 — [L194, L195]
-webview2-com 0.39.1 — MIT — [L196] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-webview2-com-macros 0.8.1 — MIT — [L197] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-webview2-com-sys 0.39.1 — MIT — [L198] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
-winapi-util 0.1.11 — Unlicense OR MIT — [L31, L161, L33]
-window-vibrancy 0.8.1 — Apache-2.0 OR MIT — [L37, L199, L200]
-windows 0.62.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-collections 0.3.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-core 0.62.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-future 0.3.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-implement 0.60.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-interface 0.59.3 — MIT OR Apache-2.0 — [L201, L202]
-windows-link 0.2.1 — MIT OR Apache-2.0 — [L201, L202]
-windows-numerics 0.3.1 — MIT OR Apache-2.0 — [L201, L202]
-windows-result 0.4.1 — MIT OR Apache-2.0 — [L201, L202]
-windows-strings 0.5.1 — MIT OR Apache-2.0 — [L201, L202]
-windows-sys 0.61.2 — MIT OR Apache-2.0 — [L201, L202]
-windows-threading 0.2.1 — MIT OR Apache-2.0 — [L201, L202]
-windows-version 0.1.7 — MIT OR Apache-2.0 — [L201, L202]
-winnow 1.0.5 — MIT — [L203]
-winreg 0.56.0 — MIT — [L204]
-writeable 0.6.4 — Unicode-3.0 — [L111]
-wry 0.57.3 — Apache-2.0 OR MIT — [L37, L205, L206]
-yoke 0.8.4 — Unicode-3.0 — [L111]
-yoke-derive 0.8.4 — Unicode-3.0 — [L111]
-zerofrom 0.1.8 — Unicode-3.0 — [L111]
-zerofrom-derive 0.1.8 — Unicode-3.0 — [L111]
-zeroize 1.9.2 — Apache-2.0 OR MIT — [L56, L207]
-zerotrie 0.2.5 — Unicode-3.0 — [L111]
-zerovec 0.11.9 — Unicode-3.0 — [L111]
-zerovec-derive 0.11.7 — Unicode-3.0 — [L111]
-zip 8.6.0 — MIT — [L208]
-zlib-rs 0.6.8 — Zlib — [L209]
-zmij 1.0.23 — MIT — [L26]
-zopfli 0.8.4 — Apache-2.0 — [L210]
+tendril 0.5.1 — MIT OR Apache-2.0 — [L36, L180]
+thiserror 2.0.21 — MIT OR Apache-2.0 — [L35, L25]
+thiserror-impl 2.0.21 — MIT OR Apache-2.0 — [L35, L25]
+thousands 0.2.0 — MIT/Apache-2.0 — [L36, L181]
+time 0.3.55 — MIT OR Apache-2.0 — [L5, L182]
+time-core 0.1.9 — MIT OR Apache-2.0 — [L5, L182]
+time-macros 0.2.32 — MIT OR Apache-2.0 — [L5, L182]
+tinystr 0.8.5 — Unicode-3.0 — [L110]
+tokio 1.54.1 — MIT — [L183]
+toml 1.2.2+spec-1.1.0 — MIT OR Apache-2.0 — [L163, L164]
+toml_datetime 1.1.3+spec-1.1.0 — MIT OR Apache-2.0 — [L163, L164]
+toml_parser 1.1.6+spec-1.1.0 — MIT OR Apache-2.0 — [L163, L164]
+toml_writer 1.2.0+spec-1.1.0 — MIT OR Apache-2.0 — [L163, L164]
+tracing 0.1.44 — MIT — [L184]
+tracing-attributes 0.1.31 — MIT — [L184]
+tracing-core 0.1.36 — MIT — [L184]
+typed-path 0.12.4 — MIT OR Apache-2.0 — [L35, L25]
+typeid 1.0.3 — MIT OR Apache-2.0 — [L35, L25]
+typenum 1.20.1 — MIT OR Apache-2.0 — [L185, L186, L187]
+umya-spreadsheet 3.1.1 — MIT — [L188]
+unicode-ident 1.0.27 — (MIT OR Apache-2.0) AND Unicode-3.0 — [L35, L25, L189]
+unicode-segmentation 1.13.3 — MIT OR Apache-2.0 — [L36, L101]
+universal-hash 0.6.1 — MIT OR Apache-2.0 — [L26, L190]
+url 2.5.9 — MIT OR Apache-2.0 — [L36, L112]
+urlpattern 0.6.0 — MIT — [L191]
+utf_types 1.0.0 — Apache-2.0 OR MIT — [L55, L83]
+utf8_iter 1.1.0 — Apache-2.0 OR MIT — [L55, L83]
+uuid 1.29.3 — Apache-2.0 OR MIT — [L36, L192]
+walkdir 2.5.1 — Unlicense/MIT — [L30, L31, L32]
+web_atoms 0.2.6 — MIT OR Apache-2.0 — [L36, L103]
+web-time 1.1.0 — MIT OR Apache-2.0 — [L193, L194]
+webview2-com 0.39.1 — MIT — [L195] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+webview2-com-macros 0.8.1 — MIT — [L196] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+webview2-com-sys 0.39.1 — MIT — [L197] (패키지에 라이선스 파일이 없어 표준 문구로 대신함)
+winapi-util 0.1.11 — Unlicense OR MIT — [L30, L160, L32]
+window-vibrancy 0.8.1 — Apache-2.0 OR MIT — [L36, L198, L199]
+windows 0.62.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-collections 0.3.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-core 0.62.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-future 0.3.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-implement 0.60.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-interface 0.59.3 — MIT OR Apache-2.0 — [L200, L201]
+windows-link 0.2.1 — MIT OR Apache-2.0 — [L200, L201]
+windows-numerics 0.3.1 — MIT OR Apache-2.0 — [L200, L201]
+windows-result 0.4.1 — MIT OR Apache-2.0 — [L200, L201]
+windows-strings 0.5.1 — MIT OR Apache-2.0 — [L200, L201]
+windows-sys 0.61.2 — MIT OR Apache-2.0 — [L200, L201]
+windows-threading 0.2.1 — MIT OR Apache-2.0 — [L200, L201]
+windows-version 0.1.7 — MIT OR Apache-2.0 — [L200, L201]
+winnow 1.0.5 — MIT — [L202]
+winreg 0.56.0 — MIT — [L203]
+writeable 0.6.4 — Unicode-3.0 — [L110]
+wry 0.57.3 — Apache-2.0 OR MIT — [L36, L204, L205]
+yoke 0.8.4 — Unicode-3.0 — [L110]
+yoke-derive 0.8.4 — Unicode-3.0 — [L110]
+zerofrom 0.1.8 — Unicode-3.0 — [L110]
+zerofrom-derive 0.1.8 — Unicode-3.0 — [L110]
+zeroize 1.9.2 — Apache-2.0 OR MIT — [L55, L206]
+zerotrie 0.2.5 — Unicode-3.0 — [L110]
+zerovec 0.11.9 — Unicode-3.0 — [L110]
+zerovec-derive 0.11.7 — Unicode-3.0 — [L110]
+zip 8.6.0 — MIT — [L207]
+zlib-rs 0.6.8 — Zlib — [L208]
+zmij 1.0.23 — MIT — [L25]
+zopfli 0.8.4 — Apache-2.0 — [L209]
 
 ================================================================================
 2. 라이선스 전문
@@ -1295,33 +1294,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L18] 적용 대상: shadcn 4.23.0
---------------------------------------------------------------------------------
-
-MIT License
-
-Copyright (c) 2023 shadcn
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
---------------------------------------------------------------------------------
-[L19] 적용 대상: sonner 2.0.8
+[L18] 적용 대상: sonner 2.0.8
 --------------------------------------------------------------------------------
 
 MIT License
@@ -1347,7 +1320,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L20] 적용 대상: tailwindcss 4.3.5
+[L19] 적용 대상: tailwindcss 4.3.5
 --------------------------------------------------------------------------------
 
 MIT License
@@ -1373,7 +1346,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L21] 적용 대상: tslib 2.9.1
+[L20] 적용 대상: tslib 2.9.1
 --------------------------------------------------------------------------------
 
 Copyright (c) Microsoft Corporation.
@@ -1390,7 +1363,7 @@ OTHER TORTIOUS ACTION, ARISING OUT OF OR IN CONNECTION WITH THE USE OR
 PERFORMANCE OF THIS SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L22] 적용 대상: tw-animate-css 1.4.0
+[L21] 적용 대상: tw-animate-css 1.4.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -1416,7 +1389,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L23] 적용 대상: zustand 5.1.0
+[L22] 적용 대상: zustand 5.1.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -1442,7 +1415,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L24] 적용 대상: adler2 2.0.1
+[L23] 적용 대상: adler2 2.0.1
 --------------------------------------------------------------------------------
 
 Copyright (C) Jonas Schievink <jonasschievink@gmail.com>
@@ -1459,7 +1432,7 @@ AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT
 OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L25] 적용 대상: adler2 2.0.1, cargo-platform 0.1.9
+[L24] 적용 대상: adler2 2.0.1, cargo-platform 0.1.9
 --------------------------------------------------------------------------------
 
 Apache License
@@ -1665,7 +1638,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L26] 적용 대상: adler2 2.0.1, anyhow 1.0.104, camino 1.2.6, cargo_metadata 0.19.2,
+[L25] 적용 대상: adler2 2.0.1, anyhow 1.0.104, camino 1.2.6, cargo_metadata 0.19.2,
      cargo-platform 0.1.9, displaydoc 0.2.7, dtoa 1.0.11, dyn-clone 1.0.20,
      erased-serde 0.4.11, fastrand 2.5.0, itoa 1.0.19, once_cell 1.21.4,
      pin-project-lite 0.2.18, proc-macro2 1.0.107, quote 1.0.47,
@@ -1702,7 +1675,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L27] 적용 대상: aead 0.6.1, aes 0.9.4, aes-gcm 0.11.1, block-buffer 0.12.1,
+[L26] 적용 대상: aead 0.6.1, aes 0.9.4, aes-gcm 0.11.1, block-buffer 0.12.1,
      block-padding 0.4.2, cbc 0.2.1, chacha20 0.10.2, cipher 0.5.2,
      const-oid 0.10.3, cpubits 0.1.1, cpufeatures 0.3.1, crypto-common 0.2.2,
      ctr 0.10.1, digest 0.11.3, ghash 0.6.0, hmac 0.13.0, hybrid-array 0.4.15,
@@ -1913,7 +1886,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L28] 적용 대상: aead 0.6.1
+[L27] 적용 대상: aead 0.6.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019-2026 The RustCrypto Project Developers
@@ -1944,7 +1917,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L29] 적용 대상: aes 0.9.4
+[L28] 적용 대상: aes 0.9.4
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2024 The RustCrypto Project Developers
@@ -1975,7 +1948,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L30] 적용 대상: aes-gcm 0.11.1, chacha20 0.10.2, ghash 0.6.0, polyval 0.7.3
+[L29] 적용 대상: aes-gcm 0.11.1, chacha20 0.10.2, ghash 0.6.0, polyval 0.7.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019-2026 The RustCrypto Project Developers
@@ -2005,8 +1978,8 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L31] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
-     memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
+[L30] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
+     memchr 2.8.3, same-file 1.0.6, walkdir 2.5.1, winapi-util 0.1.11
 --------------------------------------------------------------------------------
 
 This project is dual-licensed under the Unlicense and MIT licenses.
@@ -2014,8 +1987,8 @@ This project is dual-licensed under the Unlicense and MIT licenses.
 You may use this code under the terms of either license.
 
 --------------------------------------------------------------------------------
-[L32] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
-     memchr 2.8.3, walkdir 2.5.0
+[L31] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
+     memchr 2.8.3, walkdir 2.5.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2041,8 +2014,8 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L33] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
-     memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11
+[L32] 적용 대상: aho-corasick 1.1.5, byteorder 1.5.0, jiff 0.2.46, jiff-core 0.1.8,
+     memchr 2.8.3, same-file 1.0.6, walkdir 2.5.1, winapi-util 0.1.11
 --------------------------------------------------------------------------------
 
 This is free and unencumbered software released into the public domain.
@@ -2071,7 +2044,7 @@ OTHER DEALINGS IN THE SOFTWARE.
 For more information, please refer to <http://unlicense.org/>
 
 --------------------------------------------------------------------------------
-[L34] 적용 대상: alloc-no-stdlib 3.0.0, brotli 9.1.3, brotli-decompressor 6.3.2
+[L33] 적용 대상: alloc-no-stdlib 3.0.0, brotli 9.1.3, brotli-decompressor 6.3.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016 Dropbox, Inc.
@@ -2088,7 +2061,7 @@ Redistribution and use in source and binary forms, with or without modification,
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
-[L35] 적용 대상: alloc-stdlib 0.3.0
+[L34] 적용 대상: alloc-stdlib 0.3.0
 --------------------------------------------------------------------------------
 
 BSD 3-Clause License
@@ -2121,7 +2094,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
-[L36] 적용 대상: anyhow 1.0.104, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.11,
+[L35] 적용 대상: anyhow 1.0.104, dtoa 1.0.11, dyn-clone 1.0.20, erased-serde 0.4.11,
      itoa 1.0.19, libc 0.2.191, proc-macro2 1.0.107, quote 1.0.47,
      rustc-hash 2.1.3, semver 1.0.28, serde 1.0.229, serde_core 1.0.229,
      serde_derive 1.0.229, serde_derive_internals 0.29.1, serde_json 1.0.154,
@@ -2308,12 +2281,12 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 
 --------------------------------------------------------------------------------
-[L37] 적용 대상: base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 2.13.2,
+[L36] 적용 대상: base64 0.21.7, base64 0.22.1, base64 0.23.1, bitflags 2.13.2,
      bumpalo 3.20.4, camino 1.2.6, cfg-if 1.0.5, core_detect 1.0.0,
      core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0,
      core-graphics-types 0.2.0, crossbeam-channel 0.5.17,
      crossbeam-utils 0.8.23, displaydoc 0.2.7, equivalent 1.0.3, errno 0.3.15,
-     fastrand 2.5.0, flate2 1.1.11, fnv 1.0.7, form_urlencoded 1.2.2,
+     fastrand 2.5.0, flate2 1.1.11, fnv 1.0.7, form_urlencoded 1.2.3,
      gethostname 1.1.0, glob 0.3.4, hashbrown 0.12.3, hashbrown 0.17.1,
      heck 0.5.0, html5ever 0.39.0, idna 1.1.0, idna_adapter 1.2.2,
      indexmap 1.9.3, indexmap 2.14.2, keyboard-types 0.8.3, lock_api 0.4.14,
@@ -2324,7 +2297,7 @@ END OF TERMS AND CONDITIONS
      serde_with 3.25.0, serde_with_macros 3.25.0, servo_arc 0.4.3,
      smallvec 1.16.6, socket2 0.6.5, stable_deref_trait 1.2.1,
      string_cache 0.9.0, tendril 0.5.1, thousands 0.2.0,
-     unicode-segmentation 1.13.3, url 2.5.8, uuid 1.29.3, web_atoms 0.2.6,
+     unicode-segmentation 1.13.3, url 2.5.9, uuid 1.29.3, web_atoms 0.2.6,
      window-vibrancy 0.8.1, wry 0.57.3
 --------------------------------------------------------------------------------
 
@@ -2531,7 +2504,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L38] 적용 대상: base64 0.21.7, base64 0.22.1
+[L37] 적용 대상: base64 0.21.7, base64 0.22.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2557,7 +2530,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L39] 적용 대상: base64 0.23.1
+[L38] 적용 대상: base64 0.23.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -2583,7 +2556,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L40] 적용 대상: bit-set 0.8.0, bit-vec 0.8.0, hashlink 0.12.2
+[L39] 적용 대상: bit-set 0.8.0, bit-vec 0.8.0, hashlink 0.12.2
 --------------------------------------------------------------------------------
 
 Apache License
@@ -2789,7 +2762,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L41] 적용 대상: bit-set 0.8.0, bit-vec 0.8.0
+[L40] 적용 대상: bit-set 0.8.0, bit-vec 0.8.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2023 The Rust Project Developers
@@ -2819,7 +2792,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L42] 적용 대상: bitflags 2.13.2, glob 0.3.4, log 0.4.35, num-traits 0.2.19, regex 1.13.2,
+[L41] 적용 대상: bitflags 2.13.2, glob 0.3.4, log 0.4.35, num-traits 0.2.19, regex 1.13.2,
      regex-automata 0.4.19, regex-syntax 0.8.12
 --------------------------------------------------------------------------------
 
@@ -2850,7 +2823,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L43] 적용 대상: block-buffer 0.12.1, block-padding 0.4.2
+[L42] 적용 대상: block-buffer 0.12.1, block-padding 0.4.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2025 The RustCrypto Project Developers
@@ -2880,7 +2853,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L44] 적용 대상: block2 0.6.2, objc2 0.6.5, objc2-encode 4.1.0, objc2-exception-helper 0.1.1
+[L43] 적용 대상: block2 0.6.2, objc2 0.6.5, objc2-encode 4.1.0, objc2-exception-helper 0.1.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -2906,7 +2879,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L45] 적용 대상: brotli 9.1.3
+[L44] 적용 대상: brotli 9.1.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2009, 2010, 2013-2016 by the Brotli Authors.
@@ -2930,7 +2903,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L46] 적용 대상: bumpalo 3.20.4
+[L45] 적용 대상: bumpalo 3.20.4
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019 Nick Fitzgerald
@@ -2960,7 +2933,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L47] 적용 대상: bytemuck 1.25.2
+[L46] 적용 대상: bytemuck 1.25.2
 --------------------------------------------------------------------------------
 
 Apache License
@@ -3026,7 +2999,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L48] 적용 대상: bytemuck 1.25.2
+[L47] 적용 대상: bytemuck 1.25.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -3040,7 +3013,7 @@ The above copyright notice and this permission notice (including the next paragr
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L49] 적용 대상: bytemuck 1.25.2
+[L48] 적용 대상: bytemuck 1.25.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019 Daniel "Lokathor" Gee.
@@ -3056,7 +3029,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 
 --------------------------------------------------------------------------------
-[L50] 적용 대상: bytes 1.12.2
+[L49] 적용 대상: bytes 1.12.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018 Carl Lerche
@@ -3086,7 +3059,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L51] 적용 대상: cbc 0.2.1, ctr 0.10.1
+[L50] 적용 대상: cbc 0.2.1, ctr 0.10.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2022 RustCrypto Developers
@@ -3117,7 +3090,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L52] 적용 대상: cfb 0.14.0
+[L51] 적용 대상: cfb 0.14.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -3143,7 +3116,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L53] 적용 대상: cfg-if 1.0.5, socket2 0.6.5
+[L52] 적용 대상: cfg-if 1.0.5, socket2 0.6.5
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 Alex Crichton
@@ -3173,7 +3146,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L54] 적용 대상: chrono 0.4.45
+[L53] 적용 대상: chrono 0.4.45
 --------------------------------------------------------------------------------
 
 Rust-chrono is dual-licensed under The MIT License [1] and
@@ -3417,7 +3390,7 @@ limitations under the License.
 ~~~~
 
 --------------------------------------------------------------------------------
-[L55] 적용 대상: cipher 0.5.2
+[L54] 적용 대상: cipher 0.5.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016-2025 RustCrypto Developers
@@ -3447,7 +3420,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L56] 적용 대상: cmov 0.5.4, ctutils 0.4.8, embed_plist 1.2.2, encoding_rs 0.8.44,
+[L55] 적용 대상: cmov 0.5.4, ctutils 0.4.8, embed_plist 1.2.2, encoding_rs 0.8.44,
      multiversion_no_op 1.0.0, serialize-to-javascript 0.1.2,
      serialize-to-javascript-impl 0.1.2, siphasher 1.0.4, utf_types 1.0.0,
      utf8_iter 1.1.0, zeroize 1.9.2
@@ -3656,7 +3629,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L57] 적용 대상: cmov 0.5.4, hybrid-array 0.4.15
+[L56] 적용 대상: cmov 0.5.4, hybrid-array 0.4.15
 --------------------------------------------------------------------------------
 
 Copyright (c) 2022-2026 The RustCrypto Project Developers
@@ -3686,7 +3659,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L58] 적용 대상: const-oid 0.10.3, cpufeatures 0.3.1
+[L57] 적용 대상: const-oid 0.10.3, cpufeatures 0.3.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2020-2026 The RustCrypto Project Developers
@@ -3716,7 +3689,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L59] 적용 대상: cookie 0.18.2
+[L58] 적용 대상: cookie 0.18.2
 --------------------------------------------------------------------------------
 
 Apache License
@@ -3923,7 +3896,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L60] 적용 대상: cookie 0.18.2
+[L59] 적용 대상: cookie 0.18.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Sergio Benitez
@@ -3954,7 +3927,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L61] 적용 대상: core_detect 1.0.0
+[L60] 적용 대상: core_detect 1.0.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017-2020 The Rust Project Developers
@@ -3984,7 +3957,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L62] 적용 대상: core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0,
+[L61] 적용 대상: core-foundation 0.10.1, core-foundation-sys 0.8.7, core-graphics 0.25.0,
      core-graphics-types 0.2.0, string_cache 0.9.0
 --------------------------------------------------------------------------------
 
@@ -4015,7 +3988,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L63] 적용 대상: cpubits 0.1.1
+[L62] 적용 대상: cpubits 0.1.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2023-2026 The RustCrypto Project Developers
@@ -4045,7 +4018,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L64] 적용 대상: crc32fast 1.5.5, ctor 1.0.14, dpi 0.1.2, fallible-iterator 0.3.0,
+[L63] 적용 대상: crc32fast 1.5.5, ctor 1.0.14, dpi 0.1.2, fallible-iterator 0.3.0,
      fallible-streaming-iterator 0.1.9, foreign-types 0.5.0,
      foreign-types-macros 0.2.4, foreign-types-shared 0.3.1, json-patch 4.2.0,
      tao 0.37.3
@@ -4254,7 +4227,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L65] 적용 대상: crc32fast 1.5.5
+[L64] 적용 대상: crc32fast 1.5.5
 --------------------------------------------------------------------------------
 
 MIT License
@@ -4280,7 +4253,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L66] 적용 대상: crossbeam-channel 0.5.17, crossbeam-utils 0.8.23
+[L65] 적용 대상: crossbeam-channel 0.5.17, crossbeam-utils 0.8.23
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -4312,7 +4285,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L67] 적용 대상: crossbeam-channel 0.5.17
+[L66] 적용 대상: crossbeam-channel 0.5.17
 --------------------------------------------------------------------------------
 
 ===============================================================================
@@ -4910,7 +4883,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L68] 적용 대상: crypto-common 0.2.2
+[L67] 적용 대상: crypto-common 0.2.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2021-2026 RustCrypto Developers
@@ -4940,7 +4913,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L69] 적용 대상: cssparser 0.37.0, cssparser-macros 0.7.1, dtoa-short 0.3.5,
+[L68] 적용 대상: cssparser 0.37.0, cssparser-macros 0.7.1, dtoa-short 0.3.5,
      selectors 0.38.0
 --------------------------------------------------------------------------------
 
@@ -5319,7 +5292,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 --------------------------------------------------------------------------------
-[L70] 적용 대상: ctor 1.0.14
+[L69] 적용 대상: ctor 1.0.14
 --------------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
@@ -5329,7 +5302,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L71] 적용 대상: ctutils 0.4.8
+[L70] 적용 대상: ctutils 0.4.8
 --------------------------------------------------------------------------------
 
 Copyright (c) 2025-2026 The RustCrypto Project Developers
@@ -5359,7 +5332,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L72] 적용 대상: darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1
+[L71] 적용 대상: darling 0.24.1, darling_core 0.24.1, darling_macro 0.24.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -5385,7 +5358,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L73] 적용 대상: deranged 0.5.9
+[L72] 적용 대상: deranged 0.5.9
 --------------------------------------------------------------------------------
 
 Apache License
@@ -5591,7 +5564,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L74] 적용 대상: deranged 0.5.9
+[L73] 적용 대상: deranged 0.5.9
 --------------------------------------------------------------------------------
 
 Copyright (c) 2024 Jacob Pratt et al.
@@ -5615,7 +5588,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L75] 적용 대상: derive_more 2.1.1, derive_more-impl 2.1.1
+[L74] 적용 대상: derive_more 2.1.1, derive_more-impl 2.1.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -5641,7 +5614,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L76] 적용 대상: digest 0.11.3
+[L75] 적용 대상: digest 0.11.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017-2025 RustCrypto Developers
@@ -5672,7 +5645,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L77] 적용 대상: dirs 7.0.0, dirs-sys 0.5.0
+[L76] 적용 대상: dirs 7.0.0, dirs-sys 0.5.0
 --------------------------------------------------------------------------------
 
 Apache License
@@ -5851,7 +5824,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
    of your accepting any such warranty or additional liability.
 
 --------------------------------------------------------------------------------
-[L78] 적용 대상: dirs 7.0.0, dirs-sys 0.5.0
+[L77] 적용 대상: dirs 7.0.0, dirs-sys 0.5.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2019 dirs-rs contributors
@@ -5875,7 +5848,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L79] 적용 대상: dispatch2 0.3.1
+[L78] 적용 대상: dispatch2 0.3.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -5901,7 +5874,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L80] 적용 대상: dom_query 0.28.0
+[L79] 적용 대상: dom_query 0.28.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -5933,7 +5906,7 @@ derived from the "nipper" project (https://github.com/importcjj/nipper),
 developed by Chen Jiaju, licensed under the MIT License and the Apache License 2.0 (dual licensed).
 
 --------------------------------------------------------------------------------
-[L81] 적용 대상: dpi 0.1.2
+[L80] 적용 대상: dpi 0.1.2
 --------------------------------------------------------------------------------
 
 rust-lang/libm as a whole is available for use under the MIT license:
@@ -5989,7 +5962,7 @@ have been licensed under extremely permissive terms.
 ------------------------------------------------------------------------------
 
 --------------------------------------------------------------------------------
-[L82] 적용 대상: dunce 1.0.5
+[L81] 적용 대상: dunce 1.0.5
 --------------------------------------------------------------------------------
 
 Creative Commons Legal Code
@@ -6115,7 +6088,7 @@ express Statement of Purpose.
     this CC0 or use of the Work.
 
 --------------------------------------------------------------------------------
-[L83] 적용 대상: embed_plist 1.2.2
+[L82] 적용 대상: embed_plist 1.2.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -6141,7 +6114,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L84] 적용 대상: encoding_rs 0.8.44, multiversion_no_op 1.0.0, utf_types 1.0.0,
+[L83] 적용 대상: encoding_rs 0.8.44, multiversion_no_op 1.0.0, utf_types 1.0.0,
      utf8_iter 1.1.0
 --------------------------------------------------------------------------------
 
@@ -6172,7 +6145,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L85] 적용 대상: encoding_rs 0.8.44
+[L84] 적용 대상: encoding_rs 0.8.44
 --------------------------------------------------------------------------------
 
 Copyright © WHATWG (Apple, Google, Mozilla, Microsoft).
@@ -6203,7 +6176,7 @@ OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
-[L86] 적용 대상: equivalent 1.0.3
+[L85] 적용 대상: equivalent 1.0.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016--2023
@@ -6233,7 +6206,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L87] 적용 대상: errno 0.3.15
+[L86] 적용 대상: errno 0.3.15
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 Chris Wong
@@ -6263,7 +6236,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L88] 적용 대상: fallible-iterator 0.3.0
+[L87] 적용 대상: fallible-iterator 0.3.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 The rust-openssl-verify Developers
@@ -6287,7 +6260,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L89] 적용 대상: fallible-streaming-iterator 0.1.9
+[L88] 적용 대상: fallible-streaming-iterator 0.1.9
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016 The fallible-streaming-iterator Developers
@@ -6311,7 +6284,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L90] 적용 대상: fancy-regex 0.18.0
+[L89] 적용 대상: fancy-regex 0.18.0
 --------------------------------------------------------------------------------
 
 The MIT License
@@ -6337,7 +6310,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L91] 적용 대상: fdeflate 0.3.7
+[L90] 적용 대상: fdeflate 0.3.7
 --------------------------------------------------------------------------------
 
 MIT License
@@ -6367,7 +6340,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L92] 적용 대상: flate2 1.1.11
+[L91] 적용 대상: flate2 1.1.11
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014-2026 Alex Crichton
@@ -6397,7 +6370,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L93] 적용 대상: fnv 1.0.7
+[L92] 적용 대상: fnv 1.0.7
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Contributors
@@ -6427,7 +6400,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L94] 적용 대상: foldhash 0.2.0
+[L93] 적용 대상: foldhash 0.2.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2024 Orson Peters
@@ -6451,7 +6424,7 @@ the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 
 --------------------------------------------------------------------------------
-[L95] 적용 대상: foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.3.1
+[L94] 적용 대상: foreign-types 0.5.0, foreign-types-macros 0.2.4, foreign-types-shared 0.3.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 The foreign-types Developers
@@ -6475,7 +6448,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L96] 적용 대상: form_urlencoded 1.2.2
+[L95] 적용 대상: form_urlencoded 1.2.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2013-2016 The rust-url developers
@@ -6505,7 +6478,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L97] 적용 대상: getrandom 0.3.4, getrandom 0.4.3
+[L96] 적용 대상: getrandom 0.3.4, getrandom 0.4.3
 --------------------------------------------------------------------------------
 
 Apache License
@@ -6711,7 +6684,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L98] 적용 대상: getrandom 0.3.4
+[L97] 적용 대상: getrandom 0.3.4
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2025 The rust-random Project Developers
@@ -6742,7 +6715,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L99] 적용 대상: getrandom 0.4.3
+[L98] 적용 대상: getrandom 0.4.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2026 The rust-random Project Developers
@@ -6773,7 +6746,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L100] 적용 대상: hashbrown 0.12.3, hashbrown 0.17.1
+[L99] 적용 대상: hashbrown 0.12.3, hashbrown 0.17.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016 Amanieu d'Antras
@@ -6803,7 +6776,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L101] 적용 대상: hashlink 0.12.2
+[L100] 적용 대상: hashlink 0.12.2
 --------------------------------------------------------------------------------
 
 This work is derived in part from the `linked-hash-map` crate, Copyright (c)
@@ -6834,7 +6807,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L102] 적용 대상: heck 0.5.0, unicode-segmentation 1.13.3
+[L101] 적용 대상: heck 0.5.0, unicode-segmentation 1.13.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 The Rust Project Developers
@@ -6864,7 +6837,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L103] 적용 대상: hmac 0.13.0
+[L102] 적용 대상: hmac 0.13.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Artyom Pavlov
@@ -6894,7 +6867,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L104] 적용 대상: html5ever 0.39.0, markup5ever 0.39.0, web_atoms 0.2.6
+[L103] 적용 대상: html5ever 0.39.0, markup5ever 0.39.0, web_atoms 0.2.6
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 The html5ever Project Developers
@@ -6924,7 +6897,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L105] 적용 대상: html5gum 0.8.4
+[L104] 적용 대상: html5gum 0.8.4
 --------------------------------------------------------------------------------
 
 Copyright (c) 2021 Markus Unterwaditzer
@@ -6948,7 +6921,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L106] 적용 대상: http 1.5.0
+[L105] 적용 대상: http 1.5.0
 --------------------------------------------------------------------------------
 
 Apache License
@@ -7154,7 +7127,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L107] 적용 대상: http 1.5.0
+[L106] 적용 대상: http 1.5.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 http-rs authors
@@ -7184,7 +7157,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L108] 적용 대상: iana-time-zone 0.1.65
+[L107] 적용 대상: iana-time-zone 0.1.65
 --------------------------------------------------------------------------------
 
 Apache License
@@ -7390,7 +7363,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L109] 적용 대상: iana-time-zone 0.1.65
+[L108] 적용 대상: iana-time-zone 0.1.65
 --------------------------------------------------------------------------------
 
 Copyright (c) 2020 Andrew D. Straw
@@ -7420,7 +7393,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L110] 적용 대상: ico 0.6.0
+[L109] 적용 대상: ico 0.6.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -7446,7 +7419,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L111] 적용 대상: icu_collections 2.4.0, icu_locale_core 2.4.0, icu_normalizer 2.4.0,
+[L110] 적용 대상: icu_collections 2.4.0, icu_locale_core 2.4.0, icu_normalizer 2.4.0,
      icu_normalizer_data 2.4.0, icu_properties 2.4.0, icu_properties_data 2.4.0,
      icu_provider 2.4.0, litemap 0.8.3, potential_utf 0.1.6, tinystr 0.8.5,
      writeable 0.6.4, yoke 0.8.4, yoke-derive 0.8.4, zerofrom 0.1.8,
@@ -7502,7 +7475,7 @@ Portions of ICU4X may have been adapted from ICU4C and/or ICU4J.
 ICU 1.8.1 to ICU 57.1 © 1995-2016 International Business Machines Corporation and others.
 
 --------------------------------------------------------------------------------
-[L112] 적용 대상: ident_case 1.0.1, simdutf8 0.1.5
+[L111] 적용 대상: ident_case 1.0.1, simdutf8 0.1.5
 --------------------------------------------------------------------------------
 
 MIT License
@@ -7526,7 +7499,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L113] 적용 대상: idna 1.1.0, percent-encoding 2.3.2, url 2.5.8
+[L112] 적용 대상: idna 1.1.0, percent-encoding 2.3.2, url 2.5.9
 --------------------------------------------------------------------------------
 
 Copyright (c) 2013-2025 The rust-url developers
@@ -7556,7 +7529,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L114] 적용 대상: idna_adapter 1.2.2
+[L113] 적용 대상: idna_adapter 1.2.2
 --------------------------------------------------------------------------------
 
 Copyright (c) The rust-url developers
@@ -7586,7 +7559,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L115] 적용 대상: imagesize 0.14.0
+[L114] 적용 대상: imagesize 0.14.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -7612,7 +7585,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L116] 적용 대상: indexmap 1.9.3, indexmap 2.14.2
+[L115] 적용 대상: indexmap 1.9.3, indexmap 2.14.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016--2017
@@ -7642,7 +7615,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L117] 적용 대상: infer 0.22.0
+[L116] 적용 대상: infer 0.22.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -7668,7 +7641,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L118] 적용 대상: inout 0.2.6
+[L117] 적용 대상: inout 0.2.6
 --------------------------------------------------------------------------------
 
 Copyright (c) 2022-2025 The RustCrypto Project Developers
@@ -7699,7 +7672,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L119] 적용 대상: jetscii 0.5.3
+[L118] 적용 대상: jetscii 0.5.3
 --------------------------------------------------------------------------------
 
 Apache License
@@ -7905,7 +7878,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L120] 적용 대상: jetscii 0.5.3
+[L119] 적용 대상: jetscii 0.5.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015-2018 Jake Goulding
@@ -7935,7 +7908,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L121] 적용 대상: json-patch 4.2.0
+[L120] 적용 대상: json-patch 4.2.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -7961,7 +7934,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L122] 적용 대상: jsonptr 0.7.1
+[L121] 적용 대상: jsonptr 0.7.1
 --------------------------------------------------------------------------------
 
 Apache License
@@ -8167,7 +8140,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L123] 적용 대상: jsonptr 0.7.1
+[L122] 적용 대상: jsonptr 0.7.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8193,7 +8166,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L124] 적용 대상: keyboard-types 0.8.3
+[L123] 적용 대상: keyboard-types 0.8.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Pyfisch
@@ -8217,7 +8190,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L125] 적용 대상: libc 0.2.191
+[L124] 적용 대상: libc 0.2.191
 --------------------------------------------------------------------------------
 
 Copyright (c) The Rust Project Developers
@@ -8247,7 +8220,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L126] 적용 대상: libsqlite3-sys 0.40.0, rusqlite 0.43.0
+[L125] 적용 대상: libsqlite3-sys 0.40.0, rusqlite 0.43.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 The rusqlite developers
@@ -8271,7 +8244,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L127] 적용 대상: lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12
+[L126] 적용 대상: lock_api 0.4.14, parking_lot 0.12.5, parking_lot_core 0.9.12
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016 The Rust Project Developers
@@ -8301,7 +8274,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L128] 적용 대상: md-5 0.11.0, sha2 0.11.1
+[L127] 적용 대상: md-5 0.11.0, sha2 0.11.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016-2026 The RustCrypto Project Developers
@@ -8334,7 +8307,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L129] 적용 대상: mime 0.3.18
+[L128] 적용 대상: mime 0.3.18
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 Sean McArthur
@@ -8358,7 +8331,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L130] 적용 대상: miniz_oxide 0.8.9, miniz_oxide 0.9.1
+[L129] 적용 대상: miniz_oxide 0.8.9, miniz_oxide 0.9.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8368,6 +8341,35 @@ Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2017 Frommi
 Copyright (c) 2017-2024 oyvindln
 
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------------
+[L130] 적용 대상: miniz_oxide 0.8.9, miniz_oxide 0.9.1
+--------------------------------------------------------------------------------
+
+MIT License
+
+Copyright 2013-2014 RAD Game Tools and Valve Software
+Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
+Copyright (c) 2017 Frommi
+Copyright (c) 2017-2024 oyvindln
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -8391,35 +8393,6 @@ SOFTWARE.
 [L131] 적용 대상: miniz_oxide 0.8.9, miniz_oxide 0.9.1
 --------------------------------------------------------------------------------
 
-MIT License
-
-Copyright 2013-2014 RAD Game Tools and Valve Software
-Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
-Copyright (c) 2017 Frommi
-Copyright (c) 2017-2024 oyvindln
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-
---------------------------------------------------------------------------------
-[L132] 적용 대상: miniz_oxide 0.8.9, miniz_oxide 0.9.1
---------------------------------------------------------------------------------
-
 Copyright 2013-2014 RAD Game Tools and Valve Software
 Copyright 2010-2014 Rich Geldreich and Tenacious Software LLC
 Copyright (c) 2020 Frommi
@@ -8436,7 +8409,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 
 --------------------------------------------------------------------------------
-[L133] 적용 대상: mio 1.2.5
+[L132] 적용 대상: mio 1.2.5
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 Carl Lerche and other MIO contributors
@@ -8460,7 +8433,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L134] 적용 대상: muda 0.20.0
+[L133] 적용 대상: muda 0.20.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8486,7 +8459,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L135] 적용 대상: muda 0.20.0
+[L134] 적용 대상: muda 0.20.0
 --------------------------------------------------------------------------------
 
 SPDXVersion: SPDX-2.1
@@ -8510,7 +8483,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/muda.git
 Creator: Person: Daniel Thompson-Yvetot
 
 --------------------------------------------------------------------------------
-[L136] 적용 대상: new_debug_unreachable 1.0.6
+[L135] 적용 대상: new_debug_unreachable 1.0.6
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 Jonathan Reem
@@ -8540,7 +8513,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L137] 적용 대상: num-conv 0.2.2
+[L136] 적용 대상: num-conv 0.2.2
 --------------------------------------------------------------------------------
 
 Copyright (c) Jacob Pratt
@@ -8564,7 +8537,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L138] 적용 대상: objc2-app-kit 0.3.2
+[L137] 적용 대상: objc2-app-kit 0.3.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8590,7 +8563,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L139] 적용 대상: objc2-core-foundation 0.3.2
+[L138] 적용 대상: objc2-core-foundation 0.3.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8616,7 +8589,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L140] 적용 대상: objc2-foundation 0.3.2
+[L139] 적용 대상: objc2-foundation 0.3.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8642,7 +8615,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L141] 적용 대상: objc2-quartz-core 0.3.2
+[L140] 적용 대상: objc2-quartz-core 0.3.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8668,7 +8641,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L142] 적용 대상: objc2-web-kit 0.3.2
+[L141] 적용 대상: objc2-web-kit 0.3.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -8694,7 +8667,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L143] 적용 대상: option-ext 0.2.0
+[L142] 적용 대상: option-ext 0.2.0
 --------------------------------------------------------------------------------
 
 Mozilla Public License Version 2.0
@@ -9072,7 +9045,7 @@ Exhibit B - "Incompatible With Secondary Licenses" Notice
   defined by the Mozilla Public License, v. 2.0.
 
 --------------------------------------------------------------------------------
-[L144] 적용 대상: pbkdf2 0.13.0
+[L143] 적용 대상: pbkdf2 0.13.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Artyom Pavlov
@@ -9103,7 +9076,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L145] 적용 대상: phf 0.13.1, phf 0.14.0, phf_generator 0.13.1, phf_generator 0.14.0,
+[L144] 적용 대상: phf 0.13.1, phf 0.14.0, phf_generator 0.13.1, phf_generator 0.14.0,
      phf_macros 0.13.1, phf_macros 0.14.0, phf_shared 0.13.1, phf_shared 0.14.0
 --------------------------------------------------------------------------------
 
@@ -9129,7 +9102,7 @@ IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L146] 적용 대상: plist 1.10.4
+[L145] 적용 대상: plist 1.10.4
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 Edward Barnard
@@ -9153,7 +9126,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L147] 적용 대상: png 0.18.1
+[L146] 적용 대상: png 0.18.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 nwin
@@ -9183,7 +9156,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L148] 적용 대상: powerfmt 0.2.1
+[L147] 적용 대상: powerfmt 0.2.1
 --------------------------------------------------------------------------------
 
 Apache License
@@ -9389,7 +9362,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L149] 적용 대상: powerfmt 0.2.1
+[L148] 적용 대상: powerfmt 0.2.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2023 Jacob Pratt et al.
@@ -9413,7 +9386,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L150] 적용 대상: precomputed-hash 0.1.1
+[L149] 적용 대상: precomputed-hash 0.1.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -9439,7 +9412,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L151] 적용 대상: quick-xml 0.41.0, quick-xml 0.42.0
+[L150] 적용 대상: quick-xml 0.41.0, quick-xml 0.42.0
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -9467,7 +9440,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L152] 적용 대상: rand 0.10.4
+[L151] 적용 대상: rand 0.10.4
 --------------------------------------------------------------------------------
 
 Apache License
@@ -9648,7 +9621,7 @@ TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
 END OF TERMS AND CONDITIONS
 
 --------------------------------------------------------------------------------
-[L153] 적용 대상: rand 0.10.4
+[L152] 적용 대상: rand 0.10.4
 --------------------------------------------------------------------------------
 
 Copyright 2018 Developers of the Rand project
@@ -9679,7 +9652,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L154] 적용 대상: rand_core 0.10.1
+[L153] 적용 대상: rand_core 0.10.1
 --------------------------------------------------------------------------------
 
 Apache License
@@ -9871,7 +9844,7 @@ APPENDIX: How to apply the Apache License to your work.
    identification within third-party archives.
 
 --------------------------------------------------------------------------------
-[L155] 적용 대상: rand_core 0.10.1
+[L154] 적용 대상: rand_core 0.10.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2026 The Rand Project Developers
@@ -9901,7 +9874,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L156] 적용 대상: raw-window-handle 0.6.2
+[L155] 적용 대상: raw-window-handle 0.6.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -9927,7 +9900,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L157] 적용 대상: raw-window-handle 0.6.2
+[L156] 적용 대상: raw-window-handle 0.6.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2020 Osspial
@@ -9943,7 +9916,7 @@ Permission is granted to anyone to use this software for any purpose, including 
 3. This notice may not be removed or altered from any source distribution.
 
 --------------------------------------------------------------------------------
-[L158] 적용 대상: rfd 0.17.2
+[L157] 적용 대상: rfd 0.17.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -9969,7 +9942,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L159] 적용 대상: rgb 0.8.53
+[L158] 적용 대상: rgb 0.8.53
 --------------------------------------------------------------------------------
 
 MIT License
@@ -9995,7 +9968,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L160] 적용 대상: rustix 1.1.6
+[L159] 적용 대상: rustix 1.1.6
 --------------------------------------------------------------------------------
 
 Apache License
@@ -10218,7 +10191,7 @@ the License, but only in their entirety and only with respect to the Combined
 Software.
 
 --------------------------------------------------------------------------------
-[L161] 적용 대상: same-file 1.0.6, winapi-util 0.1.11
+[L160] 적용 대상: same-file 1.0.6, winapi-util 0.1.11
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -10244,7 +10217,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L162] 적용 대상: schemars 0.8.22, schemars_derive 0.8.22
+[L161] 적용 대상: schemars 0.8.22, schemars_derive 0.8.22
 --------------------------------------------------------------------------------
 
 MIT License
@@ -10270,7 +10243,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L163] 적용 대상: scopeguard 1.2.0
+[L162] 적용 대상: scopeguard 1.2.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2016-2019 Ulrik Sverdrup "bluss" and scopeguard developers
@@ -10300,8 +10273,8 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L164] 적용 대상: serde_spanned 1.1.3, toml 1.2.1+spec-1.1.0, toml_datetime 1.1.3+spec-1.1.0,
-     toml_parser 1.1.5+spec-1.1.0, toml_writer 1.2.0+spec-1.1.0
+[L163] 적용 대상: serde_spanned 1.1.3, toml 1.2.2+spec-1.1.0, toml_datetime 1.1.3+spec-1.1.0,
+     toml_parser 1.1.6+spec-1.1.0, toml_writer 1.2.0+spec-1.1.0
 --------------------------------------------------------------------------------
 
 Apache License
@@ -10507,8 +10480,8 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L165] 적용 대상: serde_spanned 1.1.3, toml 1.2.1+spec-1.1.0, toml_datetime 1.1.3+spec-1.1.0,
-     toml_parser 1.1.5+spec-1.1.0, toml_writer 1.2.0+spec-1.1.0
+[L164] 적용 대상: serde_spanned 1.1.3, toml 1.2.2+spec-1.1.0, toml_datetime 1.1.3+spec-1.1.0,
+     toml_parser 1.1.6+spec-1.1.0, toml_writer 1.2.0+spec-1.1.0
 --------------------------------------------------------------------------------
 
 Copyright (c) Individual contributors
@@ -10532,7 +10505,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L166] 적용 대상: serde_with 3.25.0, serde_with_macros 3.25.0
+[L165] 적용 대상: serde_with 3.25.0, serde_with_macros 3.25.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015
@@ -10562,7 +10535,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L167] 적용 대상: serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2
+[L166] 적용 대상: serialize-to-javascript 0.1.2, serialize-to-javascript-impl 0.1.2
 --------------------------------------------------------------------------------
 
 MIT License
@@ -10588,7 +10561,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L168] 적용 대상: simd-adler32 0.3.10
+[L167] 적용 대상: simd-adler32 0.3.10
 --------------------------------------------------------------------------------
 
 MIT License
@@ -10614,7 +10587,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L169] 적용 대상: siphasher 1.0.4
+[L168] 적용 대상: siphasher 1.0.4
 --------------------------------------------------------------------------------
 
 Copyright 2012-2016 The Rust Project Developers.
@@ -10626,7 +10599,7 @@ http://www.apache.org/licenses/LICENSE-2.0> or the MIT license
 option.
 
 --------------------------------------------------------------------------------
-[L170] 적용 대상: siphasher 1.0.4
+[L169] 적용 대상: siphasher 1.0.4
 --------------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -10648,7 +10621,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L171] 적용 대상: smallvec 1.16.6
+[L170] 적용 대상: smallvec 1.16.6
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018 The Servo Project Developers
@@ -10678,7 +10651,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L172] 적용 대상: softbuffer 0.4.8
+[L171] 적용 대상: softbuffer 0.4.8
 --------------------------------------------------------------------------------
 
 Apache License
@@ -10884,7 +10857,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L173] 적용 대상: softbuffer 0.4.8
+[L172] 적용 대상: softbuffer 0.4.8
 --------------------------------------------------------------------------------
 
 Copyright 2022 Kirill Chibisov
@@ -10908,7 +10881,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L174] 적용 대상: stable_deref_trait 1.2.1
+[L173] 적용 대상: stable_deref_trait 1.2.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2017 Robert Grosse
@@ -10938,7 +10911,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L175] 적용 대상: strsim 0.11.1
+[L174] 적용 대상: strsim 0.11.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -10966,7 +10939,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L176] 적용 대상: swift-rs 1.0.9
+[L175] 적용 대상: swift-rs 1.0.9
 --------------------------------------------------------------------------------
 
 Apache License
@@ -11172,7 +11145,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L177] 적용 대상: swift-rs 1.0.9
+[L176] 적용 대상: swift-rs 1.0.9
 --------------------------------------------------------------------------------
 
 Copyright (c) 2023 The swift-rs Developers
@@ -11196,7 +11169,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L178] 적용 대상: synstructure 0.14.0
+[L177] 적용 대상: synstructure 0.14.0
 --------------------------------------------------------------------------------
 
 Copyright 2016 Nika Layzell
@@ -11208,7 +11181,7 @@ The above copyright notice and this permission notice shall be included in all c
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L179] 적용 대상: tao 0.37.3
+[L178] 적용 대상: tao 0.37.3
 --------------------------------------------------------------------------------
 
 SPDXVersion: SPDX-2.1
@@ -11231,7 +11204,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/tao.git
 Creator: Person: Daniel Thompson-Yvetot
 
 --------------------------------------------------------------------------------
-[L180] 적용 대상: tauri-plugin-single-instance 2.5.5
+[L179] 적용 대상: tauri-plugin-single-instance 2.5.5
 --------------------------------------------------------------------------------
 
 MIT License
@@ -11257,7 +11230,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L181] 적용 대상: tendril 0.5.1
+[L180] 적용 대상: tendril 0.5.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 Keegan McAllister
@@ -11287,7 +11260,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L182] 적용 대상: thousands 0.2.0
+[L181] 적용 대상: thousands 0.2.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018 Jesse A. Tov
@@ -11317,7 +11290,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L183] 적용 대상: time 0.3.55, time-core 0.1.9, time-macros 0.2.32
+[L182] 적용 대상: time 0.3.55, time-core 0.1.9, time-macros 0.2.32
 --------------------------------------------------------------------------------
 
 Copyright (c) Jacob Pratt et al.
@@ -11341,7 +11314,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L184] 적용 대상: tokio 1.54.1
+[L183] 적용 대상: tokio 1.54.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -11367,7 +11340,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L185] 적용 대상: tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36
+[L184] 적용 대상: tracing 0.1.44, tracing-attributes 0.1.31, tracing-core 0.1.36
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019 Tokio Contributors
@@ -11397,13 +11370,13 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L186] 적용 대상: typenum 1.20.1
+[L185] 적용 대상: typenum 1.20.1
 --------------------------------------------------------------------------------
 
 MIT OR Apache-2.0
 
 --------------------------------------------------------------------------------
-[L187] 적용 대상: typenum 1.20.1
+[L186] 적용 대상: typenum 1.20.1
 --------------------------------------------------------------------------------
 
 Apache License
@@ -11609,7 +11582,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 
 --------------------------------------------------------------------------------
-[L188] 적용 대상: typenum 1.20.1
+[L187] 적용 대상: typenum 1.20.1
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -11635,7 +11608,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L189] 적용 대상: umya-spreadsheet 3.1.1
+[L188] 적용 대상: umya-spreadsheet 3.1.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -11661,7 +11634,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L190] 적용 대상: unicode-ident 1.0.27
+[L189] 적용 대상: unicode-ident 1.0.27
 --------------------------------------------------------------------------------
 
 UNICODE LICENSE V3
@@ -11705,7 +11678,7 @@ dealings in these Data Files or Software without prior written
 authorization of the copyright holder.
 
 --------------------------------------------------------------------------------
-[L191] 적용 대상: universal-hash 0.6.1
+[L190] 적용 대상: universal-hash 0.6.1
 --------------------------------------------------------------------------------
 
 Copyright (c) 2019-2025 RustCrypto Developers
@@ -11735,7 +11708,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L192] 적용 대상: urlpattern 0.6.0
+[L191] 적용 대상: urlpattern 0.6.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -11761,7 +11734,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L193] 적용 대상: uuid 1.29.3
+[L192] 적용 대상: uuid 1.29.3
 --------------------------------------------------------------------------------
 
 Copyright (c) 2014 The Rust Project Developers
@@ -11792,7 +11765,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L194] 적용 대상: web-time 1.1.0
+[L193] 적용 대상: web-time 1.1.0
 --------------------------------------------------------------------------------
 
 Apache License
@@ -11998,7 +11971,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L195] 적용 대상: web-time 1.1.0
+[L194] 적용 대상: web-time 1.1.0
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12024,7 +11997,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L196] 적용 대상: webview2-com 0.39.1
+[L195] 적용 대상: webview2-com 0.39.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12050,7 +12023,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L197] 적용 대상: webview2-com-macros 0.8.1
+[L196] 적용 대상: webview2-com-macros 0.8.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12076,7 +12049,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L198] 적용 대상: webview2-com-sys 0.39.1
+[L197] 적용 대상: webview2-com-sys 0.39.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12102,7 +12075,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L199] 적용 대상: window-vibrancy 0.8.1
+[L198] 적용 대상: window-vibrancy 0.8.1
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12128,7 +12101,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L200] 적용 대상: window-vibrancy 0.8.1
+[L199] 적용 대상: window-vibrancy 0.8.1
 --------------------------------------------------------------------------------
 
 SPDXVersion: SPDX-2.1
@@ -12152,7 +12125,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/window-vibrancy.git
 Creator: Person: Daniel Thompson-Yvetot
 
 --------------------------------------------------------------------------------
-[L201] 적용 대상: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2,
+[L200] 적용 대상: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2,
      windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3,
      windows-link 0.2.1, windows-numerics 0.3.1, windows-result 0.4.1,
      windows-strings 0.5.1, windows-sys 0.61.2, windows-threading 0.2.1,
@@ -12362,7 +12335,7 @@ Apache License
    limitations under the License.
 
 --------------------------------------------------------------------------------
-[L202] 적용 대상: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2,
+[L201] 적용 대상: windows 0.62.2, windows-collections 0.3.2, windows-core 0.62.2,
      windows-future 0.3.2, windows-implement 0.60.2, windows-interface 0.59.3,
      windows-link 0.2.1, windows-numerics 0.3.1, windows-result 0.4.1,
      windows-strings 0.5.1, windows-sys 0.61.2, windows-threading 0.2.1,
@@ -12392,7 +12365,7 @@ MIT License
     SOFTWARE
 
 --------------------------------------------------------------------------------
-[L203] 적용 대상: winnow 1.0.5
+[L202] 적용 대상: winnow 1.0.5
 --------------------------------------------------------------------------------
 
 Permission is hereby granted, free of charge, to any person obtaining
@@ -12415,7 +12388,7 @@ OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION
 WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L204] 적용 대상: winreg 0.56.0
+[L203] 적용 대상: winreg 0.56.0
 --------------------------------------------------------------------------------
 
 Copyright (c) 2015 Igor Shaula
@@ -12439,7 +12412,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L205] 적용 대상: wry 0.57.3
+[L204] 적용 대상: wry 0.57.3
 --------------------------------------------------------------------------------
 
 MIT License
@@ -12465,7 +12438,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L206] 적용 대상: wry 0.57.3
+[L205] 적용 대상: wry 0.57.3
 --------------------------------------------------------------------------------
 
 SPDXVersion: SPDX-2.1
@@ -12490,7 +12463,7 @@ PackageDownloadLocation: git+ssh://github.com/tauri-apps/wry.git
 Creator: Person: Daniel Thompson-Yvetot
 
 --------------------------------------------------------------------------------
-[L207] 적용 대상: zeroize 1.9.2
+[L206] 적용 대상: zeroize 1.9.2
 --------------------------------------------------------------------------------
 
 Copyright (c) 2018-2026 The RustCrypto Project Developers
@@ -12520,7 +12493,7 @@ IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER
 DEALINGS IN THE SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L208] 적용 대상: zip 8.6.0
+[L207] 적용 대상: zip 8.6.0
 --------------------------------------------------------------------------------
 
 The MIT License (MIT)
@@ -12546,7 +12519,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 
 --------------------------------------------------------------------------------
-[L209] 적용 대상: zlib-rs 0.6.8
+[L208] 적용 대상: zlib-rs 0.6.8
 --------------------------------------------------------------------------------
 
 (C) 2024 Trifecta Tech Foundation
@@ -12570,7 +12543,7 @@ freely, subject to the following restrictions:
 3. This notice may not be removed or altered from any source distribution.
 
 --------------------------------------------------------------------------------
-[L210] 적용 대상: zopfli 0.8.4
+[L209] 적용 대상: zopfli 0.8.4
 --------------------------------------------------------------------------------
 
 Apache License

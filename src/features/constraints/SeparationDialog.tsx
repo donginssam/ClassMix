@@ -41,7 +41,7 @@ export function SeparationDialog({ onOpenTwins }: { onOpenTwins: () => void }) {
     openDialog({ ...dialog, tab: t, preselectTab: dialog.preselectTab ?? dialog.tab ?? "group" });
   };
 
-  const byId = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const byId = useWorkspace((s) => s.studentsById);
   const classOf = (id: number) => byId.get(id)?.curClass;
   const preselect = dialog?.kind === "separation" ? (dialog.preselect ?? []) : [];
   // 미리 고른 학생은 처음 연 탭의 새 규칙 칸에만 넣는다.
@@ -110,7 +110,7 @@ function NewRuleForm({ kind, students, preselect }: { kind: RuleKind; students: 
   const [leader, setLeader] = useState<number | null>(kind === "one_to_many" ? (preselect[0] ?? null) : null);
   const [members, setMembers] = useState<number[]>(kind === "one_to_many" ? [] : preselect);
   const [reason, setReason] = useState("");
-  const byId = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const byId = useWorkspace((s) => s.studentsById);
 
   const leaderMode = kind === "one_to_many";
   const all = [...(leader != null ? [leader] : []), ...members];
@@ -187,7 +187,7 @@ function RuleList({
   readOnly,
 }: {
   rules: Rule[];
-  byId: Map<number, Student>;
+  byId: ReadonlyMap<number, Student>;
   classOf: (id: number) => number | undefined;
   readOnly: boolean;
 }) {

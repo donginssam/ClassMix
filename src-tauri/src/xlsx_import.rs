@@ -6,14 +6,15 @@
 //! 3. `apply_import`: 한 트랜잭션으로 DB에 저장한다(원본 BLOB, 학생, 반 상태, 가져온 결번, 동명이인 규칙).
 
 use std::collections::{BTreeMap, HashMap};
+use std::io::Cursor;
 use std::path::Path;
 
 use rusqlite::{Connection, params};
 use serde::Serialize;
-use sha2::{Digest, Sha256};
+use umya_spreadsheet::{Workbook, reader::xlsx};
 
 use crate::crypto::Codec;
-use crate::db::{next_id, now};
+use crate::db::{insert_source_file, next_id, now};
 use crate::error::{AppError, AppResult};
 use crate::names::{collapse_spaces, same_name_key};
 
@@ -94,8 +95,17 @@ pub fn header_columns(
 
 /// 첫 시트를 읽어 행 목록으로 바꾼다. 필수 헤더가 없으면 오류.
 pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
+    let book = xlsx::read(path).map_err(|e| AppError::Xlsx(e.to_string()))?;
+    parse_first_sheet(&book)
+}
+
+pub fn parse_roster_bytes(bytes: &[u8]) -> AppResult<Vec<RosterRow>> {
     let book =
-        umya_spreadsheet::reader::xlsx::read(path).map_err(|e| AppError::Xlsx(e.to_string()))?;
+        xlsx::read_reader(Cursor::new(bytes), true).map_err(|e| AppError::Xlsx(e.to_string()))?;
+    parse_first_sheet(&book)
+}
+
+fn parse_first_sheet(book: &Workbook) -> AppResult<Vec<RosterRow>> {
     let sheet = book.sheet(0).map_err(|e| AppError::Xlsx(e.to_string()))?;
     let (_, max_row) = sheet.highest_column_and_row();
     let col_of = header_columns(sheet)?;
@@ -369,11 +379,6 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
     Ok(ImportPlan { students, report })
 }
 
-fn sha256_hex(bytes: &[u8]) -> String {
-    let digest = Sha256::digest(bytes);
-    digest.iter().map(|b| format!("{b:02x}")).collect()
-}
-
 /// DB에 저장한다. 이미 학생이 있는 파일이면 거절한다(다시 가져오려면 새 작업 파일을 만든다).
 pub fn apply_import(
     conn: &mut Connection,
@@ -390,17 +395,7 @@ pub fn apply_import(
     }
     let ts = now();
     let tx = conn.transaction()?;
-    let sid = next_id(&tx, "source_file")?;
-    tx.execute(
-        "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, 'xlsx', ?2, ?3, ?4, ?5)",
-        params![
-            sid,
-            file_name,
-            sha256_hex(bytes),
-            codec.blob("source_file.content", sid, bytes)?,
-            ts
-        ],
-    )?;
+    insert_source_file(&tx, codec, "xlsx", file_name, bytes, &ts)?;
 
     let mut ids: HashMap<String, i64> = HashMap::new();
     {
@@ -593,7 +588,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
         let bytes = std::fs::read(fixture()).unwrap();
-        let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
+        let plan = plan_import("sample.xlsx", parse_roster_bytes(&bytes).unwrap()).unwrap();
         apply_import(&mut conn, PLAIN, "sample.xlsx", &bytes, &plan).unwrap();
         let n: i64 = conn
             .query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))

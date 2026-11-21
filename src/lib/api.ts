@@ -127,6 +127,11 @@ export interface BoardData {
   canRedo: boolean;
 }
 
+interface WorkspaceSnapshot {
+  workspace: WorkspaceInfo;
+  board: BoardData | null;
+}
+
 export interface Seat {
   c: number;
   n: number;
@@ -209,18 +214,15 @@ export const api = {
   createWorkFile: (path: string) => invoke<WorkspaceInfo>("create_work_file", { path }),
   openWorkFile: (path: string) => invoke<OpenResult>("open_work_file", { path }),
   closeWorkFile: () => invoke<void>("close_work_file"),
-  getWorkspace: () => invoke<WorkspaceInfo | null>("get_workspace"),
+  getWorkspaceSnapshot: () => invoke<WorkspaceSnapshot | null>("get_workspace_snapshot"),
   saveWorkFileAs: (path: string) => invoke<WorkspaceInfo>("save_work_file_as", { path }),
   saveWorkFileCopy: (path: string) => invoke<string>("save_work_file_copy", { path }),
   listRecentFiles: () => invoke<RecentFile[]>("list_recent_files"),
   removeRecentFile: (path: string) => invoke<void>("remove_recent_file", { path }),
   importXlsx: (path: string) => invoke<{ report: ImportReport; workspace: WorkspaceInfo }>("import_xlsx", { path }),
-  listStudents: () => invoke<Student[]>("list_students"),
-  listGaps: () => invoke<Gap[]>("list_gaps"),
   readPdfFile: async (path: string) => new Uint8Array(await invoke<ArrayBuffer>("read_pdf_file", { path })),
   applyPdfMapping: (path: string, rows: PdfRowInput[], links: PdfLink[]) =>
     invoke<PdfApplyReport>("apply_pdf_mapping", { path, rows, links }),
-  getBoard: () => invoke<BoardData>("get_board"),
   applyChange: (change: ChangeSet) => invoke<void>("apply_change", { change }),
   undoChange: () => invoke<string | null>("undo_change"),
   redoChange: () => invoke<string | null>("redo_change"),

@@ -29,9 +29,8 @@ export function boardState(): BoardState {
 }
 
 function currentViolations(): Violation[] {
-  const { students, rules } = useWorkspace.getState();
-  const cls = new Map(students.map((s) => [s.id, s.curClass]));
-  return allViolations(rules, (id) => cls.get(id));
+  const { studentsById, rules } = useWorkspace.getState();
+  return allViolations(rules, (id) => studentsById.get(id)?.curClass);
 }
 
 const vKey = (v: Violation) => `${v.rule.id}:${v.cls}:${[...v.studentIds].sort().join(",")}`;
@@ -53,8 +52,8 @@ export async function run(built: Built, opts?: { quiet?: boolean }): Promise<boo
   if (!ok) return false;
   const moved = built.change.students.filter((m) => m.from.c !== m.to.c).map((m) => m.studentId);
   useBoardUi.getState().setHighlight(moved);
-  const { students } = useWorkspace.getState();
-  const nameOf = (id: number) => students.find((s) => s.id === id)?.nameNorm ?? `#${id}`;
+  const { studentsById } = useWorkspace.getState();
+  const nameOf = (id: number) => studentsById.get(id)?.nameNorm ?? `#${id}`;
   const added = currentViolations().filter((v) => !before.has(vKey(v)));
   if (added.length) {
     toast.warning("분리 규칙 위반이 생겼습니다.", {

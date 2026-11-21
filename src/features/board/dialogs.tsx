@@ -47,7 +47,7 @@ export function BoardDialogs() {
 // 각 대화상자는 바깥(대상 찾기) + 안쪽(key로 다시 마운트해 초기값 설정) 두 단계로 나눈다.
 
 function NumberDialog({ studentId, onClose }: { studentId: number | null; onClose: () => void }) {
-  const student = useWorkspace((s) => s.students.find((x) => x.id === studentId));
+  const student = useWorkspace((s) => (studentId == null ? undefined : s.studentsById.get(studentId)));
   return student ? <NumberDialogBody key={student.id} student={student} onClose={onClose} /> : null;
 }
 
@@ -162,7 +162,7 @@ function GapNameDialogBody({ gap, onClose }: { gap: Gap; onClose: () => void }) 
 }
 
 function MemoDialog({ studentId, onClose }: { studentId: number | null; onClose: () => void }) {
-  const student = useWorkspace((s) => s.students.find((x) => x.id === studentId));
+  const student = useWorkspace((s) => (studentId == null ? undefined : s.studentsById.get(studentId)));
   return student ? <MemoDialogBody key={student.id} student={student} onClose={onClose} /> : null;
 }
 

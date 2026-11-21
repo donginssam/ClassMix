@@ -34,15 +34,16 @@ jobs:
           node-version: 26
           cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
-      - run: pnpm typecheck
-      - run: pnpm lint
-      - run: pnpm test
+      - run: pnpm check
       # tauri::generate_context!()가 dist 폴더를 찾으므로 프런트엔드를 먼저 빌드한다.
       - run: pnpm build
+      - run: pnpm lint:rust
       - run: pnpm test:rust
 
   windows-exe:

@@ -28,9 +28,8 @@ export function useTwinCandidates(): TwinCandidate[] {
 /** 쌍둥이 후보 검토: 후보마다 [쌍둥이로 등록] / [아님] / [나중에]. "가능" 등급은 기본으로 등록하지 않는다. */
 export function TwinReviewDialog({ open, onClose }: { open: boolean; onClose: () => void }) {
   const candidates = useTwinCandidates();
-  const students = useWorkspace((s) => s.students);
   const refresh = useWorkspace((s) => s.refresh);
-  const byId = useMemo(() => new Map(students.map((s) => [s.id, s])), [students]);
+  const byId = useWorkspace((s) => s.studentsById);
   const [choices, setChoices] = useState<Map<string, Choice>>(new Map());
   const [busy, setBusy] = useState(false);
   // 열 때마다 기본 선택(유력 → 등록, 가능 → 아님)으로 시작한다.

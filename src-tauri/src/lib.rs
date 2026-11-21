@@ -7,6 +7,7 @@ mod error;
 mod export;
 mod names;
 mod os_integration;
+mod paths;
 mod roster;
 mod settings;
 mod xlsx_import;
@@ -123,17 +124,14 @@ pub fn run() {
             commands::create_work_file,
             commands::open_work_file,
             commands::close_work_file,
-            commands::get_workspace,
+            commands::get_workspace_snapshot,
             commands::save_work_file_as,
             commands::save_work_file_copy,
             commands::list_recent_files,
             commands::remove_recent_file,
             commands::import_xlsx,
-            commands::list_students,
-            commands::list_gaps,
             commands::read_pdf_file,
             commands::apply_pdf_mapping,
-            commands::get_board,
             commands::apply_change,
             commands::undo_change,
             commands::redo_change,
