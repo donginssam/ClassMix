@@ -33,6 +33,10 @@
     "copyright": "© 2026 Dongin Lee",
     "license": "MIT",
     "licenseFile": "../LICENSE",
+    "resources": {
+      "../LICENSE": "LICENSE",
+      "../THIRD_PARTY_LICENSES.txt": "THIRD_PARTY_LICENSES.txt"
+    },
     "fileAssociations": [
       {
         "ext": ["mix"],

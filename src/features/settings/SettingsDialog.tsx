@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
-import { CircleCheck, CircleAlert, Link2, Link2Off, Monitor, Moon, Sun } from "lucide-react";
+import { CircleCheck, CircleAlert, Link2, Link2Off, Monitor, Moon, Scale, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { api, errorMessage, type AssociationStatus } from "@/lib/api";
 import { appDescription } from "@/lib/brand";
+import { LicensesDialog } from "./LicensesDialog";
 
 const appearances = [
   { value: "system", label: "시스템 설정", Icon: Monitor },
@@ -99,13 +100,17 @@ function AssociationSection() {
       {status.state === "current" && (
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
           <CircleCheck className="mt-0.5 size-4 shrink-0 text-ok" />
-          등록되어 있습니다. 탐색기에서 .mix 파일을 두 번 클릭하면 이 ClassMix로 열립니다.
+          <span className="grid gap-0.5">
+            <span>등록되어 있습니다.</span>
+            <span>탐색기에서 .mix 파일을 두 번 클릭하면 이 ClassMix로 열립니다.</span>
+          </span>
         </p>
       )}
       {status.state === "none" && (
-        <p className="text-sm text-muted-foreground">
-          설치 과정이 없는 프로그램이라 자동으로 연결되지 않습니다. 등록하면 탐색기에서 .mix 파일을 두 번 클릭해 열 수
-          있습니다. 관리자 권한은 필요 없고, 지금 Windows 사용자에게만 적용됩니다.
+        <p className="grid gap-0.5 text-sm text-muted-foreground">
+          <span>설치 과정이 없는 프로그램이라 자동으로 연결되지 않습니다.</span>
+          <span>등록하면 탐색기에서 .mix 파일을 두 번 클릭해 열 수 있습니다.</span>
+          <span>관리자 권한은 필요 없고, 지금 Windows 사용자에게만 적용됩니다.</span>
         </p>
       )}
       {status.state === "moved" && (
@@ -142,6 +147,7 @@ function AssociationSection() {
 
 function AboutSection() {
   const [version, setVersion] = useState<string | null>(null);
+  const [licensesOpen, setLicensesOpen] = useState(false);
   useEffect(() => {
     getVersion()
       .then(setVersion)
@@ -160,6 +166,17 @@ function AboutSection() {
         <li>자동 업데이트는 없습니다. 새 버전은 실행 파일만 바꿔 쓰면 되고 .mix 파일은 그대로 쓸 수 있습니다.</li>
         <li>글꼴: IBM Plex Sans KR — Copyright © IBM Corp., SIL Open Font License 1.1에 따라 포함·재배포합니다.</li>
       </ul>
+      <div className="flex items-center justify-between gap-3 rounded-md border px-3 py-2">
+        <span className="grid gap-0.5">
+          <span className="font-medium">오픈소스 라이선스</span>
+          <span className="text-xs text-muted-foreground">MIT 라이선스 · 포함된 구성 요소와 라이선스 전문</span>
+        </span>
+        <Button size="sm" variant="outline" onClick={() => setLicensesOpen(true)}>
+          <Scale data-icon="inline-start" />
+          보기
+        </Button>
+      </div>
+      <LicensesDialog open={licensesOpen} onOpenChange={setLicensesOpen} />
     </section>
   );
 }
@@ -170,7 +187,10 @@ export function SettingsDialog({ open, onOpenChange }: { open: boolean; onOpenCh
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>설정 및 정보</DialogTitle>
-          <DialogDescription>이 PC에서만 적용되는 설정입니다. 작업 파일(.mix)에는 저장되지 않습니다.</DialogDescription>
+          <DialogDescription className="grid gap-1">
+            <span>이 PC에서만 적용되는 설정입니다.</span>
+            <span>작업 파일(.mix)에는 저장되지 않습니다.</span>
+          </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-4">
           <AppearanceSection />

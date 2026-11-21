@@ -74,6 +74,7 @@ jobs:
           New-Item -ItemType Directory -Force dist-release | Out-Null
           $name = "ClassMix_${version}_x64.exe"
           Copy-Item src-tauri/target/release/classmix.exe "dist-release/$name"
+          Copy-Item LICENSE, THIRD_PARTY_LICENSES.txt dist-release/
           # 정적 링크 확인: VC 런타임 DLL을 가져오면 실패시킨다.
           $dumpbin = Get-ChildItem "${env:ProgramFiles}\Microsoft Visual Studio" -Recurse -Filter dumpbin.exe -ErrorAction SilentlyContinue |
             Where-Object FullName -match 'Hostx64\\x64' | Select-Object -First 1
@@ -86,7 +87,10 @@ jobs:
       - uses: actions/upload-artifact@v7
         with:
           name: ClassMix-windows-x64
-          path: dist-release/${{ steps.dist.outputs.name }}
+          path: |
+            dist-release/${{ steps.dist.outputs.name }}
+            dist-release/LICENSE
+            dist-release/THIRD_PARTY_LICENSES.txt
           if-no-files-found: error
 
   macos-dmg:

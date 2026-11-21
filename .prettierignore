@@ -4,3 +4,5 @@ src-tauri/gen
 pnpm-lock.yaml
 src/components/ui
 walkthrough.md
+src/generated
+THIRD_PARTY_LICENSES.txt
