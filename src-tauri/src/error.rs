@@ -19,6 +19,12 @@ pub enum AppError {
     Db(#[from] rusqlite::Error),
     #[error("엑셀 파일을 읽을 수 없습니다: {0}")]
     Xlsx(String),
+    #[error("암호가 걸린 파일입니다. 비밀번호를 입력해 열어 주세요.")]
+    Locked,
+    #[error("비밀번호가 맞지 않습니다.")]
+    WrongPassword,
+    #[error("암호화 처리 중 오류가 발생했습니다: {0}")]
+    Crypto(String),
     #[error("{0}")]
     Other(String),
 }
@@ -51,6 +57,9 @@ impl AppError {
             AppError::Io(_) => "io",
             AppError::Db(_) => "db",
             AppError::Xlsx(_) => "xlsx",
+            AppError::Locked => "locked",
+            AppError::WrongPassword => "wrong_password",
+            AppError::Crypto(_) => "crypto",
             AppError::Other(_) => "other",
         }
     }

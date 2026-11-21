@@ -5,10 +5,12 @@
 //! 변경 묶음은 바꾸기 전·후 값을 모두 담고 있어, 되돌리기는 전·후를 뒤집어 적용하면 된다.
 //! 적용 전에 "바꾸기 전" 값이 지금 DB와 같은지 확인해 어긋난 상태 위에 덮어쓰지 않는다.
 
+use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
-use crate::db::now;
+use crate::crypto::Codec;
+use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -164,26 +166,27 @@ fn gap_sort_key(g: &GapRow) -> (i64, String, Option<String>, String) {
     )
 }
 
-fn current_gaps(tx: &Transaction, class: i64) -> AppResult<Vec<GapRow>> {
+fn current_gaps(tx: &Transaction, codec: Codec, class: i64) -> AppResult<Vec<GapRow>> {
     let mut stmt = tx.prepare(
-        "SELECT number, anchor_key, planned_name, origin, created_at FROM number_gap WHERE class = ?1 ORDER BY number",
+        "SELECT number, anchor_key, planned_name, origin, created_at, id FROM number_gap WHERE class = ?1 ORDER BY number",
     )?;
-    let rows = stmt
-        .query_map(params![class], |r| {
-            Ok(GapRow {
-                number: r.get(0)?,
-                anchor_key: r.get(1)?,
-                planned_name: r.get(2)?,
-                origin: r.get(3)?,
-                created_at: r.get(4)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
+    let mut out = Vec::new();
+    let mut rows = stmt.query(params![class])?;
+    while let Some(r) = rows.next()? {
+        let id: i64 = r.get(5)?;
+        out.push(GapRow {
+            number: r.get(0)?,
+            anchor_key: codec.get_text("number_gap.anchor_key", id, r.get(1)?)?,
+            planned_name: codec.get_opt_text("number_gap.planned_name", id, r.get(2)?)?,
+            origin: r.get(3)?,
+            created_at: r.get(4)?,
+        });
+    }
+    Ok(out)
 }
 
 /// 변경 묶음을 트랜잭션 안에서 적용한다. "바꾸기 전" 값이 지금 상태와 다르면 오류.
-fn apply_in_tx(tx: &Transaction, cs: &ChangeSet, class_count: i64) -> AppResult<()> {
+fn apply_in_tx(tx: &Transaction, codec: Codec, cs: &ChangeSet, class_count: i64) -> AppResult<()> {
     for m in &cs.students {
         let cur: Option<(i64, i64)> = tx
             .query_row(
@@ -214,7 +217,7 @@ fn apply_in_tx(tx: &Transaction, cs: &ChangeSet, class_count: i64) -> AppResult<
     }
 
     for g in &cs.gaps {
-        let mut now_rows: Vec<_> = current_gaps(tx, g.class)?
+        let mut now_rows: Vec<_> = current_gaps(tx, codec, g.class)?
             .iter()
             .map(gap_sort_key)
             .collect();
@@ -232,14 +235,16 @@ fn apply_in_tx(tx: &Transaction, cs: &ChangeSet, class_count: i64) -> AppResult<
                     "빈 번호 값이 잘못되었습니다.".into(),
                 ));
             }
+            let gid = next_id(tx, "number_gap")?;
             tx.execute(
-                "INSERT INTO number_gap (class, number, anchor_key, planned_name, origin, created_at)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                "INSERT INTO number_gap (id, class, number, anchor_key, planned_name, origin, created_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
+                    gid,
                     g.class,
                     row.number,
-                    row.anchor_key,
-                    row.planned_name,
+                    codec.text("number_gap.anchor_key", gid, &row.anchor_key)?,
+                    codec.opt_text("number_gap.planned_name", gid, row.planned_name.as_deref())?,
                     row.origin,
                     row.created_at.clone().unwrap_or_else(|| ts.clone())
                 ],
@@ -271,19 +276,20 @@ fn apply_in_tx(tx: &Transaction, cs: &ChangeSet, class_count: i64) -> AppResult<
     }
 
     for rc in &cs.readings {
-        let cur: Option<Option<String>> = tx
+        let raw: Option<Value> = tx
             .query_row(
                 "SELECT sort_name FROM student WHERE id = ?1",
                 params![rc.student_id],
                 |r| r.get(0),
             )
             .optional()?;
-        let Some(cur) = cur else {
+        let Some(raw) = raw else {
             return Err(AppError::InvalidInput(format!(
                 "학생을 찾을 수 없습니다: {}",
                 rc.student_id
             )));
         };
+        let cur = codec.get_opt_text("student.sort_name", rc.student_id, raw)?;
         if normalize_reading(&cur) != normalize_reading(&rc.from) {
             return Err(stale());
         }
@@ -296,7 +302,14 @@ fn apply_in_tx(tx: &Transaction, cs: &ChangeSet, class_count: i64) -> AppResult<
         }
         tx.execute(
             "UPDATE student SET sort_name = ?1 WHERE id = ?2",
-            params![normalize_reading(&rc.to), rc.student_id],
+            params![
+                codec.opt_text(
+                    "student.sort_name",
+                    rc.student_id,
+                    normalize_reading(&rc.to).as_deref()
+                )?,
+                rc.student_id
+            ],
         )?;
     }
 
@@ -331,7 +344,7 @@ fn class_count(conn: &Connection) -> AppResult<i64> {
 }
 
 /// 새 변경을 적용하고 이력에 남긴다. 되돌린 뒤 남아 있던 "다시 실행" 기록은 지운다.
-pub fn apply_change(conn: &mut Connection, cs: &ChangeSet) -> AppResult<()> {
+pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppResult<()> {
     if !ACTIONS.contains(&cs.action.as_str()) {
         return Err(AppError::InvalidInput(format!(
             "알 수 없는 변경: {}",
@@ -343,7 +356,7 @@ pub fn apply_change(conn: &mut Connection, cs: &ChangeSet) -> AppResult<()> {
     }
     let cc = class_count(conn)?;
     let tx = conn.transaction()?;
-    apply_in_tx(&tx, cs, cc)?;
+    apply_in_tx(&tx, codec, cs, cc)?;
     tx.execute("DELETE FROM change_log WHERE undone = 1", [])?;
     let seq: i64 = tx.query_row(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM change_log",
@@ -352,23 +365,31 @@ pub fn apply_change(conn: &mut Connection, cs: &ChangeSet) -> AppResult<()> {
     )?;
     let payload =
         serde_json::to_string(cs).map_err(|e| AppError::Other(format!("이력 저장 오류: {e}")))?;
+    let id = next_id(&tx, "change_log")?;
     tx.execute(
-        "INSERT INTO change_log (seq, action, payload, undone, created_at) VALUES (?1, ?2, ?3, 0, ?4)",
-        params![seq, cs.action, payload, now()],
+        "INSERT INTO change_log (id, seq, action, payload, undone, created_at) VALUES (?1, ?2, ?3, ?4, 0, ?5)",
+        params![
+            id,
+            seq,
+            cs.action,
+            codec.text("change_log.payload", id, &payload)?,
+            now()
+        ],
     )?;
     tx.commit()?;
     Ok(())
 }
 
-fn load_payload(s: &str) -> AppResult<ChangeSet> {
-    serde_json::from_str(s).map_err(|e| AppError::Other(format!("이력을 읽을 수 없습니다: {e}")))
+fn load_payload(codec: Codec, id: i64, raw: Value) -> AppResult<ChangeSet> {
+    let s = codec.get_text("change_log.payload", id, raw)?;
+    serde_json::from_str(&s).map_err(|e| AppError::Other(format!("이력을 읽을 수 없습니다: {e}")))
 }
 
 /// 마지막 변경을 되돌린다. 되돌린 변경의 설명을 돌려준다(없으면 None).
-pub fn undo(conn: &mut Connection) -> AppResult<Option<String>> {
+pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
     let cc = class_count(conn)?;
     let tx = conn.transaction()?;
-    let row: Option<(i64, String)> = tx
+    let row: Option<(i64, Value)> = tx
         .query_row(
             "SELECT id, payload FROM change_log WHERE undone = 0 ORDER BY seq DESC LIMIT 1",
             [],
@@ -378,8 +399,8 @@ pub fn undo(conn: &mut Connection) -> AppResult<Option<String>> {
     let Some((id, payload)) = row else {
         return Ok(None);
     };
-    let cs = load_payload(&payload)?;
-    apply_in_tx(&tx, &cs.inverse(), cc)?;
+    let cs = load_payload(codec, id, payload)?;
+    apply_in_tx(&tx, codec, &cs.inverse(), cc)?;
     tx.execute(
         "UPDATE change_log SET undone = 1 WHERE id = ?1",
         params![id],
@@ -389,10 +410,10 @@ pub fn undo(conn: &mut Connection) -> AppResult<Option<String>> {
 }
 
 /// 되돌린 변경 중 가장 오래된 것을 다시 적용한다.
-pub fn redo(conn: &mut Connection) -> AppResult<Option<String>> {
+pub fn redo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
     let cc = class_count(conn)?;
     let tx = conn.transaction()?;
-    let row: Option<(i64, String)> = tx
+    let row: Option<(i64, Value)> = tx
         .query_row(
             "SELECT id, payload FROM change_log WHERE undone = 1 ORDER BY seq ASC LIMIT 1",
             [],
@@ -402,8 +423,8 @@ pub fn redo(conn: &mut Connection) -> AppResult<Option<String>> {
     let Some((id, payload)) = row else {
         return Ok(None);
     };
-    let cs = load_payload(&payload)?;
-    apply_in_tx(&tx, &cs, cc)?;
+    let cs = load_payload(codec, id, payload)?;
+    apply_in_tx(&tx, codec, &cs, cc)?;
     tx.execute(
         "UPDATE change_log SET undone = 0 WHERE id = ?1",
         params![id],
@@ -426,7 +447,7 @@ pub struct HistoryEntry {
 }
 
 /// 변경 이력(최근 것 먼저). 되돌린 항목도 포함한다.
-pub fn history(conn: &Connection, limit: i64) -> AppResult<Vec<HistoryEntry>> {
+pub fn history(conn: &Connection, codec: Codec, limit: i64) -> AppResult<Vec<HistoryEntry>> {
     let mut stmt = conn.prepare(
         "SELECT id, seq, action, payload, undone, created_at FROM change_log ORDER BY seq DESC LIMIT ?1",
     )?;
@@ -436,7 +457,7 @@ pub fn history(conn: &Connection, limit: i64) -> AppResult<Vec<HistoryEntry>> {
                 r.get::<_, i64>(0)?,
                 r.get::<_, i64>(1)?,
                 r.get::<_, String>(2)?,
-                r.get::<_, String>(3)?,
+                r.get::<_, Value>(3)?,
                 r.get::<_, bool>(4)?,
                 r.get::<_, String>(5)?,
             ))
@@ -444,7 +465,7 @@ pub fn history(conn: &Connection, limit: i64) -> AppResult<Vec<HistoryEntry>> {
         .collect::<Result<Vec<_>, _>>()?;
     rows.into_iter()
         .map(|(id, seq, action, payload, undone, created_at)| {
-            let cs = load_payload(&payload)?;
+            let cs = load_payload(codec, id, payload)?;
             Ok(HistoryEntry {
                 id,
                 seq,
@@ -466,6 +487,7 @@ pub fn history(conn: &Connection, limit: i64) -> AppResult<Vec<HistoryEntry>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::PLAIN;
     use crate::xlsx_import::{apply_import, parse_roster, plan_import};
     use std::path::Path;
 
@@ -476,6 +498,7 @@ mod tests {
         let plan = plan_import("sample.xlsx", parse_roster(&fx).unwrap()).unwrap();
         apply_import(
             &mut conn,
+            PLAIN,
             "sample.xlsx",
             &std::fs::read(&fx).unwrap(),
             &plan,
@@ -520,11 +543,11 @@ mod tests {
         let (_d, mut conn) = setup();
         let from = seat(&conn, 1);
         let to = (if from.0 == 1 { 2 } else { 1 }, 99);
-        apply_change(&mut conn, &mv(1, from, to)).unwrap();
+        apply_change(&mut conn, PLAIN, &mv(1, from, to)).unwrap();
         assert_eq!(seat(&conn, 1), to);
         // 같은 변경을 다시 보내면 상태가 어긋나 거절
-        assert!(apply_change(&mut conn, &mv(1, from, to)).is_err());
-        assert_eq!(undo(&mut conn).unwrap().as_deref(), Some("이동"));
+        assert!(apply_change(&mut conn, PLAIN, &mv(1, from, to)).is_err());
+        assert_eq!(undo(&mut conn, PLAIN).unwrap().as_deref(), Some("이동"));
         assert_eq!(seat(&conn, 1), from);
         let ns: String = conn
             .query_row(
@@ -534,11 +557,11 @@ mod tests {
             )
             .unwrap();
         assert_eq!(ns, "original");
-        assert_eq!(undo(&mut conn).unwrap(), None);
-        assert_eq!(redo(&mut conn).unwrap().as_deref(), Some("이동"));
+        assert_eq!(undo(&mut conn, PLAIN).unwrap(), None);
+        assert_eq!(redo(&mut conn, PLAIN).unwrap().as_deref(), Some("이동"));
         assert_eq!(seat(&conn, 1), to);
-        assert_eq!(redo(&mut conn).unwrap(), None);
-        let h = history(&conn, 10).unwrap();
+        assert_eq!(redo(&mut conn, PLAIN).unwrap(), None);
+        let h = history(&conn, PLAIN, 10).unwrap();
         assert_eq!(h.len(), 1);
         assert_eq!(h[0].student_ids, vec![1]);
         assert!(!h[0].undone);
@@ -551,17 +574,17 @@ mod tests {
         let b = seat(&conn, 2);
         let mut cs = mv(1, a, b);
         cs.numbering.clear();
-        let err = apply_change(&mut conn, &cs).unwrap_err();
+        let err = apply_change(&mut conn, PLAIN, &cs).unwrap_err();
         assert!(err.to_string().contains("겹칩니다"));
         assert_eq!(seat(&conn, 1), a);
-        assert!(history(&conn, 10).unwrap().is_empty());
+        assert!(history(&conn, PLAIN, 10).unwrap().is_empty());
     }
 
     #[test]
     fn rejects_out_of_range_class() {
         let (_d, mut conn) = setup();
         let a = seat(&conn, 1);
-        assert!(apply_change(&mut conn, &mv(1, a, (9, 1))).is_err());
+        assert!(apply_change(&mut conn, PLAIN, &mv(1, a, (9, 1))).is_err());
     }
 
     #[test]
@@ -588,7 +611,7 @@ mod tests {
             readings: vec![],
         };
         // 기준 키가 다르므로 어긋남
-        assert!(apply_change(&mut conn, &cs).is_err());
+        assert!(apply_change(&mut conn, PLAIN, &cs).is_err());
     }
 
     #[test]
@@ -606,16 +629,16 @@ mod tests {
                 to: to.map(Into::into),
             }],
         };
-        apply_change(&mut conn, &r(None, Some("가 나"))).unwrap();
+        apply_change(&mut conn, PLAIN, &r(None, Some("가 나"))).unwrap();
         let v: Option<String> = conn
             .query_row("SELECT sort_name FROM student WHERE id = 1", [], |r| {
                 r.get(0)
             })
             .unwrap();
         assert_eq!(v.as_deref(), Some("가나"));
-        undo(&mut conn).unwrap();
-        apply_change(&mut conn, &r(None, Some("다라"))).unwrap();
-        assert_eq!(redo(&mut conn).unwrap(), None);
-        assert!(apply_change(&mut conn, &r(Some("다라"), Some("ABC"))).is_err());
+        undo(&mut conn, PLAIN).unwrap();
+        apply_change(&mut conn, PLAIN, &r(None, Some("다라"))).unwrap();
+        assert_eq!(redo(&mut conn, PLAIN).unwrap(), None);
+        assert!(apply_change(&mut conn, PLAIN, &r(Some("다라"), Some("ABC"))).is_err());
     }
 }

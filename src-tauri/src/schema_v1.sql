@@ -10,6 +10,10 @@ CREATE TABLE meta (                   -- 항상 1행
   settings      TEXT NOT NULL DEFAULT '{}',
   opened_by     TEXT,
   opened_at     TEXT,
+  -- 암호화(crypto.rs). 모두 NULL이면 암호화하지 않은 파일.
+  enc_salt       TEXT,                -- PBKDF2 salt(base64)
+  enc_iterations INTEGER,             -- PBKDF2 반복 횟수
+  enc_check      TEXT,                -- 비밀번호 확인용 토큰 '<nonce_b64>:<ciphertext_b64>'
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL
 );

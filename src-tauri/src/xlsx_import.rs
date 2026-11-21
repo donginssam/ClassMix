@@ -12,7 +12,8 @@ use rusqlite::{Connection, params};
 use serde::Serialize;
 use sha2::{Digest, Sha256};
 
-use crate::db::now;
+use crate::crypto::Codec;
+use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
 use crate::names::{collapse_spaces, same_name_key};
 
@@ -376,6 +377,7 @@ fn sha256_hex(bytes: &[u8]) -> String {
 /// DB에 저장한다. 이미 학생이 있는 파일이면 거절한다(다시 가져오려면 새 작업 파일을 만든다).
 pub fn apply_import(
     conn: &mut Connection,
+    codec: Codec,
     file_name: &str,
     bytes: &[u8],
     plan: &ImportPlan,
@@ -388,34 +390,44 @@ pub fn apply_import(
     }
     let ts = now();
     let tx = conn.transaction()?;
+    let sid = next_id(&tx, "source_file")?;
     tx.execute(
-        "INSERT INTO source_file (kind, file_name, sha256, content, imported_at) VALUES ('xlsx', ?1, ?2, ?3, ?4)",
-        params![file_name, sha256_hex(bytes), bytes, ts],
+        "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, 'xlsx', ?2, ?3, ?4, ?5)",
+        params![
+            sid,
+            file_name,
+            sha256_hex(bytes),
+            codec.blob("source_file.content", sid, bytes)?,
+            ts
+        ],
     )?;
 
     let mut ids: HashMap<String, i64> = HashMap::new();
     {
         let mut stmt = tx.prepare(
-            "INSERT INTO student (row_index, student_no, name, name_norm, prev_course, prev_grade, prev_class, prev_number,
+            "INSERT INTO student (id, row_index, student_no, name, name_norm, prev_course, prev_grade, prev_class, prev_number,
                                   next_course, next_grade, orig_class, orig_number, cur_class, cur_number)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?11, ?12)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?12, ?13)",
         )?;
-        for r in &plan.students {
+        let first_id = next_id(&tx, "student")?;
+        for (i, r) in plan.students.iter().enumerate() {
+            let id = first_id + i as i64;
             stmt.execute(params![
+                id,
                 r.row_index,
-                r.student_no,
-                r.name,
-                collapse_spaces(&r.name),
-                r.prev_course,
-                r.prev_grade,
-                r.prev_class,
-                r.prev_number,
-                r.next_course,
-                r.next_grade,
+                codec.text("student.student_no", id, &r.student_no)?,
+                codec.text("student.name", id, &r.name)?,
+                codec.text("student.name_norm", id, &collapse_spaces(&r.name))?,
+                codec.text("student.prev_course", id, &r.prev_course)?,
+                codec.text("student.prev_grade", id, &r.prev_grade)?,
+                codec.opt_int("student.prev_class", id, r.prev_class)?,
+                codec.opt_int("student.prev_number", id, r.prev_number)?,
+                codec.text("student.next_course", id, &r.next_course)?,
+                codec.text("student.next_grade", id, &r.next_grade)?,
                 r.next_class,
                 r.next_number,
             ])?;
-            ids.insert(r.student_no.clone(), tx.last_insert_rowid());
+            ids.insert(r.student_no.clone(), id);
         }
     }
 
@@ -433,9 +445,10 @@ pub fn apply_import(
                 .max_by_key(|r| r.next_number)
                 .map(|r| collapse_spaces(&r.name))
                 .unwrap_or_default();
+            let gid = next_id(&tx, "number_gap")?;
             tx.execute(
-                "INSERT INTO number_gap (class, number, anchor_key, origin, created_at) VALUES (?1, ?2, ?3, 'import', ?4)",
-                params![c.class, gap, anchor, ts],
+                "INSERT INTO number_gap (id, class, number, anchor_key, origin, created_at) VALUES (?1, ?2, ?3, ?4, 'import', ?5)",
+                params![gid, c.class, gap, codec.text("number_gap.anchor_key", gid, &anchor)?, ts],
             )?;
         }
     }
@@ -446,11 +459,11 @@ pub fn apply_import(
         by_name.entry(same_name_key(&r.name)).or_default().push(r);
     }
     for group in by_name.values().filter(|v| v.len() > 1) {
+        let rule_id = next_id(&tx, "separation_rule")?;
         tx.execute(
-            "INSERT INTO separation_rule (kind, origin, enabled, reason, created_at) VALUES ('same_name', 'auto', 1, '동명이인', ?1)",
-            params![ts],
+            "INSERT INTO separation_rule (id, kind, origin, enabled, reason, created_at) VALUES (?1, 'same_name', 'auto', 1, ?2, ?3)",
+            params![rule_id, codec.text("separation_rule.reason", rule_id, "동명이인")?, ts],
         )?;
-        let rule_id = tx.last_insert_rowid();
         for r in group {
             tx.execute(
                 "INSERT INTO separation_member (rule_id, student_id, role) VALUES (?1, ?2, 'member')",
@@ -470,6 +483,7 @@ pub fn apply_import(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::PLAIN;
 
     fn fixture() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx")
@@ -539,7 +553,7 @@ mod tests {
 
         let dir = tempfile::tempdir().unwrap();
         let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
-        apply_import(&mut conn, "x.xlsx", b"PK", &plan).unwrap();
+        apply_import(&mut conn, PLAIN, "x.xlsx", b"PK", &plan).unwrap();
         let gaps: i64 = conn
             .query_row(
                 "SELECT COUNT(*) FROM number_gap WHERE origin='import'",
@@ -580,7 +594,7 @@ mod tests {
         let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
         let bytes = std::fs::read(fixture()).unwrap();
         let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
-        apply_import(&mut conn, "sample.xlsx", &bytes, &plan).unwrap();
+        apply_import(&mut conn, PLAIN, "sample.xlsx", &bytes, &plan).unwrap();
         let n: i64 = conn
             .query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))
             .unwrap();
@@ -609,6 +623,6 @@ mod tests {
             ("2026802400", "GRACE BRIAR", "GRACE BRIAR")
         );
         // 두 번 가져오기 거절
-        assert!(apply_import(&mut conn, "sample.xlsx", &bytes, &plan).is_err());
+        assert!(apply_import(&mut conn, PLAIN, "sample.xlsx", &bytes, &plan).is_err());
     }
 }

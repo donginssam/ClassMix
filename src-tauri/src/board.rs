@@ -6,7 +6,8 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use crate::changes::{self, HistoryEntry};
-use crate::db::now;
+use crate::crypto::Codec;
+use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
 use crate::roster::{self, GapDto, StudentDto};
 
@@ -64,7 +65,7 @@ pub fn list_class_states(conn: &Connection) -> AppResult<Vec<ClassStateDto>> {
     Ok(rows)
 }
 
-pub fn list_rules(conn: &Connection) -> AppResult<Vec<RuleDto>> {
+pub fn list_rules(conn: &Connection, codec: Codec) -> AppResult<Vec<RuleDto>> {
     let mut members: BTreeMap<i64, Vec<RuleMember>> = BTreeMap::new();
     {
         let mut stmt = conn
@@ -86,19 +87,20 @@ pub fn list_rules(conn: &Connection) -> AppResult<Vec<RuleDto>> {
     let mut stmt = conn.prepare(
         "SELECT id, kind, origin, enabled, reason, created_at FROM separation_rule ORDER BY id",
     )?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok(RuleDto {
-                id: r.get(0)?,
-                kind: r.get(1)?,
-                origin: r.get(2)?,
-                enabled: r.get(3)?,
-                reason: r.get(4)?,
-                created_at: r.get(5)?,
-                members: Vec::new(),
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
+    let mut rows = Vec::new();
+    let mut q = stmt.query([])?;
+    while let Some(r) = q.next()? {
+        let id: i64 = r.get(0)?;
+        rows.push(RuleDto {
+            id,
+            kind: r.get(1)?,
+            origin: r.get(2)?,
+            enabled: r.get(3)?,
+            reason: codec.get_opt_text("separation_rule.reason", id, r.get(4)?)?,
+            created_at: r.get(5)?,
+            members: Vec::new(),
+        });
+    }
     Ok(rows
         .into_iter()
         .map(|mut r| {
@@ -118,8 +120,8 @@ fn dismissed_twins(conn: &Connection) -> AppResult<Vec<[i64; 2]>> {
     Ok(rows)
 }
 
-pub fn board_data(conn: &Connection) -> AppResult<BoardData> {
-    let history = changes::history(conn, 300)?;
+pub fn board_data(conn: &Connection, codec: Codec) -> AppResult<BoardData> {
+    let history = changes::history(conn, codec, 300)?;
     let can_undo = conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM change_log WHERE undone = 0)",
         [],
@@ -131,10 +133,10 @@ pub fn board_data(conn: &Connection) -> AppResult<BoardData> {
         |r| r.get(0),
     )?;
     Ok(BoardData {
-        students: roster::list_students(conn)?,
-        gaps: roster::list_gaps(conn)?,
+        students: roster::list_students(conn, codec)?,
+        gaps: roster::list_gaps(conn, codec)?,
         class_states: list_class_states(conn)?,
-        rules: list_rules(conn)?,
+        rules: list_rules(conn, codec)?,
         dismissed_twins: dismissed_twins(conn)?,
         history,
         can_undo,
@@ -142,19 +144,30 @@ pub fn board_data(conn: &Connection) -> AppResult<BoardData> {
     })
 }
 
-pub fn set_memo(conn: &Connection, student_id: i64, memo: Option<String>) -> AppResult<()> {
+pub fn set_memo(
+    conn: &Connection,
+    codec: Codec,
+    student_id: i64,
+    memo: Option<String>,
+) -> AppResult<()> {
     let memo = memo.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
-    let n = conn.execute(
+    // 바꾸기와 수정 시각을 한 트랜잭션으로(둘 중 하나만 남지 않게)
+    let tx = conn.unchecked_transaction()?;
+    let n = tx.execute(
         "UPDATE student SET memo = ?1 WHERE id = ?2",
-        params![memo, student_id],
+        params![
+            codec.opt_text("student.memo", student_id, memo.as_deref())?,
+            student_id
+        ],
     )?;
     if n != 1 {
         return Err(AppError::InvalidInput("학생을 찾을 수 없습니다.".into()));
     }
-    conn.execute(
+    tx.execute(
         "UPDATE meta SET updated_at = ?1 WHERE id = 1",
         params![now()],
     )?;
+    tx.commit()?;
     Ok(())
 }
 
@@ -207,7 +220,7 @@ fn validate_members(kind: &str, members: &[RuleMember]) -> AppResult<()> {
 }
 
 /// 교사가 직접 만드는 분리 규칙(그룹형·1:N형·쌍둥이)
-pub fn create_rule(conn: &mut Connection, rule: &NewRule) -> AppResult<i64> {
+pub fn create_rule(conn: &mut Connection, codec: Codec, rule: &NewRule) -> AppResult<i64> {
     if rule.kind == "same_name" {
         return Err(AppError::InvalidInput(
             "동명이인 규칙은 XLSX를 가져올 때 자동으로 만들어집니다.".into(),
@@ -221,11 +234,16 @@ pub fn create_rule(conn: &mut Connection, rule: &NewRule) -> AppResult<i64> {
         .filter(|r| !r.is_empty());
     let ts = now();
     let tx = conn.transaction()?;
+    let id = next_id(&tx, "separation_rule")?;
     tx.execute(
-        "INSERT INTO separation_rule (kind, origin, enabled, reason, created_at) VALUES (?1, 'manual', 1, ?2, ?3)",
-        params![rule.kind, reason, ts],
+        "INSERT INTO separation_rule (id, kind, origin, enabled, reason, created_at) VALUES (?1, ?2, 'manual', 1, ?3, ?4)",
+        params![
+            id,
+            rule.kind,
+            codec.opt_text("separation_rule.reason", id, reason.as_deref())?,
+            ts
+        ],
     )?;
-    let id = tx.last_insert_rowid();
     for m in &rule.members {
         tx.execute(
             "INSERT INTO separation_member (rule_id, student_id, role) VALUES (?1, ?2, ?3)",
@@ -239,6 +257,7 @@ pub fn create_rule(conn: &mut Connection, rule: &NewRule) -> AppResult<i64> {
 
 pub fn update_rule(
     conn: &Connection,
+    codec: Codec,
     id: i64,
     enabled: bool,
     reason: Option<String>,
@@ -246,23 +265,30 @@ pub fn update_rule(
     let reason = reason
         .map(|r| r.trim().to_string())
         .filter(|r| !r.is_empty());
-    let n = conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    let n = tx.execute(
         "UPDATE separation_rule SET enabled = ?1, reason = ?2 WHERE id = ?3",
-        params![enabled, reason, id],
+        params![
+            enabled,
+            codec.opt_text("separation_rule.reason", id, reason.as_deref())?,
+            id
+        ],
     )?;
     if n != 1 {
         return Err(AppError::InvalidInput("규칙을 찾을 수 없습니다.".into()));
     }
-    conn.execute(
+    tx.execute(
         "UPDATE meta SET updated_at = ?1 WHERE id = 1",
         params![now()],
     )?;
+    tx.commit()?;
     Ok(())
 }
 
 /// 직접 만든 규칙만 지울 수 있다. 자동 규칙(동명이인)은 끄기만 한다.
 pub fn delete_rule(conn: &Connection, id: i64) -> AppResult<()> {
-    let n = conn.execute(
+    let tx = conn.unchecked_transaction()?;
+    let n = tx.execute(
         "DELETE FROM separation_rule WHERE id = ?1 AND kind != 'same_name'",
         params![id],
     )?;
@@ -271,16 +297,18 @@ pub fn delete_rule(conn: &Connection, id: i64) -> AppResult<()> {
             "지울 수 없는 규칙입니다. 동명이인 규칙은 끄기만 할 수 있습니다.".into(),
         ));
     }
-    conn.execute(
+    tx.execute(
         "UPDATE meta SET updated_at = ?1 WHERE id = 1",
         params![now()],
     )?;
+    tx.commit()?;
     Ok(())
 }
 
 /// 쌍둥이 후보 검토 결과를 한 번에 반영한다: 등록할 묶음은 쌍둥이 규칙으로, 아닌 묶음은 모든 쌍을 "아님"으로.
 pub fn resolve_twin_candidates(
     conn: &mut Connection,
+    codec: Codec,
     register: &[Vec<i64>],
     dismiss: &[Vec<i64>],
 ) -> AppResult<()> {
@@ -295,11 +323,11 @@ pub fn resolve_twin_candidates(
             })
             .collect();
         validate_members("twin", &members)?;
+        let id = next_id(&tx, "separation_rule")?;
         tx.execute(
-            "INSERT INTO separation_rule (kind, origin, enabled, reason, created_at) VALUES ('twin', 'auto', 1, '쌍둥이', ?1)",
-            params![ts],
+            "INSERT INTO separation_rule (id, kind, origin, enabled, reason, created_at) VALUES (?1, 'twin', 'auto', 1, ?2, ?3)",
+            params![id, codec.text("separation_rule.reason", id, "쌍둥이")?, ts],
         )?;
-        let id = tx.last_insert_rowid();
         for m in &members {
             tx.execute(
                 "INSERT INTO separation_member (rule_id, student_id, role) VALUES (?1, ?2, 'member')",

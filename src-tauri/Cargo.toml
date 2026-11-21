@@ -30,6 +30,11 @@ sha2 = "0.11"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 gethostname = "1"
 tauri-plugin-single-instance = "2"
+pbkdf2 = { version = "0.13", default-features = false, features = ["hmac"] }
+aes-gcm = { version = "0.11", features = ["zeroize"] }
+base64 = "0.23"
+zeroize = "1.9"
+getrandom = "0.4"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
@@ -44,3 +49,19 @@ lto = true
 opt-level = 3
 panic = "abort"
 strip = true
+
+# 개발·테스트 빌드에서도 키 유도(PBKDF2 600,000회)와 AES가 느리지 않도록 암호 크레이트만 최적화한다.
+[profile.dev.package.sha2]
+opt-level = 3
+[profile.dev.package.hmac]
+opt-level = 3
+[profile.dev.package.pbkdf2]
+opt-level = 3
+[profile.dev.package.aes]
+opt-level = 3
+[profile.dev.package.aes-gcm]
+opt-level = 3
+[profile.dev.package.ghash]
+opt-level = 3
+[profile.dev.package.polyval]
+opt-level = 3

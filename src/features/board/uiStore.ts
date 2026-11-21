@@ -12,7 +12,11 @@ export type BoardDialog =
   | { kind: "reset" }
   | { kind: "pdf" }
   | { kind: "settings" }
-  | { kind: "shortcuts" };
+  | { kind: "shortcuts" }
+  | { kind: "encryption"; mode: EncryptionMode };
+
+/** 암호 대화상자 종류. 열 때 정해 두어, 처리 뒤 파일 상태가 바뀌어도 내용이 다른 대화상자로 바뀌지 않게 한다. */
+export type EncryptionMode = "enable" | "disable" | "change";
 
 export interface ViewPrefs {
   showGender: boolean;

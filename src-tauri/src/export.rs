@@ -6,11 +6,13 @@
 
 use std::collections::{HashMap, HashSet};
 use std::io::Cursor;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
+use crate::crypto::Codec;
+use crate::db::temp_path_for;
 use crate::error::{AppError, AppResult};
 use crate::xlsx_import::{header_columns, parse_roster};
 
@@ -31,23 +33,23 @@ struct Seat {
     orig_number: i64,
 }
 
-fn load_seats(conn: &Connection) -> AppResult<Vec<Seat>> {
+fn load_seats(conn: &Connection, codec: Codec) -> AppResult<Vec<Seat>> {
     let mut stmt = conn.prepare(
-        "SELECT row_index, student_no, cur_class, cur_number, orig_class, orig_number FROM student ORDER BY row_index",
+        "SELECT row_index, student_no, cur_class, cur_number, orig_class, orig_number, id FROM student ORDER BY row_index",
     )?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok(Seat {
-                row_index: r.get(0)?,
-                student_no: r.get(1)?,
-                class: r.get(2)?,
-                number: r.get(3)?,
-                orig_class: r.get(4)?,
-                orig_number: r.get(5)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
+    let mut out = Vec::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        out.push(Seat {
+            row_index: r.get(0)?,
+            student_no: codec.get_text("student.student_no", r.get(6)?, r.get(1)?)?,
+            class: r.get(2)?,
+            number: r.get(3)?,
+            orig_class: r.get(4)?,
+            orig_number: r.get(5)?,
+        });
+    }
+    Ok(out)
 }
 
 /// 내보내기를 막는 오류(번호 중복·범위 밖 반)를 확인한다.
@@ -96,28 +98,21 @@ fn check_blocking(conn: &Connection, seats: &[Seat]) -> AppResult<()> {
     Ok(())
 }
 
-fn template(conn: &Connection) -> AppResult<Vec<u8>> {
-    conn.query_row(
-        "SELECT content FROM source_file WHERE kind = 'xlsx' ORDER BY id DESC LIMIT 1",
-        [],
-        |r| r.get(0),
-    )
-    .map_err(|_| AppError::InvalidInput("작업 파일에 원본 XLSX가 없습니다.".into()))
+fn template(conn: &Connection, codec: Codec) -> AppResult<Vec<u8>> {
+    let (id, raw): (i64, rusqlite::types::Value) = conn
+        .query_row(
+            "SELECT id, content FROM source_file WHERE kind = 'xlsx' ORDER BY id DESC LIMIT 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .map_err(|_| AppError::InvalidInput("작업 파일에 원본 XLSX가 없습니다.".into()))?;
+    codec.get_blob("source_file.content", id, raw)
 }
 
-fn temp_path_for(path: &Path) -> PathBuf {
-    let mut name = path
-        .file_name()
-        .map(|s| s.to_os_string())
-        .unwrap_or_default();
-    name.push(".classmix-tmp");
-    path.with_file_name(name)
-}
-
-pub fn export_xlsx(conn: &Connection, path: &Path) -> AppResult<ExportReport> {
-    let seats = load_seats(conn)?;
+pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<ExportReport> {
+    let seats = load_seats(conn, codec)?;
     check_blocking(conn, &seats)?;
-    let bytes = template(conn)?;
+    let bytes = template(conn, codec)?;
 
     let mut book = umya_spreadsheet::reader::xlsx::read_reader(Cursor::new(bytes), true)
         .map_err(|e| AppError::Xlsx(e.to_string()))?;
@@ -234,6 +229,7 @@ pub fn export_xlsx(conn: &Connection, path: &Path) -> AppResult<ExportReport> {
 mod tests {
     use super::*;
     use crate::changes::{self, ChangeSet, NumberingChange, Seat as S, StudentMove};
+    use crate::crypto::PLAIN;
     use crate::xlsx_import::{apply_import, plan_import};
 
     fn fixture() -> std::path::PathBuf {
@@ -246,6 +242,7 @@ mod tests {
         let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
         apply_import(
             &mut conn,
+            PLAIN,
             "sample.xlsx",
             &std::fs::read(fixture()).unwrap(),
             &plan,
@@ -259,7 +256,7 @@ mod tests {
         let (dir, conn) = setup();
         let out = dir.path().join("한글 폴더/업로드.xlsx");
         std::fs::create_dir_all(out.parent().unwrap()).unwrap();
-        let rep = export_xlsx(&conn, &out).unwrap();
+        let rep = export_xlsx(&conn, PLAIN, &out).unwrap();
         assert_eq!((rep.rows, rep.changed_students), (240, 0));
         assert!(!temp_path_for(&out).exists());
 
@@ -347,9 +344,9 @@ mod tests {
             }],
             readings: vec![],
         };
-        changes::apply_change(&mut conn, &cs).unwrap();
+        changes::apply_change(&mut conn, PLAIN, &cs).unwrap();
         let out = dir.path().join("o.xlsx");
-        let rep = export_xlsx(&conn, &out).unwrap();
+        let rep = export_xlsx(&conn, PLAIN, &out).unwrap();
         assert_eq!(rep.changed_students, 1);
         let row = parse_roster(&out)
             .unwrap()
@@ -375,7 +372,7 @@ mod tests {
         conn.execute("DELETE FROM student WHERE row_index = 3", [])
             .unwrap();
         let out = dir.path().join("o.xlsx");
-        let err = export_xlsx(&conn, &out).unwrap_err();
+        let err = export_xlsx(&conn, PLAIN, &out).unwrap_err();
         assert!(
             err.to_string()
                 .contains("3행이 작업 파일의 학생과 이어지지 않습니다")
@@ -391,7 +388,7 @@ mod tests {
             [],
         )
         .unwrap();
-        let err = export_xlsx(&conn, &dir.path().join("x.xlsx")).unwrap_err();
+        let err = export_xlsx(&conn, PLAIN, &dir.path().join("x.xlsx")).unwrap_err();
         assert!(err.to_string().contains("두 명 이상"));
         assert!(!dir.path().join("x.xlsx").exists());
     }

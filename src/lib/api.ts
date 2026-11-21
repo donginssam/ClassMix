@@ -12,6 +12,10 @@ export interface WorkspaceInfo {
   xlsxFileName: string | null;
   pdfFileName: string | null;
   pdfLinkedCount: number;
+  /** 암호가 걸린 파일인지 */
+  encrypted: boolean;
+  /** 암호가 걸려 있고 아직 비밀번호를 넣지 않았는지(학생 자료를 읽을 수 없음) */
+  locked: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -229,6 +233,11 @@ export const api = {
   resolveTwinCandidates: (register: number[][], dismiss: number[][]) =>
     invoke<void>("resolve_twin_candidates", { register, dismiss }),
   exportXlsx: (path: string) => invoke<ExportReport>("export_xlsx", { path }),
+  unlockWorkFile: (password: string) => invoke<WorkspaceInfo>("unlock_work_file", { password }),
+  enableEncryption: (password: string) => invoke<WorkspaceInfo>("enable_encryption", { password }),
+  disableEncryption: (password: string) => invoke<WorkspaceInfo>("disable_encryption", { password }),
+  changePassword: (current: string, newPassword: string) =>
+    invoke<WorkspaceInfo>("change_password", { current, newPassword }),
   /** 더블클릭·두 번째 실행으로 받은 .mix 경로(한 번만 돌려줌) */
   takeLaunchFile: () => invoke<string | null>("take_launch_file"),
   fileAssociationStatus: () => invoke<AssociationStatus>("file_association_status"),

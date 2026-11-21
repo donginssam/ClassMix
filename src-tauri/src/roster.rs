@@ -2,11 +2,13 @@
 
 use std::collections::HashSet;
 
+use rusqlite::types::Value;
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::db::now;
+use crate::crypto::Codec;
+use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -34,7 +36,7 @@ pub struct StudentDto {
     pub same_name: bool,
 }
 
-pub fn list_students(conn: &Connection) -> AppResult<Vec<StudentDto>> {
+pub fn list_students(conn: &Connection, codec: Codec) -> AppResult<Vec<StudentDto>> {
     let mut stmt = conn.prepare(
         "SELECT s.id, s.student_no, s.name, s.name_norm, s.prev_grade, s.prev_class, s.prev_number,
                 s.orig_class, s.orig_number, s.cur_class, s.cur_number, s.gender, s.birth_date, s.base_score,
@@ -43,31 +45,33 @@ pub fn list_students(conn: &Connection) -> AppResult<Vec<StudentDto>> {
                         WHERE m.student_id = s.id AND r.kind = 'same_name')
          FROM student s ORDER BY s.cur_class, s.cur_number",
     )?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok(StudentDto {
-                id: r.get(0)?,
-                student_no: r.get(1)?,
-                name: r.get(2)?,
-                name_norm: r.get(3)?,
-                prev_grade: r.get(4)?,
-                prev_class: r.get(5)?,
-                prev_number: r.get(6)?,
-                orig_class: r.get(7)?,
-                orig_number: r.get(8)?,
-                cur_class: r.get(9)?,
-                cur_number: r.get(10)?,
-                gender: r.get(11)?,
-                birth_date: r.get(12)?,
-                base_score: r.get(13)?,
-                match_method: r.get(14)?,
-                memo: r.get(15)?,
-                sort_name: r.get(16)?,
-                same_name: r.get(17)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
+    let mut out = Vec::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let v = |i: usize| r.get::<_, Value>(i);
+        let id: i64 = r.get(0)?;
+        out.push(StudentDto {
+            id,
+            student_no: codec.get_text("student.student_no", id, v(1)?)?,
+            name: codec.get_text("student.name", id, v(2)?)?,
+            name_norm: codec.get_text("student.name_norm", id, v(3)?)?,
+            prev_grade: codec.get_text("student.prev_grade", id, v(4)?)?,
+            prev_class: codec.get_int("student.prev_class", id, v(5)?)?,
+            prev_number: codec.get_int("student.prev_number", id, v(6)?)?,
+            orig_class: r.get(7)?,
+            orig_number: r.get(8)?,
+            cur_class: r.get(9)?,
+            cur_number: r.get(10)?,
+            gender: r.get(11)?,
+            birth_date: codec.get_opt_text("student.birth_date", id, v(12)?)?,
+            base_score: codec.get_opt_int("student.base_score", id, v(13)?)?,
+            match_method: r.get(14)?,
+            memo: codec.get_opt_text("student.memo", id, v(15)?)?,
+            sort_name: codec.get_opt_text("student.sort_name", id, v(16)?)?,
+            same_name: r.get(17)?,
+        });
+    }
+    Ok(out)
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -82,24 +86,25 @@ pub struct GapDto {
     pub created_at: String,
 }
 
-pub fn list_gaps(conn: &Connection) -> AppResult<Vec<GapDto>> {
+pub fn list_gaps(conn: &Connection, codec: Codec) -> AppResult<Vec<GapDto>> {
     let mut stmt = conn.prepare(
         "SELECT id, class, number, anchor_key, planned_name, origin, created_at FROM number_gap ORDER BY class, number",
     )?;
-    let rows = stmt
-        .query_map([], |r| {
-            Ok(GapDto {
-                id: r.get(0)?,
-                class: r.get(1)?,
-                number: r.get(2)?,
-                anchor_key: r.get(3)?,
-                planned_name: r.get(4)?,
-                origin: r.get(5)?,
-                created_at: r.get(6)?,
-            })
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    Ok(rows)
+    let mut out = Vec::new();
+    let mut rows = stmt.query([])?;
+    while let Some(r) = rows.next()? {
+        let id: i64 = r.get(0)?;
+        out.push(GapDto {
+            id,
+            class: r.get(1)?,
+            number: r.get(2)?,
+            anchor_key: codec.get_text("number_gap.anchor_key", id, r.get(3)?)?,
+            planned_name: codec.get_opt_text("number_gap.planned_name", id, r.get(4)?)?,
+            origin: r.get(5)?,
+            created_at: r.get(6)?,
+        });
+    }
+    Ok(out)
 }
 
 /// 프런트엔드에서 파싱한 PDF 행
@@ -140,6 +145,7 @@ pub struct PdfApplyReport {
 /// PDF 원본과 매핑 결과를 저장한다. 기존 PDF 반영 내용은 모두 교체한다.
 pub fn apply_pdf(
     conn: &mut Connection,
+    codec: Codec,
     file_name: &str,
     bytes: &[u8],
     rows: &[PdfRowInput],
@@ -189,26 +195,52 @@ pub fn apply_pdf(
         .iter()
         .map(|b| format!("{b:02x}"))
         .collect();
+    let sid = next_id(&tx, "source_file")?;
     tx.execute(
-        "INSERT INTO source_file (kind, file_name, sha256, content, imported_at) VALUES ('pdf', ?1, ?2, ?3, ?4)",
-        params![file_name, sha, bytes, ts],
+        "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, 'pdf', ?2, ?3, ?4, ?5)",
+        params![
+            sid,
+            file_name,
+            sha,
+            codec.blob("source_file.content", sid, bytes)?,
+            ts
+        ],
     )?;
 
     let link_of = |i: usize| links.iter().find(|l| l.row_index == i);
     for (i, r) in rows.iter().enumerate() {
         let link = link_of(i);
+        let pid = next_id(&tx, "pdf_row")?;
         tx.execute(
-            "INSERT INTO pdf_row (page, grade, class, number, name, birth_date, gender, base_score, prev_grade, prev_class, prev_number, note, student_id)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            "INSERT INTO pdf_row (id, page, grade, class, number, name, birth_date, gender, base_score, prev_grade, prev_class, prev_number, note, student_id)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
             params![
-                r.page, r.grade, r.class, r.number, r.name, r.birth_date, r.gender, r.base_score,
-                r.prev_grade, r.prev_class, r.prev_number, r.note, link.map(|l| l.student_id)
+                pid,
+                r.page,
+                codec.text("pdf_row.grade", pid, &r.grade)?,
+                codec.int("pdf_row.class", pid, r.class)?,
+                codec.int("pdf_row.number", pid, r.number)?,
+                codec.text("pdf_row.name", pid, &r.name)?,
+                codec.opt_text("pdf_row.birth_date", pid, r.birth_date.as_deref())?,
+                r.gender,
+                codec.opt_int("pdf_row.base_score", pid, r.base_score)?,
+                codec.opt_text("pdf_row.prev_grade", pid, r.prev_grade.as_deref())?,
+                codec.opt_int("pdf_row.prev_class", pid, r.prev_class)?,
+                codec.opt_int("pdf_row.prev_number", pid, r.prev_number)?,
+                codec.opt_text("pdf_row.note", pid, r.note.as_deref())?,
+                link.map(|l| l.student_id)
             ],
         )?;
         if let Some(l) = link {
             let n = tx.execute(
                 "UPDATE student SET gender = ?1, birth_date = ?2, base_score = ?3, match_method = ?4 WHERE id = ?5",
-                params![r.gender, r.birth_date, r.base_score, l.method, l.student_id],
+                params![
+                    r.gender,
+                    codec.opt_text("student.birth_date", l.student_id, r.birth_date.as_deref())?,
+                    codec.opt_int("student.base_score", l.student_id, r.base_score)?,
+                    l.method,
+                    l.student_id
+                ],
             )?;
             if n != 1 {
                 return Err(AppError::InvalidInput(format!(
@@ -229,6 +261,7 @@ pub fn apply_pdf(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::crypto::PLAIN;
     use crate::xlsx_import::{apply_import, parse_roster, plan_import};
     use std::path::Path;
 
@@ -239,6 +272,7 @@ mod tests {
         let plan = plan_import("sample.xlsx", parse_roster(&fx).unwrap()).unwrap();
         apply_import(
             &mut conn,
+            PLAIN,
             "sample.xlsx",
             &std::fs::read(&fx).unwrap(),
             &plan,
@@ -267,10 +301,10 @@ mod tests {
     #[test]
     fn lists_students_with_same_name_flag() {
         let (_d, conn) = setup();
-        let s = list_students(&conn).unwrap();
+        let s = list_students(&conn, PLAIN).unwrap();
         assert_eq!(s.len(), 240);
         assert_eq!(s.iter().filter(|x| x.same_name).count(), 24);
-        assert!(list_gaps(&conn).unwrap().is_empty());
+        assert!(list_gaps(&conn, PLAIN).unwrap().is_empty());
     }
 
     #[test]
@@ -289,7 +323,7 @@ mod tests {
             student_id: id,
             method: "next_seat+name".into(),
         }];
-        let rep = apply_pdf(&mut conn, "sample.pdf", b"%PDF-", &rows, &links).unwrap();
+        let rep = apply_pdf(&mut conn, PLAIN, "sample.pdf", b"%PDF-", &rows, &links).unwrap();
         assert_eq!((rep.linked, rep.unlinked_rows), (1, 1));
         let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
@@ -299,7 +333,7 @@ mod tests {
         assert_eq!(score, Some(90050));
 
         // 다시 반영하면 이전 값은 지워진다
-        apply_pdf(&mut conn, "sample.pdf", b"%PDF-", &rows, &[]).unwrap();
+        apply_pdf(&mut conn, PLAIN, "sample.pdf", b"%PDF-", &rows, &[]).unwrap();
         let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
                 r.get(0)
@@ -332,6 +366,6 @@ mod tests {
                 method: "manual".into(),
             },
         ];
-        assert!(apply_pdf(&mut conn, "x.pdf", b"", &rows, &links).is_err());
+        assert!(apply_pdf(&mut conn, PLAIN, "x.pdf", b"", &rows, &links).is_err());
     }
 }

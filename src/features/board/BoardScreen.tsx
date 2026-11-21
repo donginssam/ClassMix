@@ -69,6 +69,7 @@ import { twinCandidates } from "@/domain/siblings";
 import { ExportDialog } from "@/features/export/ExportDialog";
 import { SettingsDialog } from "@/features/settings/SettingsDialog";
 import { ShortcutsDialog } from "@/features/settings/ShortcutsDialog";
+import { EncryptionDialog } from "@/features/security/EncryptionDialog";
 import { BalanceMeters } from "@/features/stats/BalanceMeters";
 import { StatsPanel } from "@/features/stats/StatsPanel";
 import { actions } from "./actions";
@@ -501,6 +502,26 @@ export function BoardScreen() {
               <DropdownMenuShortcut>{shortcut("S", { shift: true })}</DropdownMenuShortcut>
             </DropdownMenuItem>
             <DropdownMenuItem onSelect={saveWorkFileCopyWithDialog}>사본 저장(백업)…</DropdownMenuItem>
+            {workspace.encrypted ? (
+              <>
+                <DropdownMenuItem
+                  disabled={readOnly}
+                  onSelect={() => openDialog({ kind: "encryption", mode: "change" })}
+                >
+                  암호 변경…
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  disabled={readOnly}
+                  onSelect={() => openDialog({ kind: "encryption", mode: "disable" })}
+                >
+                  암호 풀기…
+                </DropdownMenuItem>
+              </>
+            ) : (
+              <DropdownMenuItem disabled={readOnly} onSelect={() => openDialog({ kind: "encryption", mode: "enable" })}>
+                암호 걸기…
+              </DropdownMenuItem>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem onSelect={() => openDialog({ kind: "shortcuts" })}>
               단축키…
@@ -663,6 +684,7 @@ export function BoardScreen() {
       <ExportDialog />
       <SettingsDialog open={dialog?.kind === "settings"} onOpenChange={(o) => !o && closeDialog()} />
       <ShortcutsDialog open={dialog?.kind === "shortcuts"} onOpenChange={(o) => !o && closeDialog()} />
+      <EncryptionDialog mode={dialog?.kind === "encryption" ? dialog.mode : null} onClose={closeDialog} />
       <PdfImportDialog
         open={dialog?.kind === "pdf"}
         onOpenChange={(o) => !o && closeDialog()}

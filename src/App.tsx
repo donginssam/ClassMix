@@ -9,6 +9,7 @@ import { ErrorBoundary } from "@/app/ErrorBoundary";
 import { BoardScreen } from "@/features/board/BoardScreen";
 import { ImportXlsxScreen } from "@/features/import-xlsx/ImportXlsxScreen";
 import { StartScreen } from "@/features/workspace/StartScreen";
+import { UnlockScreen } from "@/features/security/UnlockScreen";
 import { errorMessage } from "@/lib/api";
 import { useOpenRequests } from "@/lib/useOpenRequests";
 import { cn } from "@/lib/utils";
@@ -53,6 +54,7 @@ export default function App() {
   let screen = null;
   if (ready) {
     if (!workspace) screen = <StartScreen />;
+    else if (workspace.locked) screen = <UnlockScreen />;
     else if (workspace.studentCount === 0) screen = <ImportXlsxScreen />;
     else screen = <BoardScreen />;
   }

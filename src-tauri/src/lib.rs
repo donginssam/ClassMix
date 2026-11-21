@@ -1,6 +1,7 @@
 mod board;
 mod changes;
 mod commands;
+mod crypto;
 mod db;
 mod error;
 mod export;
@@ -142,6 +143,10 @@ pub fn run() {
             commands::delete_rule,
             commands::resolve_twin_candidates,
             commands::export_xlsx,
+            commands::unlock_work_file,
+            commands::enable_encryption,
+            commands::disable_encryption,
+            commands::change_password,
             commands::take_launch_file,
             commands::file_association_status,
             commands::register_file_association,
@@ -157,15 +162,11 @@ pub fn run() {
         // macOS: Finder에서 .mix를 열면(앱 실행 중이든 아니든) 이 이벤트로 경로가 온다.
         #[cfg(any(target_os = "macos", target_os = "ios"))]
         RunEvent::Opened { urls } => {
-            if let Some(path) = urls
-                .iter()
-                .filter_map(|u| u.to_file_path().ok())
-                .find(|p| {
-                    p.extension()
-                        .and_then(|e| e.to_str())
-                        .is_some_and(|e| e.eq_ignore_ascii_case(db::FILE_EXTENSION))
-                })
-            {
+            if let Some(path) = urls.iter().filter_map(|u| u.to_file_path().ok()).find(|p| {
+                p.extension()
+                    .and_then(|e| e.to_str())
+                    .is_some_and(|e| e.eq_ignore_ascii_case(db::FILE_EXTENSION))
+            }) {
                 request_open(handle, path);
             }
         }

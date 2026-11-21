@@ -23,30 +23,82 @@ pub fn now() -> String {
 
 fn configure(conn: &Connection) -> AppResult<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
+    // 지우거나 덮어쓴 레코드 자리를 0으로 채워, 파일 안에 이전 값(평문)이 남지 않게 한다.
+    conn.pragma_update(None, "secure_delete", "ON")?;
     // 단일 파일 유지: WAL 대신 롤백 저널(DELETE)을 쓴다.
     let _mode: String = conn.query_row("PRAGMA journal_mode = DELETE", [], |r| r.get(0))?;
     conn.busy_timeout(std::time::Duration::from_secs(3))?;
     Ok(())
 }
 
-/// 새 작업 파일을 만든다. 같은 경로에 파일이 있으면 지우고 새로 만든다(저장 대화상자에서 덮어쓰기 확인을 받은 경우).
-pub fn create_new(path: &Path, title: &str) -> AppResult<Connection> {
-    if path.exists() {
-        std::fs::remove_file(path)?;
+/// 같은 폴더의 임시 파일 경로 `<이름>.classmix-tmp`. 같은 폴더라야 rename 한 번으로 바꿔 넣을 수 있다.
+pub fn temp_path_for(path: &Path) -> PathBuf {
+    let mut name = path
+        .file_name()
+        .map(|s| s.to_os_string())
+        .unwrap_or_default();
+    name.push(".classmix-tmp");
+    path.with_file_name(name)
+}
+
+/// 지난번에 중간에 멈춰 남은 임시 파일(과 그 저널)을 지운다.
+fn remove_stale(tmp: &Path) -> AppResult<()> {
+    for p in [
+        tmp.to_path_buf(),
+        PathBuf::from(format!("{}-journal", tmp.display())),
+    ] {
+        if p.exists() {
+            std::fs::remove_file(&p)?;
+        }
     }
-    let conn = Connection::open_with_flags(
-        path,
-        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-    )?;
+    Ok(())
+}
+
+/// 다 만든 임시 파일을 대상 위치로 한 번에 바꿔 넣는다(같은 폴더 안 rename, 기존 파일은 이때 교체).
+/// 실패하면 임시 파일을 지우고, 대상 위치의 기존 파일은 그대로 둔다.
+pub fn replace_with(tmp: &Path, target: &Path) -> AppResult<()> {
+    std::fs::rename(tmp, target).inspect_err(|_| {
+        let _ = std::fs::remove_file(tmp);
+    })?;
+    Ok(())
+}
+
+/// 임시 파일에 `build`를 한 뒤 대상 위치로 바꿔 넣는다. 도중에 실패하면 임시 파일만 지운다.
+fn build_then_replace(target: &Path, build: impl FnOnce(&Path) -> AppResult<()>) -> AppResult<()> {
+    let tmp = temp_path_for(target);
+    remove_stale(&tmp)?;
+    if let Err(e) = build(&tmp) {
+        let _ = remove_stale(&tmp);
+        return Err(e);
+    }
+    replace_with(&tmp, target)
+}
+
+/// 새 작업 파일을 만든다. 같은 경로에 파일이 있으면(저장 대화상자에서 덮어쓰기 확인을 받은 경우)
+/// 새 파일을 다 만든 뒤에 바꿔 넣으므로, 만들다 실패해도 기존 파일은 그대로 남는다.
+pub fn create_new(path: &Path, title: &str) -> AppResult<Connection> {
+    build_then_replace(path, |tmp| {
+        let mut conn = Connection::open_with_flags(
+            tmp,
+            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+        )?;
+        configure(&conn)?;
+        // 표 만들기·meta·식별값·버전을 한 트랜잭션으로: 반쯤 만든 파일이 생기지 않는다.
+        let tx = conn.transaction()?;
+        tx.pragma_update(None, "application_id", APPLICATION_ID)?;
+        tx.execute_batch(SCHEMA_V1)?;
+        let ts = now();
+        tx.execute(
+            "INSERT INTO meta (id, title, app_version, created_at, updated_at) VALUES (1, ?1, ?2, ?3, ?3)",
+            params![title, env!("APP_VERSION"), ts],
+        )?;
+        tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+        tx.commit()?;
+        Ok(())
+        // conn은 여기서 닫힌다(Windows에서는 열린 파일을 바꿔 넣을 수 없다).
+    })?;
+    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     configure(&conn)?;
-    conn.pragma_update(None, "application_id", APPLICATION_ID)?;
-    conn.execute_batch(SCHEMA_V1)?;
-    let ts = now();
-    conn.execute(
-        "INSERT INTO meta (id, title, app_version, created_at, updated_at) VALUES (1, ?1, ?2, ?3, ?3)",
-        params![title, env!("APP_VERSION"), ts],
-    )?;
-    conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
     Ok(conn)
 }
 
@@ -124,24 +176,40 @@ fn migrate(conn: &Connection, from: i32) -> AppResult<()> {
         let sql = MIGRATIONS.get((v - 1) as usize).ok_or_else(|| {
             AppError::Other(format!("v{v} → v{} 마이그레이션이 없습니다.", v + 1))
         })?;
-        conn.execute_batch(&format!(
-            "BEGIN; {sql}; PRAGMA user_version = {}; COMMIT;",
-            v + 1
-        ))?;
+        // 단계마다 한 트랜잭션: 실패하면(커밋 전 drop) 그 단계는 통째로 되돌아간다.
+        let tx = conn.unchecked_transaction()?;
+        tx.execute_batch(sql)?;
+        tx.pragma_update(None, "user_version", v + 1)?;
+        tx.commit()?;
     }
     Ok(())
 }
 
-/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`).
+/// 다음에 넣을 행 id. 암호화한 칸은 행 id를 AAD에 묶으므로, 넣기 전에 id를 정해 둔다.
+/// 같은 연결·트랜잭션 안에서 넣기 바로 직전에 부른다.
+pub fn next_id(conn: &Connection, table: &str) -> AppResult<i64> {
+    Ok(conn.query_row(
+        &format!("SELECT COALESCE(MAX(id), 0) + 1 FROM {table}"),
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 사본에는 열림 표시를 남기지 않는다.
+/// 임시 파일에 다 만든 뒤 바꿔 넣으므로, 실패해도 대상 위치의 기존 파일은 그대로 남는다.
 pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
-    if target.exists() {
-        std::fs::remove_file(target)?;
-    }
-    let target_str = target
-        .to_str()
-        .ok_or_else(|| AppError::InvalidInput("경로에 쓸 수 없는 문자가 있습니다.".into()))?;
-    conn.execute("VACUUM INTO ?1", params![target_str])?;
-    Ok(())
+    build_then_replace(target, |tmp| {
+        let tmp_str = tmp
+            .to_str()
+            .ok_or_else(|| AppError::InvalidInput("경로에 쓸 수 없는 문자가 있습니다.".into()))?;
+        conn.execute("VACUUM INTO ?1", params![tmp_str])?;
+        let copy = Connection::open_with_flags(tmp, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        copy.execute(
+            "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
+            [],
+        )?;
+        Ok(())
+    })
 }
 
 #[cfg(test)]
@@ -232,5 +300,114 @@ mod tests {
         let p = dir.path().join("x.mix");
         std::fs::write(dir.path().join("x.bak.mix"), "").unwrap();
         assert_eq!(backup_path_for(&p), dir.path().join("x.bak2.mix"));
+    }
+
+    // ───── 새 파일·사본은 다 만든 뒤 바꿔 넣는다 ─────
+
+    fn only_files(dir: &Path) -> Vec<String> {
+        let mut v: Vec<String> = std::fs::read_dir(dir)
+            .unwrap()
+            .map(|e| e.unwrap().file_name().to_string_lossy().to_string())
+            .collect();
+        v.sort();
+        v
+    }
+
+    #[test]
+    fn create_new_replaces_an_existing_file_and_leaves_no_temp_files() {
+        let dir = tmp();
+        let p = dir.path().join("덮어쓰기.mix");
+        std::fs::write(&p, "이전 내용").unwrap();
+        // 지난번에 중간에 멈춰 남은 임시 파일도 정리된다
+        std::fs::write(temp_path_for(&p), "남은 임시 파일").unwrap();
+        let conn = create_new(&p, "새 파일").unwrap();
+        let (app_id, version): (i32, i32) = (
+            conn.query_row("PRAGMA application_id", [], |r| r.get(0))
+                .unwrap(),
+            conn.query_row("PRAGMA user_version", [], |r| r.get(0))
+                .unwrap(),
+        );
+        assert_eq!((app_id, version), (APPLICATION_ID, SCHEMA_VERSION));
+        drop(conn);
+        assert_eq!(only_files(dir.path()), vec!["덮어쓰기.mix".to_string()]);
+        assert!(open_existing(&p).is_ok());
+    }
+
+    #[cfg(unix)]
+    fn with_read_only_dir(dir: &Path, f: impl FnOnce()) {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o555)).unwrap();
+        let r = std::panic::catch_unwind(std::panic::AssertUnwindSafe(f));
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        if let Err(e) = r {
+            std::panic::resume_unwind(e);
+        }
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_create_new_keeps_the_existing_file() {
+        let dir = tmp();
+        let p = dir.path().join("기존.mix");
+        std::fs::write(&p, "지우면 안 되는 기존 파일").unwrap();
+        with_read_only_dir(dir.path(), || {
+            assert!(create_new(&p, "x").is_err());
+        });
+        assert_eq!(
+            std::fs::read_to_string(&p).unwrap(),
+            "지우면 안 되는 기존 파일"
+        );
+        assert_eq!(only_files(dir.path()), vec!["기존.mix".to_string()]);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn failed_copy_keeps_the_existing_target() {
+        let dir = tmp();
+        let src = create_new(&dir.path().join("원본.mix"), "원본").unwrap();
+        let out = dir.path().join("사본 폴더");
+        std::fs::create_dir(&out).unwrap();
+        let target = out.join("사본.mix");
+        std::fs::write(&target, "예전 사본").unwrap();
+        with_read_only_dir(&out, || {
+            assert!(vacuum_into(&src, &target).is_err());
+        });
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "예전 사본");
+        assert_eq!(only_files(&out), vec!["사본.mix".to_string()]);
+    }
+
+    #[test]
+    fn copy_replaces_target_atomically_without_the_opened_by_mark() {
+        let dir = tmp();
+        let src = create_new(&dir.path().join("원본.mix"), "원본").unwrap();
+        src.execute("UPDATE meta SET opened_by = 'PC-1', opened_at = 'x'", [])
+            .unwrap();
+        let target = dir.path().join("사본.mix");
+        std::fs::write(&target, "예전 사본").unwrap();
+        vacuum_into(&src, &target).unwrap();
+        let (copy, _) = open_existing(&target).unwrap();
+        let by: Option<String> = copy
+            .query_row("SELECT opened_by FROM meta", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(by, None, "사본에는 열림 표시가 없어야 함");
+        let src_by: Option<String> = src
+            .query_row("SELECT opened_by FROM meta", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(src_by.as_deref(), Some("PC-1"), "원본은 그대로");
+        assert!(!temp_path_for(&target).exists());
+    }
+
+    #[test]
+    fn copy_that_fails_midway_keeps_the_existing_target() {
+        // 대상 폴더는 쓸 수 있는데 복사가 실패하는 경우(예전 코드는 이때 기존 파일을 먼저 지웠다)
+        let dir = tmp();
+        let src = create_new(&dir.path().join("원본.mix"), "원본").unwrap();
+        let target = dir.path().join("사본.mix");
+        std::fs::write(&target, "예전 사본").unwrap();
+        src.execute_batch("BEGIN").unwrap(); // 트랜잭션 안에서는 VACUUM INTO가 실패한다
+        assert!(vacuum_into(&src, &target).is_err());
+        src.execute_batch("ROLLBACK").unwrap();
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "예전 사본");
+        assert!(!temp_path_for(&target).exists());
     }
 }

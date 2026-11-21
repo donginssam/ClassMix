@@ -77,8 +77,12 @@ pub fn save_to(path: &Path, settings: &Settings) -> AppResult<()> {
     }
     let json = serde_json::to_string_pretty(settings)
         .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
-    std::fs::write(path, json)?;
-    Ok(())
+    // 임시 파일에 다 쓴 뒤 바꿔 넣는다: 쓰다가 멈춰도 기존 설정 파일이 깨지지 않는다.
+    let tmp = crate::db::temp_path_for(path);
+    std::fs::write(&tmp, json).inspect_err(|_| {
+        let _ = std::fs::remove_file(&tmp);
+    })?;
+    crate::db::replace_with(&tmp, path)
 }
 
 pub fn push_recent(settings: &mut Settings, path: &Path) {
@@ -147,5 +151,21 @@ mod tests {
                 .recent_files
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn save_replaces_the_settings_file_without_leaving_temp_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let p = dir.path().join("ClassMix.settings.json");
+        std::fs::write(&p, "{ 깨진 이전 파일").unwrap();
+        let mut s = Settings::default();
+        push_recent(&mut s, Path::new("/a/b.mix"));
+        save_to(&p, &s).unwrap();
+        assert_eq!(load_from(&p).recent_files.len(), 1);
+        let names: Vec<_> = std::fs::read_dir(dir.path())
+            .unwrap()
+            .map(|e| e.unwrap().file_name())
+            .collect();
+        assert_eq!(names.len(), 1);
     }
 }

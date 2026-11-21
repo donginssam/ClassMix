@@ -173,10 +173,7 @@ mod windows_impl {
     fn registered_exe() -> Option<String> {
         let hkcu = RegKey::predef(HKEY_CURRENT_USER);
         let key = hkcu
-            .open_subkey_with_flags(
-                format!(r"{CLASSES}\{PROG_ID}\shell\open\command"),
-                KEY_READ,
-            )
+            .open_subkey_with_flags(format!(r"{CLASSES}\{PROG_ID}\shell\open\command"), KEY_READ)
             .ok()?;
         let cmd: String = key.get_value("").ok()?;
         exe_from_open_command(&cmd)
@@ -199,7 +196,14 @@ mod windows_impl {
 
     fn notify_shell() {
         // 탐색기에 연결이 바뀌었음을 알려 아이콘·열기 동작을 바로 갱신한다.
-        unsafe { SHChangeNotify(SHCNE_ASSOCCHANGED, SHCNF_IDLIST, std::ptr::null(), std::ptr::null()) };
+        unsafe {
+            SHChangeNotify(
+                SHCNE_ASSOCCHANGED,
+                SHCNF_IDLIST,
+                std::ptr::null(),
+                std::ptr::null(),
+            )
+        };
     }
 
     fn reg_err(e: std::io::Error) -> AppError {
@@ -220,13 +224,14 @@ mod windows_impl {
         let (prog, _) = hkcu
             .create_subkey(format!(r"{CLASSES}\{PROG_ID}"))
             .map_err(reg_err)?;
-        prog.set_value("", &"ClassMix 반편성 파일").map_err(reg_err)?;
-        let (icon, _) = prog.create_subkey("DefaultIcon").map_err(reg_err)?;
-        icon.set_value("", &format!("\"{exe}\",0")).map_err(reg_err)?;
-        let (cmd, _) = prog
-            .create_subkey(r"shell\open\command")
+        prog.set_value("", &"ClassMix 반편성 파일")
             .map_err(reg_err)?;
-        cmd.set_value("", &format!("\"{exe}\" \"%1\"")).map_err(reg_err)?;
+        let (icon, _) = prog.create_subkey("DefaultIcon").map_err(reg_err)?;
+        icon.set_value("", &format!("\"{exe}\",0"))
+            .map_err(reg_err)?;
+        let (cmd, _) = prog.create_subkey(r"shell\open\command").map_err(reg_err)?;
+        cmd.set_value("", &format!("\"{exe}\" \"%1\""))
+            .map_err(reg_err)?;
 
         notify_shell();
         Ok(())
@@ -363,8 +368,17 @@ mod tests {
 
     #[test]
     fn compares_paths_case_insensitively() {
-        assert!(same_path(r"C:\Tools\ClassMix.exe", r"c:\tools\classmix.EXE"));
-        assert!(same_path(r"\\?\C:\Tools\ClassMix.exe", r"C:\Tools\ClassMix.exe"));
-        assert!(!same_path(r"C:\Tools\ClassMix.exe", r"D:\Tools\ClassMix.exe"));
+        assert!(same_path(
+            r"C:\Tools\ClassMix.exe",
+            r"c:\tools\classmix.EXE"
+        ));
+        assert!(same_path(
+            r"\\?\C:\Tools\ClassMix.exe",
+            r"C:\Tools\ClassMix.exe"
+        ));
+        assert!(!same_path(
+            r"C:\Tools\ClassMix.exe",
+            r"D:\Tools\ClassMix.exe"
+        ));
     }
 }

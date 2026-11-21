@@ -66,6 +66,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
       await updateTitle(null);
       return;
     }
+    if (workspace.locked) {
+      // 비밀번호를 넣기 전에는 학생 자료를 읽을 수 없다.
+      set({ workspace, ...EMPTY_BOARD });
+      await updateTitle(workspace);
+      return;
+    }
     const board = await api.getBoard();
     set({ workspace, ...board });
     await updateTitle(workspace);
