@@ -161,7 +161,7 @@ pub struct ImportReport {
     pub classes: Vec<ClassSummary>,
     /// 자동으로 분리 규칙을 만든 동명이인 그룹(성명 목록)
     pub same_name_groups: Vec<Vec<String>>,
-    /// 성명에 로마자가 있는 학생 수(한글 발음 입력 대상, M6)
+    /// 성명에 로마자가 있는 학생 수(한글 표기 입력 대상)
     pub roman_name_count: usize,
 }
 

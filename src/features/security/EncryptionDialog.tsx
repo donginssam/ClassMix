@@ -20,9 +20,9 @@ import { useWorkspace } from "@/store/workspace";
 const MIN_LEN = 8;
 
 /**
- * 작업 파일 암호 걸기·풀기·변경. 모든 대상 자료를 한꺼번에 암·복호화(변경은 새 키로 다시 암호화)한다.
- * 어떤 대화상자인지는 열 때 정한 `mode`를 따른다. 파일의 지금 암호 상태를 보고 고르면, 처리가 끝나
- * 상태가 바뀌는 순간 닫히기 전에 반대 대화상자(걸기↔풀기)가 잠깐 보인다.
+ * 작업 파일 암호 설정·해제·변경. 모든 대상 자료를 한꺼번에 암·복호화(변경은 새 키로 다시 암호화)한다.
+ * 어떤 대화상자인지는 열 때 정한 `mode`를 따른다. 현재 암호 상태를 보고 대화상자를 고르면, 처리가 끝나
+ * 상태가 바뀌는 순간 닫히기 전에 반대쪽 대화상자(설정↔해제)가 잠깐 보일 수 있다.
  */
 export function EncryptionDialog({ mode, onClose }: { mode: EncryptionMode | null; onClose: () => void }) {
   return (
@@ -34,7 +34,8 @@ export function EncryptionDialog({ mode, onClose }: { mode: EncryptionMode | nul
   );
 }
 
-function useSubmit(action: () => Promise<WorkspaceInfo>, success: string, onDone: () => void) {
+/** success: [알림 제목, 덧붙일 설명] */
+function useSubmit(action: () => Promise<WorkspaceInfo>, success: [string, string?], onDone: () => void) {
   const setWorkspace = useWorkspace((s) => s.setWorkspace);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,7 @@ function useSubmit(action: () => Promise<WorkspaceInfo>, success: string, onDone
     onDone();
     try {
       await setWorkspace(ws);
-      toast.success(success);
+      toast.success(success[0], { description: success[1] });
     } catch (e) {
       toast.error("화면을 새로 고치지 못했습니다.", { description: errorMessage(e) });
     }
@@ -68,7 +69,7 @@ function EnableBody({ onDone }: { onDone: () => void }) {
   const [understood, setUnderstood] = useState(false);
   const { busy, error, run } = useSubmit(
     () => api.enableEncryption(pw),
-    "작업 파일에 암호를 걸었습니다. 다음에 열 때 비밀번호를 묻습니다.",
+    ["작업 파일에 암호를 설정했습니다.", "다음에 열 때 비밀번호를 묻습니다."],
     onDone,
   );
   const tooShort = pw.length > 0 && [...pw].length < MIN_LEN;
@@ -79,10 +80,12 @@ function EnableBody({ onDone }: { onDone: () => void }) {
   return (
     <DialogContent className="sm:max-w-md" onInteractOutside={(e) => busy && e.preventDefault()}>
       <DialogHeader>
-        <DialogTitle>작업 파일에 암호 걸기</DialogTitle>
-        <DialogDescription>
-          학생 이름·학번·생년월일·기준성적·이전 학적·메모·한글 발음, 가져온 원본 XLSX·PDF, 변경 이력을 비밀번호로
-          암호화합니다. 반·번호 배치와 성별처럼 이름 없이는 개인을 알 수 없는 값은 그대로 둡니다.
+        <DialogTitle>작업 파일에 암호 설정하기</DialogTitle>
+        <DialogDescription className="grid gap-1">
+          <span>아래 자료를 비밀번호로 암호화합니다.</span>
+          <span className="text-foreground">
+            이름 · 진급반번호 · 생년월일 · 기준성적 · 메모 · 변경 이력 · 분리 규칙 사유
+          </span>
         </DialogDescription>
       </DialogHeader>
       <form
@@ -126,7 +129,7 @@ function EnableBody({ onDone }: { onDone: () => void }) {
             onChange={(e) => setUnderstood(e.target.checked)}
           />
           <span>
-            비밀번호를 잊으면 이 파일을 <b>다시 열 수 없고 복구할 방법도 없다</b>는 것을 이해했습니다.
+            비밀번호를 잊으면 이 파일을 <b>다시 열 수 없다</b>는 점을 이해했습니다.
           </span>
         </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
@@ -136,7 +139,7 @@ function EnableBody({ onDone }: { onDone: () => void }) {
           </Button>
           <Button type="submit" disabled={!ok || busy}>
             {busy && <Loader2 className="animate-spin" data-icon="inline-start" />}
-            {busy ? "암호화하는 중…" : "암호 걸기"}
+            {busy ? "암호화하는 중…" : "암호 설정"}
           </Button>
         </DialogFooter>
       </form>
@@ -146,14 +149,15 @@ function EnableBody({ onDone }: { onDone: () => void }) {
 
 function DisableBody({ onDone }: { onDone: () => void }) {
   const [pw, setPw] = useState("");
-  const { busy, error, run } = useSubmit(() => api.disableEncryption(pw), "작업 파일의 암호를 풀었습니다.", onDone);
+  const { busy, error, run } = useSubmit(() => api.disableEncryption(pw), ["작업 파일의 암호를 해제했습니다."], onDone);
   return (
     <DialogContent className="sm:max-w-md" onInteractOutside={(e) => busy && e.preventDefault()}>
       <DialogHeader>
-        <DialogTitle>작업 파일 암호 풀기</DialogTitle>
-        <DialogDescription>
-          암호화한 자료를 모두 풀어 평문으로 저장합니다. 이후에는 비밀번호 없이 파일을 열 수 있습니다. 확인을 위해 지금
-          비밀번호를 입력해 주세요.
+        <DialogTitle>작업 파일 암호 해제하기</DialogTitle>
+        <DialogDescription className="grid gap-1">
+          <span>비밀번호 보호를 풀고, 암호화하지 않은 상태로 저장합니다.</span>
+          <span>이제부터는 비밀번호 없이 파일을 열 수 있습니다.</span>
+          <span>확인하려면 현재 비밀번호를 입력해 주세요.</span>
         </DialogDescription>
       </DialogHeader>
       <form
@@ -164,7 +168,7 @@ function DisableBody({ onDone }: { onDone: () => void }) {
         }}
       >
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="dec-pw">지금 비밀번호</Label>
+          <Label htmlFor="dec-pw">현재 비밀번호</Label>
           <Input
             id="dec-pw"
             type="password"
@@ -182,7 +186,7 @@ function DisableBody({ onDone }: { onDone: () => void }) {
           </Button>
           <Button type="submit" variant="destructive" disabled={!pw || busy}>
             {busy && <Loader2 className="animate-spin" data-icon="inline-start" />}
-            {busy ? "푸는 중…" : "암호 풀기"}
+            {busy ? "해제하는 중…" : "암호 해제"}
           </Button>
         </DialogFooter>
       </form>
@@ -196,7 +200,7 @@ function ChangeBody({ onDone }: { onDone: () => void }) {
   const [pw2, setPw2] = useState("");
   const { busy, error, run } = useSubmit(
     () => api.changePassword(current, pw),
-    "비밀번호를 바꿨습니다. 다음에 열 때부터 새 비밀번호를 씁니다.",
+    ["비밀번호를 바꿨습니다.", "다음에 열 때부터 새 비밀번호를 씁니다."],
     onDone,
   );
   const tooShort = pw.length > 0 && [...pw].length < MIN_LEN;
@@ -208,10 +212,10 @@ function ChangeBody({ onDone }: { onDone: () => void }) {
   return (
     <DialogContent className="sm:max-w-md" onInteractOutside={(e) => busy && e.preventDefault()}>
       <DialogHeader>
-        <DialogTitle>작업 파일 암호 변경</DialogTitle>
-        <DialogDescription>
-          지금 비밀번호를 확인한 뒤, 새 비밀번호로 만든 새 키로 모든 자료를 다시 암호화합니다. 새 비밀번호도 잊으면
-          복구할 수 없습니다.
+        <DialogTitle>작업 파일 암호 변경하기</DialogTitle>
+        <DialogDescription className="grid gap-1">
+          <span>현재 비밀번호를 확인한 뒤, 새 비밀번호로 모든 자료를 다시 암호화합니다.</span>
+          <span>새 비밀번호도 잊으면 파일을 다시 열 수 없습니다.</span>
         </DialogDescription>
       </DialogHeader>
       <form
@@ -222,7 +226,7 @@ function ChangeBody({ onDone }: { onDone: () => void }) {
         }}
       >
         <div className="flex flex-col gap-1.5">
-          <Label htmlFor="chg-current">지금 비밀번호</Label>
+          <Label htmlFor="chg-current">현재 비밀번호</Label>
           <Input
             id="chg-current"
             type="password"
@@ -244,7 +248,7 @@ function ChangeBody({ onDone }: { onDone: () => void }) {
           />
           {tooShort && <p className="text-xs text-destructive">{MIN_LEN}자 이상 입력해 주세요.</p>}
           {blank && <p className="text-xs text-destructive">공백만으로 된 비밀번호는 쓸 수 없습니다.</p>}
-          {same && <p className="text-xs text-destructive">지금 비밀번호와 다른 비밀번호를 입력해 주세요.</p>}
+          {same && <p className="text-xs text-destructive">현재 비밀번호와 다른 비밀번호를 입력해 주세요.</p>}
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="chg-pw2">새 비밀번호 확인</Label>

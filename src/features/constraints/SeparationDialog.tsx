@@ -15,11 +15,15 @@ import { StudentChip, StudentPicker } from "./StudentPicker";
 
 const TABS: RuleKind[] = ["group", "one_to_many", "twin", "same_name"];
 
-const TAB_HELP: Record<RuleKind, string> = {
-  group: "선택한 학생이 모두 서로 다른 반이어야 합니다. (A:B:C)",
-  one_to_many: "기준 학생(A)과 나머지(B·C·D)는 다른 반이어야 하고, 나머지끼리는 같은 반이어도 됩니다. (A:BCD)",
-  twin: "쌍둥이(형제) 모두 서로 다른 반이어야 합니다. 학부모가 같은 반을 원하면 규칙을 끄고 사유를 적어 두세요.",
-  same_name: "XLSX를 가져올 때 같은 이름(공백·대소문자 무시) 학생끼리 자동으로 만든 규칙입니다. 끄기만 할 수 있습니다.",
+/** 탭 안내: 한 줄에 한 문장 */
+const TAB_HELP: Record<RuleKind, string[]> = {
+  group: ["선택한 학생이 모두 서로 다른 반이어야 합니다. (A:B:C)"],
+  one_to_many: ["기준 학생(A)과 나머지(B·C·D)는 다른 반이어야 합니다.", "나머지끼리는 같은 반이어도 됩니다. (A:BCD)"],
+  twin: ["쌍둥이(형제)는 모두 서로 다른 반이어야 합니다.", "학부모가 같은 반을 원하면 규칙을 끄고 사유를 적어 두세요."],
+  same_name: [
+    "XLSX를 가져올 때 같은 이름(공백·대소문자 무시) 학생끼리 자동으로 만든 규칙입니다.",
+    "끄기만 할 수 있습니다.",
+  ],
 };
 
 /** 분리 학생 창: 탭 4개(그룹형 / 1:N형 / 쌍둥이 / 동명이인) */
@@ -48,8 +52,9 @@ export function SeparationDialog({ onOpenTwins }: { onOpenTwins: () => void }) {
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-3xl">
         <DialogHeader>
           <DialogTitle>분리 학생</DialogTitle>
-          <DialogDescription>
-            규칙을 어기면 반 카드에 표시하고 내보내기 전에 경고합니다. 조작을 막지는 않습니다.
+          <DialogDescription className="grid gap-1">
+            <span>규칙을 어기면 편성표에 표시하고, 내보내기 전에 경고합니다.</span>
+            <span>학생을 옮기는 것 자체를 막지는 않습니다.</span>
           </DialogDescription>
         </DialogHeader>
         <Tabs value={tab} onValueChange={setTab} className="flex min-h-0 flex-1 flex-col">
@@ -68,7 +73,11 @@ export function SeparationDialog({ onOpenTwins }: { onOpenTwins: () => void }) {
           </TabsList>
           {TABS.map((k) => (
             <TabsContent key={k} value={k} className="min-h-0 flex-1 overflow-y-auto pr-1">
-              <p className="mb-3 text-sm text-muted-foreground">{TAB_HELP[k]}</p>
+              <p className="mb-3 grid gap-0.5 text-sm text-muted-foreground">
+                {TAB_HELP[k].map((line) => (
+                  <span key={line}>{line}</span>
+                ))}
+              </p>
               {k === "twin" && workspace?.pdfLinkedCount ? (
                 <Button variant="outline" size="sm" className="mb-3" onClick={onOpenTwins}>
                   생년월일로 쌍둥이 후보 찾기…

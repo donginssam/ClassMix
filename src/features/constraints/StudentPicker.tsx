@@ -12,7 +12,7 @@ export function studentLabel(s: Student): string {
   return `${s.nameNorm} (${parts.join(", ")})`;
 }
 
-/** 이름·한글 발음으로 찾아 고르는 자동완성 입력 */
+/** 성명·한글 표기로 찾아 고르는 자동완성 입력 */
 export function StudentPicker({
   students,
   exclude,

@@ -123,8 +123,8 @@ describe("이동·바꾸기와 재정렬", () => {
   });
 });
 
-describe("로마자 이름 한글 발음", () => {
-  it("발음을 넣으면 그 가나다 자리로, 없으면 반 끝", () => {
+describe("로마자 성명 한글 표기", () => {
+  it("한글 표기를 넣으면 그 가나다 자리로, 없으면 반 끝", () => {
     const b = board([["TEDDY SRISUK", "김가람", "하늘", "박나래"]]);
     let s = apply(b, ok(renumberClasses(b, [1])));
     expect(roster(s, 1)).toEqual(["1 김가람", "2 박나래", "3 하늘", "4 TEDDY SRISUK"]);
@@ -145,7 +145,7 @@ describe("로마자 이름 한글 발음", () => {
     expect(setReadings(b, new Map([[idOf(b, "TEDDY SRISUK"), "TEDDY"]])).ok).toBe(false);
   });
 
-  it("기준 학생의 발음이 바뀌면 빈 번호 기준 키도 따라간다", () => {
+  it("기준 학생의 한글 표기가 바뀌면 빈 번호 기준 키도 따라간다", () => {
     const b = board([["김가람", "TEDDY SRISUK", "ZED"]]);
     let s = apply(b, ok(renumberClasses(b, [1])));
     s = apply(s, ok(addGapBefore(s, idOf(s, "ZED")))); // 기준: TEDDY SRISUK

@@ -13,7 +13,7 @@ interface Meter {
   limit: string;
   ratio: number | null;
   warn: boolean;
-  /** 안내 줄: 첫 줄은 설명, 나머지는 숫자 하나씩 */
+  /** 안내 줄: 첫 줄은 설명, 뒤의 줄은 수치를 하나씩 */
   help: string[];
 }
 

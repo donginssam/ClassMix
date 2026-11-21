@@ -417,7 +417,7 @@ function StudentCell({
         (reading ? (
           <span className="shrink-0 truncate text-[11px] text-muted-foreground">{reading}</span>
         ) : (
-          <Chip className="border-moved text-moved">발음 미입력</Chip>
+          <Chip className="border-moved text-moved">한글 미입력</Chip>
         ))}
       {issues && <Chip className="border-destructive text-destructive">분리</Chip>}
       {moved && <Chip className="border-transparent font-semibold text-moved">{s.origClass}반에서</Chip>}
@@ -471,7 +471,7 @@ function StudentCell({
                 <DropdownMenuItem onSelect={() => void actions.addGapBefore(s.id)}>앞에 빈 번호 넣기</DropdownMenuItem>
                 {roman && (
                   <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: [s.id] })}>
-                    한글 발음 {reading ? "수정" : "입력"}…
+                    한글 표기 {reading ? "수정" : "입력"}…
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => openDialog({ kind: "memo", studentId: s.id })}>

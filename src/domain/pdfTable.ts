@@ -158,8 +158,8 @@ function columnOf(x: number, centers: Record<Col, number>): Col {
 const FOOTER_RE = /남\s*\(\s*(\d+)\s*\)\s*명[\s\S]*?여\s*\(\s*(\d+)\s*\)\s*명[\s\S]*?계\s*:\s*\(\s*(\d+)\s*\)/;
 
 /**
- * 성명 칸 조각을 잇는다. 나이스 성명은 한국 국적이면 띄어쓰기 없는 한글, 외국 국적이면 여권상 대문자
- * 로마자(단어 사이 한 칸)이므로, 한글과 한글 사이는 줄이 같든 다르든 항상 붙이고 그 밖은 한 칸 띄운다.
+ * 성명 칸 조각을 잇는다. 나이스 성명은 한글이면 띄어쓰기 없이 붙여 쓰고, 로마자 표기를 고른 외국인 학생이면
+ * 외국인등록증의 대문자 로마자(단어 사이 한 칸)이므로, 한글과 한글 사이는 줄이 같든 다르든 항상 붙이고 그 밖은 한 칸 띄운다.
  */
 export function pdfName(parts: string[]): string {
   return collapseSpaces(joinWrapped(parts.flatMap((p) => p.split(/\s+/))));
@@ -167,7 +167,7 @@ export function pdfName(parts: string[]): string {
 
 /**
  * 줄바꿈된 조각을 잇는다. 한글 사이에서 끊긴 경우(`귀여운제비` / `꽃`)는 붙이고,
- * 그 밖(로마자 이름 `HANNAH CRUZ` / `QU`)은 한 칸 띄운다.
+ * 그 밖(로마자 성명 `HANNAH CRUZ` / `QU`)은 한 칸 띄운다.
  */
 export function joinWrapped(parts: string[]): string {
   let out = "";

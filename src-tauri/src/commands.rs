@@ -557,7 +557,7 @@ pub async fn unlock_work_file(
     })
 }
 
-/// 암호 걸기: 새 salt로 키를 만들고 모든 대상 칸을 한꺼번에 암호화한다.
+/// 암호 설정: 새 salt로 키를 만들고 모든 대상 칸을 한꺼번에 암호화한다.
 #[tauri::command]
 pub async fn enable_encryption(
     state: State<'_, AppState>,
@@ -579,7 +579,7 @@ pub async fn enable_encryption(
     })
 }
 
-/// 암호 풀기: 비밀번호를 다시 확인한 뒤 모든 대상 칸을 한꺼번에 복호화한다.
+/// 암호 해제: 비밀번호를 다시 확인한 뒤 모든 대상 칸을 한꺼번에 복호화한다.
 #[tauri::command]
 pub async fn disable_encryption(
     state: State<'_, AppState>,
@@ -600,7 +600,7 @@ pub async fn disable_encryption(
     })
 }
 
-/// 암호 변경: 지금 비밀번호를 확인하고 새 비밀번호(새 salt)로 모든 자료를 다시 암호화한다.
+/// 암호 변경: 현재 비밀번호를 확인하고 새 비밀번호(새 salt)로 모든 자료를 다시 암호화한다.
 #[tauri::command]
 pub async fn change_password(
     state: State<'_, AppState>,

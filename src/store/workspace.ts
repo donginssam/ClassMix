@@ -23,7 +23,7 @@ interface WorkspaceState {
   history: HistoryEntry[];
   canUndo: boolean;
   canRedo: boolean;
-  /** XLSX를 막 가져와 로마자 이름 한글 발음 입력 단계를 띄워야 하는지 */
+  /** XLSX를 막 가져와 로마자 성명 한글 표기 입력 단계를 띄워야 하는지 */
   pendingReadingPrompt: boolean;
   setPendingReadingPrompt: (v: boolean) => void;
   /** 작업 파일·보드 데이터를 다시 읽는다 */
@@ -98,7 +98,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   undo: async () => {
     try {
       const label = await api.undoChange();
-      if (label) toast(`되돌림: ${label}`);
+      if (label) toast(`되돌리기: ${label}`);
     } catch (e) {
       toast.error("되돌리지 못했습니다.", { description: errorMessage(e) });
     } finally {
@@ -110,7 +110,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => ({
   redo: async () => {
     try {
       const label = await api.redoChange();
-      if (label) toast(`다시 실행: ${label}`);
+      if (label) toast(`다시 실행하기: ${label}`);
     } catch (e) {
       toast.error("다시 실행하지 못했습니다.", { description: errorMessage(e) });
     } finally {

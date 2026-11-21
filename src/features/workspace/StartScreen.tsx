@@ -178,10 +178,16 @@ export function StartScreen() {
             )}
             <div className="flex items-start gap-2.5 border-t border-welcome-line pt-4">
               <FileText aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-welcome-accent" />
-              <p className="text-xs leading-relaxed break-keep text-muted-foreground">
-                변경 사항은 <span className="font-semibold text-foreground">.mix 파일</span>에 자동 저장됩니다. 파일을
-                옮기면 다른 PC에서도 이어서 작업할 수 있습니다. 재부팅 시 C 드라이브가 초기화되는 PC는 D 드라이브나
-                USB에 저장하세요.
+              <p className="grid gap-1 text-xs leading-relaxed break-keep text-muted-foreground">
+                <span>
+                  변경 사항은 <span className="font-semibold text-foreground">.mix 파일</span>에 자동 저장됩니다.
+                </span>
+                <span>파일을 옮기면 다른 PC에서도 이어서 작업할 수 있습니다.</span>
+                {/* "C 드라이브", "D 드라이브"는 줄이 갈라지지 않게 붙는 공백(\u00a0)으로 잇는다. */}
+                <span>
+                  재부팅하면 C{"\u00a0"}드라이브가 초기화되는 PC라면
+                  <br />D{"\u00a0"}드라이브나 USB에 저장하세요.
+                </span>
               </p>
             </div>
           </section>

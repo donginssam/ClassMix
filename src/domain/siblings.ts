@@ -43,7 +43,7 @@ export function koreanSurname(name: string): string | null {
   return compound ?? n[0];
 }
 
-/** 성이 같은지. 로마자 이름은 성의 위치가 일정하지 않아 공백으로 나눈 단어 중 하나라도 같으면 같다고 본다. */
+/** 성이 같은지. 로마자 성명은 성-이름 순이 원칙이지만 실제 등록 순서가 일정하지 않아 공백으로 나눈 단어 중 하나라도 같으면 같다고 본다. */
 export function sameSurname(a: string, b: string): boolean {
   if (hasRomanLetters(a) && hasRomanLetters(b)) {
     const wa = new Set(a.toUpperCase().split(/\s+/).filter(Boolean));

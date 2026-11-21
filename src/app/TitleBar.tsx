@@ -8,7 +8,7 @@ export const HAS_MAC_CHROME = IS_MAC && isTauri();
 
 /**
  * 화면 맨 위 막대이자 창의 제목 표시줄. 높이 52px, 신호등 버튼은 이 막대의 세로 가운데에 놓인다.
- * 빈 곳을 끌면 창이 움직이고, 두 번 클릭하면 창이 커진다. 안의 글자에도 드래그를 주려면 `dragRegion`을 붙인다.
+ * 빈 곳을 끌면 창이 움직이고, 두 번 클릭하면 창이 커진다. 안의 글자도 끌 수 있게 하려면 `dragRegion`을 붙인다.
  */
 export function TitleBar({ children, className }: { children?: ReactNode; className?: string }) {
   return (

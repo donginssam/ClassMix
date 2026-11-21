@@ -1,7 +1,7 @@
 /**
  * 반편성 조작 → 변경 묶음(ChangeSet) 만들기. 모두 순수 함수.
  *
- * 각 조작은 "다음 상태"(학생 자리, 반별 빈 번호, 반별 번호 상태, 한글 발음)를 계산하고,
+ * 각 조작은 "다음 상태"(학생 자리, 반별 빈 번호, 반별 번호 상태, 한글 표기)를 계산하고,
  * `diff`가 지금 상태와 비교해 바뀐 것만 전·후 값과 함께 담는다. Rust는 이것을 그대로 적용·기록하고,
  * 되돌리기는 전·후를 뒤집어 적용한다.
  */
@@ -93,7 +93,7 @@ export function isEmptyChange(cs: ChangeSet): boolean {
 
 /**
  * 반 하나를 가나다순으로 재정렬해 next에 기록한다.
- * @param members 재정렬 후 이 반에 들어갈 학생(한글 발음 변경 반영된 값)
+ * @param members 재정렬 후 이 반에 들어갈 학생(한글 표기 변경 반영된 값)
  */
 function resortInto(next: Next, cls: number, members: Student[], gaps: GapLike[]) {
   const { seats, gaps: numbered } = numberSlots(sortedSlots(members, gaps));
@@ -251,8 +251,8 @@ export function editGapName(board: BoardState, gapId: number, plannedName: strin
 }
 
 /**
- * 한글 발음 입력·수정(여러 명 한꺼번에 가능).
- * 재정렬된 반은 바로 다시 정렬하고, 그 학생을 기준으로 만든 빈 번호의 위치 키도 새 발음으로 바꾼다.
+ * 로마자 성명의 한글 표기 입력·수정(여러 명 한꺼번에 가능).
+ * 재정렬된 반은 바로 다시 정렬하고, 그 학생을 기준으로 만든 빈 번호의 위치 키도 새 표기로 바꾼다.
  */
 export function setReadings(
   board: BoardState,
@@ -276,7 +276,7 @@ export function setReadings(
 
   const originalClasses: number[] = [];
   for (const cls of touched) {
-    // 이 반에서 발음이 바뀐 학생을 기준으로 만든 빈 번호는 새 키를 따라간다.
+    // 이 반에서 한글 표기가 바뀐 학생을 기준으로 만든 빈 번호는 새 키를 따라간다.
     const keyChange = new Map<string, string>();
     for (const s of classMembers(board, cls)) {
       const u = updated.get(s.id);
@@ -295,14 +295,14 @@ export function setReadings(
   const names = [...updated.values()];
   const label =
     names.length === 1
-      ? `${name(names[0])} 한글 발음 "${cleanReading(names[0].sortName) ?? "(없음)"}"`
-      : `한글 발음 ${names.length}명 입력`;
+      ? `${name(names[0])} 한글 표기 "${cleanReading(names[0].sortName) ?? "(없음)"}"`
+      : `한글 표기 ${names.length}명 입력`;
   return { ok: true, change: diff(board, next, "set_reading", label), originalClasses };
 }
 
 /**
  * 나이스 기본 편성으로 되돌리기: 모든 학생을 원래 반·번호로, 모든 반을 '나이스 번호 그대로'로,
- * 빈 번호는 원래 결번만 남긴다(직접 만든 빈 번호는 지워짐). 한글 발음·메모는 그대로 둔다.
+ * 빈 번호는 원래 결번만 남긴다(직접 만든 빈 번호는 지워짐). 한글 표기·메모는 그대로 둔다.
  */
 export function resetToOriginal(board: BoardState): Result {
   const next = emptyNext();

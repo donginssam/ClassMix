@@ -6,7 +6,7 @@ pub fn collapse_spaces(name: &str) -> String {
 }
 
 /// 동명이인 비교 키: 공백을 모두 지우고 대문자로 바꾼다.
-/// 한국 국적 학생의 한글 성명은 그대로이고, 외국 국적 학생의 로마자 이름은
+/// 한글 성명은 그대로이고, 로마자 성명(외국인 학생)은
 /// 띄어쓰기·대소문자 차이가 사라진다.
 pub fn same_name_key(name: &str) -> String {
     name.chars()

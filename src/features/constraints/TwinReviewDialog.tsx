@@ -63,10 +63,15 @@ export function TwinReviewDialog({ open, onClose }: { open: boolean; onClose: ()
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>쌍둥이 후보 {candidates.length}건</DialogTitle>
-          <DialogDescription>
-            나이스 자료에는 쌍둥이 여부가 없어 생년월일로 후보를 찾았습니다. <b>유력</b>은 생년월일과 성이 같고,{" "}
-            <b>가능</b>은 생년월일만 같습니다. 생일이 겹치는 우연도 흔하기 때문입니다. 쌍둥이로 등록하면 서로 다른
-            반이어야 하는 규칙이 생깁니다.
+          <DialogDescription className="grid gap-1">
+            <span>나이스 자료에는 쌍둥이 여부가 없어 생년월일로 후보를 찾았습니다.</span>
+            <span>
+              <b className="text-foreground">유력</b>: 생년월일과 성이 같습니다.
+            </span>
+            <span>
+              <b className="text-foreground">가능</b>: 생년월일만 같습니다. 생일이 겹치는 우연도 흔합니다.
+            </span>
+            <span>쌍둥이로 등록하면 서로 다른 반이어야 하는 규칙이 생깁니다.</span>
           </DialogDescription>
         </DialogHeader>
         {candidates.length === 0 ? (

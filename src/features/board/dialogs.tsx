@@ -68,9 +68,13 @@ function NumberDialogBody({ student, onClose }: { student: Student; onClose: () 
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>번호 직접 수정</DialogTitle>
-          <DialogDescription>
-            {student.curClass}반 {student.curNumber}번 {student.nameNorm}. 번호를 늘리면 앞에 빈 번호가 생기고 뒤
-            학생들이 밀립니다. 줄이면 바로 앞의 빈 번호를 지워 당깁니다. 학생 순서는 바뀌지 않습니다.
+          <DialogDescription className="grid gap-1">
+            <span className="font-medium text-foreground">
+              {student.curClass}반 {student.curNumber}번 {student.nameNorm}
+            </span>
+            <span>번호를 늘리면 앞에 빈 번호가 생기고, 뒤 학생들이 밀립니다.</span>
+            <span>번호를 줄이면 바로 앞의 빈 번호를 지워서 당깁니다.</span>
+            <span>어느 쪽이든 학생 순서는 바뀌지 않습니다.</span>
           </DialogDescription>
         </DialogHeader>
         <form
@@ -126,9 +130,10 @@ function GapNameDialogBody({ gap, onClose }: { gap: Gap; onClose: () => void }) 
           <DialogTitle>
             {gap.class}반 {gap.number}번 빈 번호 — 전입 예정 학생
           </DialogTitle>
-          <DialogDescription>
-            이름을 적으면 그 이름의 가나다 위치에 빈 번호가 놓입니다. 외국 국적 학생이면 한글 발음을 적어 주세요.
-            {!sorted && " 이 반은 나이스 번호 그대로라, 반을 재정렬할 때 위치가 반영됩니다."}
+          <DialogDescription className="grid gap-1">
+            <span>이름을 적으면 그 이름의 가나다 위치에 빈 번호가 놓입니다.</span>
+            <span>로마자 성명인 외국인 학생이면 성-이름 순서의 한글 표기를 적어 주세요.</span>
+            {!sorted && <span>이 반은 나이스 번호 그대로라, 반을 재정렬할 때 위치가 반영됩니다.</span>}
           </DialogDescription>
         </DialogHeader>
         <form
@@ -180,7 +185,10 @@ function MemoDialogBody({ student, onClose }: { student: Student; onClose: () =>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>메모 — {student.nameNorm}</DialogTitle>
-          <DialogDescription>메모는 작업 파일에만 저장되고 나이스 업로드 파일에는 들어가지 않습니다.</DialogDescription>
+          <DialogDescription className="grid gap-1">
+            <span>메모는 작업 파일에만 저장됩니다.</span>
+            <span>나이스 업로드 파일에는 들어가지 않습니다.</span>
+          </DialogDescription>
         </DialogHeader>
         <textarea
           autoFocus
@@ -200,7 +208,7 @@ function MemoDialogBody({ student, onClose }: { student: Student; onClose: () =>
   );
 }
 
-/** 로마자 이름 학생의 정렬용 한글 발음 입력(한 명 또는 전체 표) */
+/** 로마자 성명 학생의 정렬용 한글 표기 입력(한 명 또는 전체 표) */
 function ReadingDialog({ target, onClose }: { target: number[] | "all" | null; onClose: () => void }) {
   return target ? (
     <ReadingDialogBody key={target === "all" ? "all" : target.join(",")} target={target} onClose={onClose} />
@@ -238,15 +246,19 @@ function ReadingDialogBody({ target, onClose }: { target: number[] | "all"; onCl
     <Dialog open onOpenChange={(o) => !o && onClose()}>
       <DialogContent className="sm:max-w-xl">
         <DialogHeader>
-          <DialogTitle>로마자 이름 한글 발음</DialogTitle>
-          <DialogDescription>
-            외국 국적 학생 이름을 한국어로 읽은 발음을 적으면, 번호를 매길 때 그 발음의 가나다 자리에 들어갑니다. 한글만
-            입력하고 공백은 저장할 때 지웁니다. 나이스로 내보내는 성명은 바뀌지 않습니다. 나중에 학생 메뉴에서 넣어도
-            됩니다.
+          <DialogTitle>로마자 성명 한글 표기</DialogTitle>
+          <DialogDescription className="grid gap-1">
+            <span>외국인등록증의 로마자 표기를 성명으로 고른 학생입니다.</span>
+            <span>
+              원지음(原地音)과 외래어 표기법에 맞춰 성-이름 순서로 한글 표기를 적으면, 번호를 매길 때 그 가나다 자리에
+              들어갑니다.
+            </span>
+            <span>공백은 저장할 때 지우고, 나이스로 내보내는 성명은 로마자 그대로입니다.</span>
+            <span>지금 건너뛰고 나중에 학생 메뉴에서 넣어도 됩니다.</span>
           </DialogDescription>
         </DialogHeader>
         {rows.length === 0 ? (
-          <p className="text-sm text-muted-foreground">로마자 이름 학생이 없습니다.</p>
+          <p className="text-sm text-muted-foreground">로마자 성명 학생이 없습니다.</p>
         ) : (
           <div className="max-h-[50vh] overflow-auto rounded-md border">
             <table className="w-full text-sm">
@@ -254,7 +266,7 @@ function ReadingDialogBody({ target, onClose }: { target: number[] | "all"; onCl
                 <tr>
                   <th className="px-3 py-1.5 text-left font-normal">성명</th>
                   <th className="w-20 py-1.5 text-center font-normal">반·번호</th>
-                  <th className="w-48 px-3 py-1.5 text-left font-normal">한글 발음</th>
+                  <th className="w-48 px-3 py-1.5 text-left font-normal">한글 표기</th>
                 </tr>
               </thead>
               <tbody>
@@ -272,7 +284,7 @@ function ReadingDialogBody({ target, onClose }: { target: number[] | "all"; onCl
                           autoFocus={i === 0}
                           value={v}
                           aria-invalid={bad}
-                          placeholder="예) 테디스리숙"
+                          placeholder="예) 팜하니"
                           onChange={(e) => setValues(new Map(values).set(s.id, e.target.value))}
                           className="h-8"
                         />
@@ -304,9 +316,11 @@ function ResetDialog({ open, onClose }: { open: boolean; onClose: () => void }) 
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>나이스 기본 편성으로 되돌릴까요?</AlertDialogTitle>
-          <AlertDialogDescription>
-            모든 학생을 나이스에서 받은 반·번호로 되돌리고, 직접 만든 빈 번호를 지웁니다. 한글 발음·메모·분리 규칙은
-            그대로 둡니다. 이 작업도 [되돌리기]로 취소할 수 있습니다.
+          <AlertDialogDescription className="grid gap-1">
+            <span>모든 학생을 나이스에서 받은 반·번호로 되돌립니다.</span>
+            <span>직접 만든 빈 번호는 지웁니다.</span>
+            <span>한글 표기·메모·분리 규칙은 그대로 둡니다.</span>
+            <span>이 작업도 [되돌리기]로 취소할 수 있습니다.</span>
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

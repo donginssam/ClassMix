@@ -1,6 +1,6 @@
-//! 반편성 변경(바꾸기·이동·번호·빈 번호·한글 발음)과 되돌리기/다시 실행.
+//! 반편성 변경(바꾸기·이동·번호·빈 번호·한글 표기)과 되돌리기/다시 실행.
 //!
-//! 새 상태 계산(재정렬, 번호 밀기 등)은 프런트엔드 순수 함수가 하고, 여기서는
+//! 새 상태 계산(재정렬, 번호 밀기 등)은 프런트엔드 순수 함수에서 수행하고, 여기서는
 //! 계산 결과를 "변경 묶음"(`ChangeSet`)으로 받아 한 트랜잭션에 적용하고 `change_log`에 남긴다.
 //! 변경 묶음은 바꾸기 전·후 값을 모두 담고 있어, 되돌리기는 전·후를 뒤집어 적용하면 된다.
 //! 적용 전에 "바꾸기 전" 값이 지금 DB와 같은지 확인해 어긋난 상태 위에 덮어쓰지 않는다.
@@ -297,7 +297,7 @@ fn apply_in_tx(tx: &Transaction, codec: Codec, cs: &ChangeSet, class_count: i64)
             && !v.chars().all(|c| ('가'..='힣').contains(&c))
         {
             return Err(AppError::InvalidInput(
-                "한글 발음은 한글(완성형)만 입력할 수 있습니다.".into(),
+                "한글 표기는 한글(완성형)만 입력할 수 있습니다.".into(),
             ));
         }
         tx.execute(
@@ -619,7 +619,7 @@ mod tests {
         let (_d, mut conn) = setup();
         let r = |from: Option<&str>, to: Option<&str>| ChangeSet {
             action: "set_reading".into(),
-            label: "발음".into(),
+            label: "한글 표기".into(),
             students: vec![],
             gaps: vec![],
             numbering: vec![],

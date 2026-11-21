@@ -64,7 +64,7 @@ export interface Student {
   curNumber: number;
   gender: "남" | "여" | null;
   birthDate: string | null;
-  /** 기준성적 ×100 정수(0.01점 단위). 화면에서는 formatScore로 1/100 하여 표시 */
+  /** 기준성적 ×100 정수(0.01점 단위). 화면에서는 formatScore로 1/100으로 환산하여 표시 */
   baseScore: number | null;
   matchMethod: string | null;
   memo: string | null;

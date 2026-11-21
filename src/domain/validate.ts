@@ -95,7 +95,7 @@ export function validateForExport(input: ValidateInput): Issue[] {
   if (noReading.length)
     issues.push({
       level: "warning",
-      message: `한글 발음 미입력 ${noReading.length}명 — 번호가 반 끝에 붙었습니다: ${noReading.map((s) => `${s.curClass}반 ${s.nameNorm}`).join(", ")}`,
+      message: `로마자 성명 한글 표기 미입력 ${noReading.length}명 — 가나다순 대신 반 끝에 붙었습니다: ${noReading.map((s) => `${s.curClass}반 ${s.nameNorm}`).join(", ")}`,
       studentIds: noReading.map((s) => s.id),
     });
 

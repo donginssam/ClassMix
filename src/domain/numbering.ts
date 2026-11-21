@@ -1,8 +1,8 @@
 /**
- * 반 내 번호 계산(§8.5, §8.6).
+ * 반 내 번호 계산(번호 재정렬·직접 수정).
  *
  * 반의 번호 순서는 "학생"과 "빈 번호" 칸이 섞인 목록이고, 번호는 목록 위치에서 나온다.
- * - 재정렬: 학생은 정렬 키(한글 발음 또는 성명)로 가나다순, 빈 번호는 자기 위치 키로 그 사이에 들어간다.
+ * - 재정렬: 학생은 정렬 키(한글 표기 또는 성명)로 가나다순, 빈 번호는 자기 위치 키로 그 사이에 들어간다.
  * - 번호 직접 수정: 순서는 그대로 두고 학생 바로 앞에 빈 번호 칸을 넣거나 뺀다.
  *
  * 학교별 번호 규칙을 나중에 넣을 때는 `compareStudents`만 바꾸면 된다.
@@ -30,7 +30,7 @@ export type Slot<S extends NumberingStudent = NumberingStudent, G extends Number
 
 const collator = new Intl.Collator("ko", { sensitivity: "base", numeric: true });
 
-/** 한글 발음 입력값 정리: 공백을 모두 지운다. 비면 null. */
+/** 한글 표기 입력값 정리: 공백을 모두 지운다. 비면 null. */
 export function cleanReading(s: string | null | undefined): string | null {
   const v = (s ?? "").replace(/\s+/g, "");
   return v === "" ? null : v;
@@ -41,7 +41,7 @@ export function isHangulOnly(s: string): boolean {
   return /^[가-힣]+$/.test(s);
 }
 
-/** 학생의 정렬 키: 한글 발음이 있으면 그것, 없으면 성명(공백 정리). */
+/** 학생의 정렬 키: 한글 표기가 있으면 그것, 없으면 성명(공백 정리). */
 export function sortKeyOf(s: Pick<NumberingStudent, "nameNorm" | "sortName">): string {
   return cleanReading(s.sortName) ?? s.nameNorm;
 }
@@ -52,7 +52,7 @@ export function gapKeyOf(g: Pick<NumberingGap, "anchorKey" | "plannedName">): st
 }
 
 /**
- * 정렬 키 비교. 로마자가 섞인 키(발음을 아직 넣지 않은 외국 국적 학생)는 한글 이름 뒤에 알파벳순으로 둔다.
+ * 정렬 키 비교. 로마자가 섞인 키(한글 표기를 아직 넣지 않은 로마자 성명 학생)는 한글 이름 뒤에 알파벳순으로 둔다.
  * 빈 키('')는 맨 앞.
  */
 export function compareKeys(a: string, b: string): number {

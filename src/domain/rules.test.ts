@@ -90,7 +90,7 @@ describe("쌍둥이 후보", () => {
 });
 
 describe("내보내기 검증", () => {
-  it("번호 중복은 오류, 빈 번호는 안내, 발음 미입력은 경고", () => {
+  it("번호 중복은 오류, 빈 번호는 안내, 한글 표기 미입력은 경고", () => {
     const b = board([["김가람", "TEDDY SRISUK"]]);
     b.classStates = [{ class: 1, numbering: "sorted" }];
     b.students.push(student({ name: "중복이", curClass: 1, curNumber: 2 }));
@@ -105,7 +105,9 @@ describe("내보내기 검증", () => {
     expect(issues.filter((i) => i.level === "error").map((i) => i.message)).toEqual([
       "1반 2번이 겹칩니다: TEDDY SRISUK, 중복이",
     ]);
-    expect(issues.some((i) => i.level === "warning" && i.message.startsWith("한글 발음 미입력 1명"))).toBe(true);
+    expect(issues.some((i) => i.level === "warning" && i.message.startsWith("로마자 성명 한글 표기 미입력 1명"))).toBe(
+      true,
+    );
     expect(issues.some((i) => i.level === "info" && i.message.startsWith("빈 번호 1개"))).toBe(true);
   });
 

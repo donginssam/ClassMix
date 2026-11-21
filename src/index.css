@@ -231,6 +231,23 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 한국어는 어절(띄어쓰기) 단위로만 줄을 바꾼다. 경로처럼 띄어쓰기 없는 긴 글자만 중간에서 끊는다. */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+  }
+  /* 문단 마지막 줄에 한두 글자만 남지 않게, 제목은 줄 길이를 고르게 */
+  p,
+  li,
+  [data-slot="dialog-description"],
+  [data-slot="alert-dialog-description"] {
+    text-wrap: pretty;
+  }
+  h1,
+  h2,
+  h3,
+  [data-slot="dialog-title"],
+  [data-slot="alert-dialog-title"] {
+    text-wrap: balance;
   }
   button:not(:disabled),
   [role="button"]:not(:disabled) {

@@ -179,7 +179,7 @@ export function BoardScreen() {
   }, [stats]);
   const colMinWidth = columnMinWidth(prefs, hasPdf);
 
-  // XLSX를 막 가져왔으면 로마자 이름 한글 발음 입력 단계를 띄운다(대상이 있을 때만).
+  // XLSX를 막 가져왔으면 로마자 성명 한글 표기 입력 단계를 띄운다(대상이 있을 때만).
   useEffect(() => {
     if (!pendingReadingPrompt) return;
     setPendingReadingPrompt(false);
@@ -393,7 +393,7 @@ export function BoardScreen() {
                 전체 반 가나다순 재정렬
               </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: "all" })}>
-                로마자 이름 한글 발음 입력…
+                로마자 성명 한글 표기 입력…
                 {noReading > 0 && (
                   <Badge variant="outline" className="ml-auto h-4 px-1 text-[10px]">
                     {noReading}
@@ -514,12 +514,12 @@ export function BoardScreen() {
                   disabled={readOnly}
                   onSelect={() => openDialog({ kind: "encryption", mode: "disable" })}
                 >
-                  암호 풀기…
+                  암호 해제…
                 </DropdownMenuItem>
               </>
             ) : (
               <DropdownMenuItem disabled={readOnly} onSelect={() => openDialog({ kind: "encryption", mode: "enable" })}>
-                암호 걸기…
+                암호 설정…
               </DropdownMenuItem>
             )}
             <DropdownMenuSeparator />

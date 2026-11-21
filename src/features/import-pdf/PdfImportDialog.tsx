@@ -297,8 +297,9 @@ function Review({
             <Empty>확인이 필요한 연결이 없습니다.</Empty>
           ) : (
             <>
-              <p className="mb-2 text-sm text-muted-foreground">
-                반·번호로는 확인되지 않고 성명만 같은 경우입니다. 맞지 않으면 [연결 끊기]를 누르세요.
+              <p className="mb-2 grid gap-0.5 text-sm text-muted-foreground">
+                <span>반·번호로는 확인되지 않고 성명만 같은 경우입니다.</span>
+                <span>같은 학생이 아니면 [연결 끊기]를 누르세요.</span>
               </p>
               <LinkTable
                 rows={parsed.rows}
@@ -377,8 +378,9 @@ function Review({
             <Empty>모든 XLSX 학생이 PDF와 연결되었습니다.</Empty>
           ) : (
             <>
-              <p className="mb-2 text-sm text-muted-foreground">
-                이 학생들은 기준성적·성별 없이 반편성됩니다. [PDF에만 있음] 탭에서 직접 연결할 수 있습니다.
+              <p className="mb-2 grid gap-0.5 text-sm text-muted-foreground">
+                <span>이 학생들은 기준성적·성별 없이 반편성됩니다.</span>
+                <span>[PDF에만 있음] 탭에서 직접 연결할 수 있습니다.</span>
               </p>
               <ul className="grid grid-cols-2 gap-x-6 text-sm md:grid-cols-3">
                 {freeStudents.map((s) => (

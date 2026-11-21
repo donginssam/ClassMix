@@ -115,7 +115,7 @@ describe("joinWrapped", () => {
 });
 
 describe("pdfName", () => {
-  // 한국 국적: 띄어쓰기 없는 한글 / 외국 국적: 여권상 대문자 로마자(단어 사이 한 칸)
+  // 한국 국적: 띄어쓰기 없는 한글 / 로마자 성명: 외국인등록증의 대문자 로마자(단어 사이 한 칸)
   it("never leaves a space inside a Hangul name, keeps one between romanized words", () => {
     expect(pdfName(["귀여운제비", "꽃"])).toBe("귀여운제비꽃");
     expect(pdfName(["용감한 오랑우탄"])).toBe("용감한오랑우탄");

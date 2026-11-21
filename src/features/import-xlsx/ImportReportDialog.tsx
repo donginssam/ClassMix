@@ -25,7 +25,7 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
 
           <div className="grid grid-cols-3 gap-2 text-center">
             <Stat label="가져온 학생" value={`${report.imported}명`} />
-            <Stat label="로마자 이름" value={`${report.romanNameCount}명`} />
+            <Stat label="로마자 성명" value={`${report.romanNameCount}명`} />
             <Stat label="동명이인" value={`${report.sameNameGroups.length}그룹`} />
           </div>
 
@@ -52,10 +52,11 @@ export function ImportReportDialog({ report, onClose }: { report: ImportReport |
 
             {report.romanNameCount > 0 && (
               <section>
-                <h3 className="mb-1.5 text-sm font-semibold">로마자 이름 학생 {report.romanNameCount}명</h3>
-                <p className="text-sm text-muted-foreground">
-                  확인을 누르면 번호 정렬에 쓸 한글 발음을 입력하는 단계가 이어집니다. 건너뛰고 나중에 [번호] 메뉴나
-                  학생 메뉴에서 넣어도 됩니다.
+                <h3 className="mb-1.5 text-sm font-semibold">로마자 성명 학생 {report.romanNameCount}명</h3>
+                <p className="grid gap-0.5 text-sm text-muted-foreground">
+                  <span>외국인등록증의 로마자 표기로 등록된 학생입니다.</span>
+                  <span>[확인]을 누르면 번호 정렬에 쓸 한글 표기를 입력하는 단계가 이어집니다.</span>
+                  <span>건너뛰고 나중에 [번호] 메뉴나 학생 메뉴에서 넣어도 됩니다.</span>
                 </p>
               </section>
             )}

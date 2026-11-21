@@ -14,12 +14,13 @@
 | 기능 | 내용 |
 |---|---|
 | 작업 파일 `.mix` | 반편성 1건(한 학년)이 파일 하나. 모든 변경이 바로 저장되고, 파일만 옮기면 다른 PC에서 이어서 작업할 수 있음 |
+| 비밀번호 보호 | 선택 사항. 비밀번호를 걸면 진급반번호·성명·생년월일·성적·메모·원본 파일을 AES-256-GCM으로 암호화해 저장 |
 | XLSX 가져오기 | 헤더 이름으로 열을 찾고, 전입·전출 행은 건너뜀. 나이스 번호와 결번을 그대로 가져옴 |
 | PDF 매핑 | 표를 좌표로 복원해 두 줄로 갈라진 이름도 처리. 매핑 결과를 검토한 뒤 기준성적·성별·생년월일 반영 |
 | 편성표 | 행 = 번호, 열 = 반. 드래그로 이동·교환, 검색, 메모, 나이스 기본 편성 대비 변경 표시 |
 | 균형 지표 | 반 간 인원 차·평균 성적 차·성비 차를 항상 표시하고 기준을 넘으면 경고 |
 | 분리 규칙 | 그룹형·1:N형·쌍둥이·동명이인. 동명이인은 자동 생성, 쌍둥이는 생년월일로 후보 제안 |
-| 번호 | 학생이 옮겨간/옮겨온 반만 가나다순 재정렬. 전입생 자리를 위한 빈 번호, 외국 국적 학생의 한글 발음 정렬 |
+| 번호 | 학생이 옮겨간/옮겨온 반만 가나다순 재정렬. 전입생 자리를 위한 빈 번호, 로마자 성명 외국인 학생의 한글 표기 정렬 |
 | 되돌리기 | 단계 제한 없음. 이력이 파일에 남아 앱을 다시 켜도 유지 |
 | 내보내기 | 번호 중복 등은 막고 규칙 위반 등은 경고. 저장한 파일을 다시 읽어 값이 맞는지 확인 |
 
@@ -32,6 +33,8 @@
 3. (선택) **반편성내역 PDF**를 가져와 매핑을 확인하고 반영합니다. PDF가 없으면 성적·성별 없이 조정합니다.
 4. 편성표에서 학생을 옮기거나 바꾸고, 균형 지표와 분리 규칙 경고를 확인합니다.
 5. **내보내기**로 나이스 업로드용 XLSX를 저장합니다.
+
+작업 파일을 USB나 메일로 옮긴다면 파일 메뉴에서 **비밀번호를 설정**해 두세요. 비밀번호를 잊으면 파일을 열 수 없으니 따로 잘 보관해야 합니다. 내보낸 업로드용 XLSX는 나이스 양식 그대로라 암호화되지 않습니다.
 
 단축키 목록은 앱에서 `F1` 또는 `?`를 누르면 볼 수 있습니다.
 
@@ -71,6 +74,7 @@ pnpm tauri dev
 | `pnpm test:rust` | Rust 테스트(`cargo test`) |
 | `pnpm typecheck` / `pnpm lint` / `pnpm format` | 타입 검사 / ESLint / Prettier |
 | `pnpm icons` | `src-tauri/icons/app-icon.svg`에서 아이콘 세트 생성 |
+| `pnpm licenses:generate` | 서드파티 라이선스 고지(`THIRD_PARTY_LICENSES.txt`, 앱 화면용 `src/generated/third-party-licenses.json`) 다시 생성. `pnpm build`·`pnpm tauri build`가 매번 먼저 실행하므로 따로 돌릴 일은 드묾 |
 | `pnpm build:win` | Windows 포터블 exe 빌드(`tauri build --no-bundle`) |
 | `pnpm tauri build` | 플랫폼별 배포물 빌드(macOS `.dmg` 등) |
 
@@ -79,12 +83,12 @@ GitHub Actions(`.github/workflows/build.yml`)를 통해 Windows·macOS에서 테
 ### 구조
 
 - `src/` — React 화면(`features/`)과 테스트가 함께 있는 순수 로직(`domain/`: PDF 표 복원, 매핑, 번호, 분리 규칙, 통계, 검증)
-- `src-tauri/` — Rust: 작업 파일(SQLite), XLSX 읽기·쓰기, 변경 적용과 되돌리기, OS 연동
+- `src-tauri/` — Rust: 작업 파일(SQLite), 암호화(`crypto.rs`), XLSX 읽기·쓰기, 변경 적용과 되돌리기, OS 연동
 - `tests/fixtures/` — 더미 샘플 XLSX·PDF와 기대 결과
 
 새 상태 계산은 프런트엔드 순수 함수가, 저장과 파일 입출력은 Rust가 맡습니다. 자세한 내용은 아래 문서를 참고하세요.
 
-- [아키텍처](docs/architecture.md) — 전체 흐름, 역할 분담, `.mix` 파일 형식과 스키마, 빌드·테스트
+- [아키텍처](docs/architecture.md) — 전체 흐름, 역할 분담, `.mix` 파일 형식과 스키마, 암호화, 빌드·테스트
 - [결정 사항](docs/decisions.md) — 설계와 구현 중 내린 결정과 그 이유
 - [기능 명세](docs/features.md) — 가져오기·매핑·편성표·분리 규칙·번호·내보내기 동작 규칙
 
@@ -100,4 +104,4 @@ GitHub Actions(`.github/workflows/build.yml`)를 통해 Windows·macOS에서 테
 
 [MIT](LICENSE) © 2026 Dongin Lee
 
-번들되는 서드파티 구성 요소는 각자의 라이선스를 따릅니다. 주요 예외: IBM Plex Sans KR 글꼴(SIL OFL 1.1), pdf.js(Apache-2.0), 일부 Rust 크레이트(MPL-2.0, Unicode-3.0).
+번들되는 서드파티 구성 요소는 각자의 라이선스를 따릅니다. 주요 예외: IBM Plex Sans KR 글꼴(SIL OFL 1.1), pdf.js(Apache-2.0), 일부 Rust 크레이트(MPL-2.0, Unicode-3.0). 구성 요소 목록과 라이선스 전문은 [THIRD_PARTY_LICENSES.txt](THIRD_PARTY_LICENSES.txt)에 있으며, macOS 앱 번들과 Windows 배포물에도 함께 들어갑니다. 앱에서는 [설정 및 정보] → [오픈소스 라이선스]에서 볼 수 있습니다. 빌드할 때마다 실제 의존성을 다시 읽어 두 파일을 갱신하므로, 의존성을 바꾼 뒤 빌드하면 바뀐 파일을 함께 커밋하면 됩니다.

@@ -5,7 +5,7 @@ export function collapseSpaces(s: string): string {
 
 /**
  * 성명 비교 키: 공백을 모두 지우고 대문자로. PDF 줄바꿈이나 띄어쓰기 차이,
- * 외국 국적 학생 로마자 이름의 대소문자 차이를 없앤다.
+ * 외국인 학생 로마자 성명의 대소문자 차이를 없앤다.
  */
 export function nameKey(s: string): string {
   return s.replace(/\s+/g, "").toUpperCase();
@@ -42,7 +42,7 @@ export function toBaseScore(s: string | undefined | null): number | null {
   return m[1] === "-" ? -v : v;
 }
 
-/** 성명에 로마자가 있는지(외국 국적 학생 감지). */
+/** 성명에 로마자가 있는지(로마자 표기를 고른 외국인 학생 감지). */
 export function hasRomanLetters(s: string): boolean {
   return /[A-Za-z]/.test(s);
 }

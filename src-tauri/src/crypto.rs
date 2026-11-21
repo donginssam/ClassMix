@@ -8,7 +8,7 @@
 //!   암호문을 다른 칸으로 옮기거나 다른 학생(행)과 맞바꾸면 복호화가 실패한다.
 //! - 평문으로 두는 것: ID·연결(외래 키), 반·번호 자리, 성별, 종류·상태 값, 시각. 이름이 없으면
 //!   개인을 알 수 없는 값이고, 중복 번호 검사·정렬을 SQL에서 하기 위해서다.
-//! - 켜기/끄기: 한 트랜잭션에서 모든 대상 칸을 한꺼번에 바꾼 뒤 VACUUM 해 지워진 평문 조각이
+//! - 설정/해제: 한 트랜잭션에서 모든 대상 칸을 한꺼번에 바꾼 뒤 VACUUM 해 지워진 평문 조각이
 //!   파일에 남지 않게 한다.
 
 use aes_gcm::Aes256Gcm;
@@ -598,7 +598,7 @@ mod tests {
             &links,
         )
         .unwrap();
-        // 메모, 분리 규칙 사유, 한글 발음 + 빈 번호(예정 이름) + 이동 → 변경 이력
+        // 메모, 분리 규칙 사유, 한글 표기 + 빈 번호(예정 이름) + 이동 → 변경 이력
         board::set_memo(&conn, PLAIN, first.id, Some("상담 기록 있음".into())).unwrap();
         board::create_rule(
             &mut conn,
@@ -624,7 +624,7 @@ mod tests {
             PLAIN,
             &ChangeSet {
                 action: "set_reading".into(),
-                label: "GRACE BRIAR 한글 발음".into(),
+                label: "GRACE BRIAR 한글 표기".into(),
                 students: vec![],
                 gaps: vec![],
                 numbering: vec![],
@@ -1378,7 +1378,7 @@ mod tests {
             method: "manual".into(),
         }];
         roster::apply_pdf(&mut conn, codec, "again.pdf", b"%PDF-again", &rows, &links).unwrap();
-        // 메모, 규칙(만들기·사유 바꾸기·쌍둥이 등록), 빈 번호 예정 이름, 한글 발음, 이동·되돌리기·다시 실행
+        // 메모, 규칙(만들기·사유 바꾸기·쌍둥이 등록), 빈 번호 예정 이름, 한글 표기, 이동·되돌리기·다시 실행
         board::set_memo(&conn, codec, s0.id, Some("암호화 중 메모".into())).unwrap();
         let rid = board::create_rule(
             &mut conn,
