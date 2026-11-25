@@ -1,11 +1,15 @@
 import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
+import { useBoardUi } from "@/features/board/uiStore";
 import { api, errorMessage, type BoardData, type ChangeSet, type Student, type WorkspaceInfo } from "@/lib/api";
+import { reuseList, sameValue } from "./reuse";
 
 interface WorkspaceState extends BoardData {
   workspace: WorkspaceInfo | null;
   studentsById: ReadonlyMap<number, Student>;
+  historyError: string | null;
+  setHistoryOpen: (open: boolean) => void;
   /** XLSX를 막 가져와 로마자 성명 한글 표기 입력 단계를 띄워야 하는지 */
   pendingReadingPrompt: boolean;
   setPendingReadingPrompt: (v: boolean) => void;
@@ -26,14 +30,15 @@ async function updateTitle(w: WorkspaceInfo | null) {
   }
 }
 
-const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById"> = {
+const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById" | "historyError"> = {
   students: [],
   studentsById: new Map(),
   gaps: [],
   classStates: [],
   rules: [],
   dismissedTwins: [],
-  history: [],
+  history: null,
+  historyError: null,
   canUndo: false,
   canRedo: false,
 };
@@ -43,13 +48,34 @@ export const useWorkspace = create<WorkspaceState>((set) => {
 
   const refresh = async () => {
     const version = ++refreshVersion;
-    const snapshot = await api.getWorkspaceSnapshot();
+    const includeHistory = useBoardUi.getState().prefs.historyOpen;
+    const snapshot = await api.getWorkspaceSnapshot(includeHistory).catch((error: unknown) => {
+      if (version === refreshVersion && includeHistory && useBoardUi.getState().prefs.historyOpen) {
+        set({ historyError: errorMessage(error) });
+      }
+      throw error;
+    });
     if (version !== refreshVersion) return;
-    const workspace = snapshot?.workspace ?? null;
     const board = snapshot?.board;
-    set({
-      workspace,
-      ...(board ? { ...board, studentsById: new Map(board.students.map((s) => [s.id, s])) } : EMPTY_BOARD),
+    let workspace = snapshot?.workspace ?? null;
+    set((prev) => {
+      if (prev.workspace && workspace && sameValue(prev.workspace, workspace)) workspace = prev.workspace;
+      if (!board) return { workspace, ...EMPTY_BOARD };
+      // 다시 읽은 값 중 바뀌지 않은 객체·목록은 이전 참조를 그대로 써서, 바뀐 부분만 다시 그려지게 한다.
+      const students = reuseList(prev.students, board.students, (s) => s.id);
+      const history = useBoardUi.getState().prefs.historyOpen ? board.history : null;
+      return {
+        workspace,
+        ...board,
+        students,
+        studentsById: students === prev.students ? prev.studentsById : new Map(students.map((s) => [s.id, s])),
+        gaps: reuseList(prev.gaps, board.gaps, (g) => g.id),
+        classStates: reuseList(prev.classStates, board.classStates, (c) => c.class),
+        rules: reuseList(prev.rules, board.rules, (r) => r.id),
+        dismissedTwins: reuseList(prev.dismissedTwins, board.dismissedTwins, ([a, b]) => `${a}-${b}`),
+        history: history && prev.history ? reuseList(prev.history, history, (h) => h.id) : history,
+        historyError: null,
+      };
     });
     await updateTitle(workspace);
   };
@@ -76,6 +102,11 @@ export const useWorkspace = create<WorkspaceState>((set) => {
   return {
     workspace: null,
     ...EMPTY_BOARD,
+    setHistoryOpen: (open) => {
+      useBoardUi.getState().setPrefs({ historyOpen: open });
+      if (open) void refresh().catch(() => undefined);
+      else set({ history: null, historyError: null });
+    },
     pendingReadingPrompt: false,
     setPendingReadingPrompt: (v) => set({ pendingReadingPrompt: v }),
     refresh,

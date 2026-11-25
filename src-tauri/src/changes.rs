@@ -5,6 +5,8 @@
 //! 변경 묶음은 바꾸기 전·후 값을 모두 담고 있어, 되돌리기는 전·후를 뒤집어 적용하면 된다.
 //! 적용 전에 "바꾸기 전" 값이 지금 DB와 같은지 확인해 어긋난 상태 위에 덮어쓰지 않는다.
 
+use std::collections::HashMap;
+
 use rusqlite::types::Value;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
@@ -446,8 +448,46 @@ pub struct HistoryEntry {
     pub created_at: String,
 }
 
-/// 변경 이력(최근 것 먼저). 되돌린 항목도 포함한다.
+/// 이력 한 줄에서 변경 묶음을 풀어야 얻는 부분.
+#[derive(Debug, Clone)]
+struct Summary {
+    label: String,
+    student_ids: Vec<i64>,
+}
+
+/// 이력 요약 캐시. 보드를 다시 읽을 때마다 이력(최대 수백 건)을 모두 복호화·파싱하지 않도록,
+/// 행 id별로 저장된 payload 원문과 그 요약을 기억한다. 원문이 그대로일 때만 재사용하므로
+/// (암호화한 값은 쓸 때마다 nonce가 달라 원문이 바뀐다) 행이 지워지고 id가 다시 쓰이거나,
+/// 암호화 설정·비밀번호가 바뀌어도 낡은 요약을 내놓지 않는다.
+#[derive(Debug, Default)]
+pub struct HistoryCache(HashMap<i64, (Value, Summary)>);
+
+fn summarize(codec: Codec, id: i64, payload: Value) -> AppResult<Summary> {
+    let cs = load_payload(codec, id, payload)?;
+    Ok(Summary {
+        student_ids: cs
+            .students
+            .iter()
+            .filter(|m| m.from.c != m.to.c)
+            .map(|m| m.student_id)
+            .collect(),
+        label: cs.label,
+    })
+}
+
+/// 변경 이력(최근 것 먼저). 되돌린 항목도 포함한다. (캐시 없이 읽는 테스트용)
+#[cfg(test)]
 pub fn history(conn: &Connection, codec: Codec, limit: i64) -> AppResult<Vec<HistoryEntry>> {
+    history_cached(conn, codec, limit, &mut HistoryCache::default())
+}
+
+/// [`history`]와 같되, 바뀌지 않은 행은 캐시의 요약을 쓴다. 캐시에는 이번에 읽은 행만 남긴다.
+pub fn history_cached(
+    conn: &Connection,
+    codec: Codec,
+    limit: i64,
+    cache: &mut HistoryCache,
+) -> AppResult<Vec<HistoryEntry>> {
     let mut stmt = conn.prepare(
         "SELECT id, seq, action, payload, undone, created_at FROM change_log ORDER BY seq DESC LIMIT ?1",
     )?;
@@ -463,25 +503,25 @@ pub fn history(conn: &Connection, codec: Codec, limit: i64) -> AppResult<Vec<His
             ))
         })?
         .collect::<Result<Vec<_>, _>>()?;
-    rows.into_iter()
-        .map(|(id, seq, action, payload, undone, created_at)| {
-            let cs = load_payload(codec, id, payload)?;
-            Ok(HistoryEntry {
-                id,
-                seq,
-                action,
-                label: cs.label,
-                student_ids: cs
-                    .students
-                    .iter()
-                    .filter(|m| m.from.c != m.to.c)
-                    .map(|m| m.student_id)
-                    .collect(),
-                undone,
-                created_at,
-            })
-        })
-        .collect()
+    let mut old = std::mem::take(&mut cache.0);
+    let mut out = Vec::with_capacity(rows.len());
+    for (id, seq, action, payload, undone, created_at) in rows {
+        let summary = match old.remove(&id) {
+            Some((raw, summary)) if raw == payload => summary,
+            _ => summarize(codec, id, payload.clone())?,
+        };
+        out.push(HistoryEntry {
+            id,
+            seq,
+            action,
+            label: summary.label.clone(),
+            student_ids: summary.student_ids.clone(),
+            undone,
+            created_at,
+        });
+        cache.0.insert(id, (payload, summary));
+    }
+    Ok(out)
 }
 
 #[cfg(test)]
@@ -565,6 +605,38 @@ mod tests {
         assert_eq!(h.len(), 1);
         assert_eq!(h[0].student_ids, vec![1]);
         assert!(!h[0].undone);
+    }
+
+    #[test]
+    fn cached_history_matches_fresh_history_when_ids_are_reused() {
+        let (_d, mut conn) = setup();
+        let mut cache = HistoryCache::default();
+        let a = seat(&conn, 1);
+        let a_to = (if a.0 == 1 { 2 } else { 1 }, 99);
+        apply_change(&mut conn, PLAIN, &mv(1, a, a_to)).unwrap();
+        let h = history_cached(&conn, PLAIN, 10, &mut cache).unwrap();
+        assert_eq!((h[0].id, h[0].student_ids.clone()), (1, vec![1]));
+
+        // 되돌린 뒤 새 변경을 하면 되돌린 행이 지워지고 같은 id가 다시 쓰인다: 캐시의 낡은 요약이 나오면 안 된다.
+        undo(&mut conn, PLAIN).unwrap();
+        assert!(history_cached(&conn, PLAIN, 10, &mut cache).unwrap()[0].undone);
+        let b = seat(&conn, 2);
+        let b_to = (if b.0 == 1 { 2 } else { 1 }, 98);
+        let mut cs = mv(2, b, b_to);
+        cs.label = "다른 이동".into();
+        apply_change(&mut conn, PLAIN, &cs).unwrap();
+        let cached = history_cached(&conn, PLAIN, 10, &mut cache).unwrap();
+        assert_eq!(cached[0].id, 1, "id가 다시 쓰이는 경우를 시험한다");
+        assert_eq!(cached[0].label, "다른 이동");
+        assert_eq!(cached[0].student_ids, vec![2]);
+        assert!(!cached[0].undone);
+        let fresh = history(&conn, PLAIN, 10).unwrap();
+        assert_eq!(
+            serde_json::to_value(&cached).unwrap(),
+            serde_json::to_value(&fresh).unwrap()
+        );
+        // 캐시에는 이번에 읽은 행만 남는다
+        assert_eq!(cache.0.len(), fresh.len());
     }
 
     #[test]

@@ -122,7 +122,7 @@ export interface BoardData {
   classStates: ClassState[];
   rules: Rule[];
   dismissedTwins: [number, number][];
-  history: HistoryEntry[];
+  history: HistoryEntry[] | null;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -214,7 +214,8 @@ export const api = {
   createWorkFile: (path: string) => invoke<WorkspaceInfo>("create_work_file", { path }),
   openWorkFile: (path: string) => invoke<OpenResult>("open_work_file", { path }),
   closeWorkFile: () => invoke<void>("close_work_file"),
-  getWorkspaceSnapshot: () => invoke<WorkspaceSnapshot | null>("get_workspace_snapshot"),
+  getWorkspaceSnapshot: (includeHistory: boolean) =>
+    invoke<WorkspaceSnapshot | null>("get_workspace_snapshot", { includeHistory }),
   saveWorkFileAs: (path: string) => invoke<WorkspaceInfo>("save_work_file_as", { path }),
   saveWorkFileCopy: (path: string) => invoke<string>("save_work_file_copy", { path }),
   listRecentFiles: () => invoke<RecentFile[]>("list_recent_files"),

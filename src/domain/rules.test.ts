@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { Rule } from "@/lib/api";
-import { allViolations, newViolationClasses, ruleViolations } from "./separation";
+import { allViolations, newViolationClasses, rulesByStudent, ruleViolations } from "./separation";
 import { koreanSurname, sameSurname, twinCandidates } from "./siblings";
 import { board, gap, student } from "./testBoard";
 import { validateForExport } from "./validate";
@@ -43,9 +43,30 @@ describe("분리 규칙 위반", () => {
   });
 
   it("드래그 미리 보기: 새로 생기는 위반의 반만", () => {
-    const rules = [rule({ members: [m(1), m(3)] })];
-    expect([...newViolationClasses(rules, classOf, new Map([[3, 1]]))]).toEqual([1]);
-    expect([...newViolationClasses(rules, classOf, new Map([[3, 3]]))]).toEqual([]);
+    const studentRules = rulesByStudent([rule({ members: [m(1), m(3)] })]);
+    expect([...newViolationClasses(studentRules, classOf, new Map([[3, 1]]))]).toEqual([1]);
+    expect([...newViolationClasses(studentRules, classOf, new Map([[3, 3]]))]).toEqual([]);
+  });
+
+  it("교환 미리 보기: 양쪽 학생의 규칙을 평가하고 관련 없는 규칙을 건너뛴다", () => {
+    const studentRules = rulesByStudent([
+      rule({ id: 1, members: [m(1), m(5)] }),
+      rule({ id: 2, kind: "one_to_many", members: [m(3, "leader"), m(2)] }),
+      rule({ id: 3, kind: "same_name", members: [m(6), m(7)] }),
+      rule({ id: 4, enabled: false, members: [m(1), m(8)] }),
+    ]);
+    const checked = new Set<number>();
+    const classOfStudent = (id: number) => {
+      checked.add(id);
+      return classOf(id) ?? (id === 5 ? 2 : 3);
+    };
+    const overrides = new Map([
+      [1, 2],
+      [3, 1],
+    ]);
+
+    expect(newViolationClasses(studentRules, classOfStudent, overrides)).toEqual(new Set([1, 2]));
+    expect(checked).toEqual(new Set([1, 2, 3, 5]));
   });
 });
 

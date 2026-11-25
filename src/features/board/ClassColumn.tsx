@@ -21,6 +21,7 @@ import type { ClassStats } from "@/domain/stats";
 import type { Gap, Numbering, RuleKind, Student } from "@/lib/api";
 import { formatScore, formatScoreDelta } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { sameValue } from "@/store/reuse";
 import { actions } from "./actions";
 import { useBoardUi, type ViewPrefs } from "./uiStore";
 
@@ -323,15 +324,7 @@ const KIND_LABEL: Partial<Record<RuleKind, string>> = {
   one_to_many: "분리 규칙",
 };
 
-function StudentCell({
-  s,
-  prefs,
-  pdf,
-  classCount,
-  issues,
-  kinds,
-  readOnly,
-}: {
+type CellProps = {
   s: Student;
   prefs: ViewPrefs;
   pdf: boolean;
@@ -339,11 +332,14 @@ function StudentCell({
   issues?: string[];
   kinds?: Set<RuleKind>;
   readOnly: boolean;
-}) {
+};
+
+// 학생 칸은 보드에 수백 개가 있다. 끌기 훅(dnd-kit)이 있는 바깥 칸은 끄는 동안 대상이 바뀔 때마다 모두 다시 그려지므로
+// 가볍게 두고, 내용은 따로 memo한다(가져온 학생 객체는 내용이 같으면 참조가 유지됨).
+const StudentCell = memo(function StudentCell({ s, issues, readOnly, ...rest }: CellProps) {
   const selected = useBoardUi((u) => u.selected.includes(s.id));
   const highlighted = useBoardUi((u) => u.highlight.has(s.id));
   const toggleSelect = useBoardUi((u) => u.toggleSelect);
-  const openDialog = useBoardUi((u) => u.openDialog);
   const [menu, setMenu] = useState(false);
 
   const drag = useDraggable({ id: `s-${s.id}`, data: { studentId: s.id, cls: s.curClass }, disabled: readOnly });
@@ -352,13 +348,7 @@ function StudentCell({
     drag.setNodeRef(el);
     drop.setNodeRef(el);
   };
-
-  const roman = hasRomanLetters(s.name);
-  const reading = cleanReading(s.sortName);
   const moved = s.curClass !== s.origClass;
-  const kindLabels = [...new Set([...(kinds ?? [])].map((k) => KIND_LABEL[k]!))];
-  // 위반 중이면 '분리' 표시 하나로 충분하다.
-  const chips = issues ? kindLabels.filter((l) => l !== "분리 규칙") : kindLabels;
 
   return (
     <div
@@ -383,6 +373,33 @@ function StudentCell({
         drag.isDragging && "opacity-40",
       )}
     >
+      <StudentCellBody s={s} issues={issues} readOnly={readOnly} {...rest} menu={menu} setMenu={setMenu} />
+    </div>
+  );
+});
+
+type CellBodyProps = CellProps & { menu: boolean; setMenu: (open: boolean) => void };
+
+const StudentCellBody = memo(function StudentCellBody({
+  s,
+  prefs,
+  pdf,
+  classCount,
+  issues,
+  kinds,
+  readOnly,
+  menu,
+  setMenu,
+}: CellBodyProps) {
+  const roman = hasRomanLetters(s.name);
+  const reading = cleanReading(s.sortName);
+  const moved = s.curClass !== s.origClass;
+  const kindLabels = [...new Set([...(kinds ?? [])].map((k) => KIND_LABEL[k]!))];
+  // 위반 중이면 '분리' 표시 하나로 충분하다.
+  const chips = issues ? kindLabels.filter((l) => l !== "분리 규칙") : kindLabels;
+
+  return (
+    <>
       {pdf && prefs.showGender && (
         <span
           className={cn(
@@ -399,18 +416,7 @@ function StudentCell({
           </span>
         </TooltipTrigger>
         <TooltipContent className="max-w-80">
-          <div className="grid gap-0.5">
-            <div>
-              나이스 기본 편성: {s.origClass}반 {s.origNumber}번{moved && " → 반이 바뀜"}
-            </div>
-            {kindLabels.length > 0 && <div>{kindLabels.join(", ")} 대상</div>}
-            {issues?.map((t) => (
-              <div key={t} className="font-medium">
-                분리 위반: {t}
-              </div>
-            ))}
-            {s.memo && <div>메모: {s.memo}</div>}
-          </div>
+          <StudentTooltipDetails student={s} kindLabels={kindLabels} issues={issues} />
         </TooltipContent>
       </Tooltip>
       {roman &&
@@ -452,41 +458,97 @@ function StudentCell({
             <DropdownMenuLabel>
               {s.curClass}반 {s.curNumber}번 {s.nameNorm}
             </DropdownMenuLabel>
-            {!readOnly && (
-              <>
-                <DropdownMenuSub>
-                  <DropdownMenuSubTrigger>다른 반으로 이동</DropdownMenuSubTrigger>
-                  <DropdownMenuSubContent>
-                    {Array.from({ length: classCount }, (_, i) => i + 1).map((c) => (
-                      <DropdownMenuItem key={c} disabled={c === s.curClass} onSelect={() => void actions.move(s.id, c)}>
-                        {c}반{c === s.origClass && " (원래 반)"}
-                      </DropdownMenuItem>
-                    ))}
-                  </DropdownMenuSubContent>
-                </DropdownMenuSub>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => openDialog({ kind: "number", studentId: s.id })}>
-                  번호 직접 수정…
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void actions.addGapBefore(s.id)}>앞에 빈 번호 넣기</DropdownMenuItem>
-                {roman && (
-                  <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: [s.id] })}>
-                    한글 표기 {reading ? "수정" : "입력"}…
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => openDialog({ kind: "memo", studentId: s.id })}>
-                  메모 {s.memo ? "수정" : "입력"}…
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => openDialog({ kind: "separation", tab: "group", preselect: [s.id] })}>
-                  분리 학생 규칙 만들기…
-                </DropdownMenuItem>
-              </>
-            )}
+            {!readOnly && <StudentMenuItems student={s} classCount={classCount} roman={roman} hasReading={!!reading} />}
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
+    </>
+  );
+}, sameCellBodyProps);
+
+// 보드를 갱신할 때 위반 문구가 그대로인 학생은 본문을 다시 그릴 필요가 없다.
+function sameCellBodyProps(prev: CellBodyProps, next: CellBodyProps) {
+  return (
+    prev.s === next.s &&
+    prev.prefs === next.prefs &&
+    prev.pdf === next.pdf &&
+    prev.classCount === next.classCount &&
+    prev.kinds === next.kinds &&
+    prev.readOnly === next.readOnly &&
+    prev.menu === next.menu &&
+    prev.setMenu === next.setMenu &&
+    sameValue(prev.issues, next.issues)
+  );
+}
+
+// Radix 포털이 열릴 때만 상세 내용과 메뉴 항목을 렌더링한다.
+function StudentTooltipDetails({
+  student: s,
+  kindLabels,
+  issues,
+}: {
+  student: Student;
+  kindLabels: string[];
+  issues?: string[];
+}) {
+  return (
+    <div className="grid gap-0.5">
+      <div>
+        나이스 기본 편성: {s.origClass}반 {s.origNumber}번{s.curClass !== s.origClass && " → 반이 바뀜"}
+      </div>
+      {kindLabels.length > 0 && <div>{kindLabels.join(", ")} 대상</div>}
+      {issues?.map((t) => (
+        <div key={t} className="font-medium">
+          분리 위반: {t}
+        </div>
+      ))}
+      {s.memo && <div>메모: {s.memo}</div>}
     </div>
+  );
+}
+
+function StudentMenuItems({
+  student: s,
+  classCount,
+  roman,
+  hasReading,
+}: {
+  student: Student;
+  classCount: number;
+  roman: boolean;
+  hasReading: boolean;
+}) {
+  const openDialog = useBoardUi((u) => u.openDialog);
+  return (
+    <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>다른 반으로 이동</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {Array.from({ length: classCount }, (_, i) => i + 1).map((c) => (
+            <DropdownMenuItem key={c} disabled={c === s.curClass} onSelect={() => void actions.move(s.id, c)}>
+              {c}반{c === s.origClass && " (원래 반)"}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "number", studentId: s.id })}>
+        번호 직접 수정…
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => void actions.addGapBefore(s.id)}>앞에 빈 번호 넣기</DropdownMenuItem>
+      {roman && (
+        <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: [s.id] })}>
+          한글 표기 {hasReading ? "수정" : "입력"}…
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "memo", studentId: s.id })}>
+        메모 {s.memo ? "수정" : "입력"}…
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "separation", tab: "group", preselect: [s.id] })}>
+        분리 학생 규칙 만들기…
+      </DropdownMenuItem>
+    </>
   );
 }
 
