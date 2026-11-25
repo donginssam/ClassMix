@@ -56,6 +56,22 @@ describe("번호 직접 수정", () => {
     expect(!r.ok && r.error).toContain("앞 학생(2번 김나래)");
   });
 
+  it("99번을 넘는 번호와, 뒤 학생이 99번을 넘게 밀리는 번호는 거절한다(큰 값을 넣어도 멈추지 않음)", () => {
+    const b = board([names]);
+    const id = idOf(b, "김다온");
+    for (const n of [100, 1_000_000_000, 999_999_999_999]) {
+      const r = setNumber(b, id, n);
+      expect(r.ok).toBe(false);
+      expect(!r.ok && r.error).toContain("99번까지");
+    }
+    expect(setNumberPreview(b, id, 1_000_000_000)).toContain("99번까지");
+    // 김다온(3번) 뒤에 3명이 더 있으므로 96번까지만 늘릴 수 있다
+    const over = setNumber(b, id, 97);
+    expect(!over.ok && over.error).toContain("96번까지");
+    const next = apply(b, ok(setNumber(b, id, 96)));
+    expect(roster(next, 1).at(-1)).toBe("99 홍하늘");
+  });
+
   it("앞에 빈 번호 넣기 = 번호 +1", () => {
     const b = board([names]);
     const next = apply(b, ok(addGapBefore(b, idOf(b, "김가람"))));

@@ -147,6 +147,9 @@ impl ChangeSet {
     }
 }
 
+/// 직접 만드는 빈 번호의 가장 큰 번호(프런트엔드 `MAX_STUDENT_NUMBER`와 같음).
+pub const MAX_MANUAL_GAP_NUMBER: i64 = 99;
+
 fn stale() -> AppError {
     AppError::InvalidInput(
         "화면의 반편성 상태가 파일과 다릅니다. 화면을 새로 고친 뒤 다시 시도해 주세요.".into(),
@@ -188,7 +191,27 @@ fn current_gaps(tx: &Transaction, codec: Codec, class: i64) -> AppResult<Vec<Gap
 }
 
 /// 변경 묶음을 트랜잭션 안에서 적용한다. "바꾸기 전" 값이 지금 상태와 다르면 오류.
-fn apply_in_tx(tx: &Transaction, codec: Codec, cs: &ChangeSet, class_count: i64) -> AppResult<()> {
+/// 새 변경일 때만 검사하는 제한(되돌리기·다시 실행은 이미 저장된 상태를 되살리므로 검사하지 않는다).
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Replay {
+    New,
+    History,
+}
+
+/// 99번을 넘는 직접 만든 빈 번호 수
+fn manual_gaps_over_limit(rows: &[GapRow]) -> usize {
+    rows.iter()
+        .filter(|r| r.origin == "manual" && r.number > MAX_MANUAL_GAP_NUMBER)
+        .count()
+}
+
+fn apply_in_tx(
+    tx: &Transaction,
+    codec: Codec,
+    cs: &ChangeSet,
+    class_count: i64,
+    replay: Replay,
+) -> AppResult<()> {
     for m in &cs.students {
         let cur: Option<(i64, i64)> = tx
             .query_row(
@@ -228,6 +251,15 @@ fn apply_in_tx(tx: &Transaction, codec: Codec, cs: &ChangeSet, class_count: i64)
         before.sort();
         if now_rows != before {
             return Err(stale());
+        }
+        // 새 변경은 99번을 넘는 직접 만든 빈 번호를 늘릴 수 없다. 이전 버전에서 이미 저장한 것은
+        // 그대로 두고(이름 바꾸기 등은 허용), 되돌리기·다시 실행은 저장된 상태를 되살리므로 검사하지 않는다.
+        if replay == Replay::New
+            && manual_gaps_over_limit(&g.after) > manual_gaps_over_limit(&g.before)
+        {
+            return Err(AppError::InvalidInput(format!(
+                "빈 번호는 {MAX_MANUAL_GAP_NUMBER}번까지만 만들 수 있습니다."
+            )));
         }
         tx.execute("DELETE FROM number_gap WHERE class = ?1", params![g.class])?;
         let ts = now();
@@ -358,7 +390,7 @@ pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppR
     }
     let cc = class_count(conn)?;
     let tx = conn.transaction()?;
-    apply_in_tx(&tx, codec, cs, cc)?;
+    apply_in_tx(&tx, codec, cs, cc, Replay::New)?;
     tx.execute("DELETE FROM change_log WHERE undone = 1", [])?;
     let seq: i64 = tx.query_row(
         "SELECT COALESCE(MAX(seq), 0) + 1 FROM change_log",
@@ -402,7 +434,7 @@ pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
         return Ok(None);
     };
     let cs = load_payload(codec, id, payload)?;
-    apply_in_tx(&tx, codec, &cs.inverse(), cc)?;
+    apply_in_tx(&tx, codec, &cs.inverse(), cc, Replay::History)?;
     tx.execute(
         "UPDATE change_log SET undone = 1 WHERE id = ?1",
         params![id],
@@ -426,7 +458,7 @@ pub fn redo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
         return Ok(None);
     };
     let cs = load_payload(codec, id, payload)?;
-    apply_in_tx(&tx, codec, &cs, cc)?;
+    apply_in_tx(&tx, codec, &cs, cc, Replay::History)?;
     tx.execute(
         "UPDATE change_log SET undone = 0 WHERE id = ?1",
         params![id],
@@ -650,6 +682,92 @@ mod tests {
         assert!(err.to_string().contains("겹칩니다"));
         assert_eq!(seat(&conn, 1), a);
         assert!(history(&conn, PLAIN, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejects_manual_gap_above_the_limit() {
+        let (_d, mut conn) = setup();
+        let row = |number| GapRow {
+            number,
+            anchor_key: "x".into(),
+            planned_name: None,
+            origin: "manual".into(),
+            created_at: None,
+        };
+        let before = current_gaps(&conn.transaction().unwrap(), PLAIN, 2).unwrap();
+        let cs = |n| ChangeSet {
+            action: "gap_add".into(),
+            label: "빈 번호".into(),
+            students: vec![],
+            gaps: vec![ClassGaps {
+                class: 2,
+                before: before.clone(),
+                after: [before.clone(), vec![row(n)]].concat(),
+            }],
+            numbering: vec![],
+            readings: vec![],
+        };
+        let err = apply_change(&mut conn, PLAIN, &cs(MAX_MANUAL_GAP_NUMBER + 1)).unwrap_err();
+        assert!(err.to_string().contains("99번까지"));
+        assert!(history(&conn, PLAIN, 10).unwrap().is_empty());
+        apply_change(&mut conn, PLAIN, &cs(MAX_MANUAL_GAP_NUMBER)).unwrap();
+    }
+
+    #[test]
+    fn gaps_saved_above_the_limit_by_an_older_version_still_undo_and_redo() {
+        let (_d, mut conn) = setup();
+        let row = |number, planned: Option<&str>| GapRow {
+            number,
+            anchor_key: "x".into(),
+            planned_name: planned.map(Into::into),
+            origin: "manual".into(),
+            created_at: Some("2026-01-01T00:00:00+09:00".into()),
+        };
+        let before = current_gaps(&conn.transaction().unwrap(), PLAIN, 2).unwrap();
+        // 이전 버전이 저장한 120번 빈 번호
+        let legacy = [before.clone(), vec![row(120, None)]].concat();
+        conn.execute(
+            "INSERT INTO number_gap (id, class, number, anchor_key, origin, created_at)
+             VALUES (9999, 2, 120, 'x', 'manual', '2026-01-01T00:00:00+09:00')",
+            [],
+        )
+        .unwrap();
+        // 그 빈 번호를 지우는 변경 → 되돌리기·다시 실행은 99번 제한에 막히지 않는다
+        let remove = ChangeSet {
+            action: "gap_remove".into(),
+            label: "지우기".into(),
+            students: vec![],
+            gaps: vec![ClassGaps {
+                class: 2,
+                before: legacy.clone(),
+                after: before.clone(),
+            }],
+            numbering: vec![],
+            readings: vec![],
+        };
+        apply_change(&mut conn, PLAIN, &remove).unwrap();
+        assert!(undo(&mut conn, PLAIN).unwrap().is_some());
+        assert!(redo(&mut conn, PLAIN).unwrap().is_some());
+        undo(&mut conn, PLAIN).unwrap();
+        // 이미 있는 99번 초과 빈 번호의 이름 바꾸기는 새로 늘리는 것이 아니므로 허용한다
+        let renamed = [before.clone(), vec![row(120, Some("전입생"))]].concat();
+        apply_change(
+            &mut conn,
+            PLAIN,
+            &ChangeSet {
+                action: "gap_edit".into(),
+                label: "이름".into(),
+                students: vec![],
+                gaps: vec![ClassGaps {
+                    class: 2,
+                    before: legacy,
+                    after: renamed,
+                }],
+                numbering: vec![],
+                readings: vec![],
+            },
+        )
+        .unwrap();
     }
 
     #[test]

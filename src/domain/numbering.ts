@@ -28,6 +28,9 @@ export interface NumberingGap {
 export type Slot<S extends NumberingStudent = NumberingStudent, G extends NumberingGap = NumberingGap> =
   { kind: "student"; student: S } | { kind: "gap"; gap: G };
 
+/** 번호 직접 수정·빈 번호로 만들 수 있는 가장 큰 번호 */
+export const MAX_STUDENT_NUMBER = 99;
+
 const collator = new Intl.Collator("ko", { sensitivity: "base", numeric: true });
 
 /** 한글 표기 입력값 정리: 공백을 모두 지운다. 비면 null. */
@@ -152,12 +155,21 @@ export function setStudentNumber<S extends NumberingStudent, G extends Numbering
   const idx = slots.findIndex((s) => s.kind === "student" && s.student.id === studentId);
   if (idx < 0) return { ok: false, error: "학생을 찾을 수 없습니다." };
   if (!Number.isInteger(newNumber) || newNumber < 1) return { ok: false, error: "1 이상의 정수를 입력해 주세요." };
+  if (newNumber > MAX_STUDENT_NUMBER)
+    return { ok: false, error: `번호는 ${MAX_STUDENT_NUMBER}번까지만 정할 수 있습니다.` };
   const cur = idx + 1;
   const delta = newNumber - cur;
   const shifted = slots.slice(idx).flatMap((s) => (s.kind === "student" ? [s.student] : []));
   if (delta === 0) return { ok: true, slots, delta, shifted };
 
   if (delta > 0) {
+    // 뒤 칸이 밀려 마지막 번호가 상한을 넘으면 거절한다(빈 번호가 끝없이 생기지 않게).
+    if (slots.length + delta > MAX_STUDENT_NUMBER) {
+      return {
+        ok: false,
+        error: `뒤 번호가 ${MAX_STUDENT_NUMBER}번을 넘게 됩니다. ${MAX_STUDENT_NUMBER - slots.length + cur}번까지 늘릴 수 있습니다.`,
+      };
+    }
     const prev = previousStudent(slots, idx);
     const anchor = prev ? sortKeyOf(prev.student) : "";
     const inserted: Slot<S, G>[] = Array.from({ length: delta }, () => ({
