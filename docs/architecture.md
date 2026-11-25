@@ -110,7 +110,7 @@ ClassMix/
 ├─ scripts/generate-third-party-licenses.mjs  # pnpm licenses:generate → THIRD_PARTY_LICENSES.txt
 ├─ tests/fixtures/                   # 더미 sample.xlsx / sample.pdf / 기대 결과 JSON
 └─ .github/workflows/
-   ├─ CI.yml                         # 푸시·포크 PR 테스트
+   ├─ CI.yml                         # main 푸시·PR 테스트
    └─ build.yml                      # 새 v* 태그의 배포물 및 Release 초안
 ```
 
@@ -218,7 +218,7 @@ ClassMix/
 
 ## 6. 빌드와 CI
 
-`.github/workflows/CI.yml`은 브랜치·태그 푸시와 포크 PR에서 Vitest, Clippy, `cargo test`를 Windows·macOS에서 실행한다. 같은 저장소의 PR 브랜치는 푸시된 커밋을 검사하고, 포크 PR은 GitHub가 만든 병합 커밋을 검사한다. 같은 ref와 이벤트의 새 CI 실행이 들어오면 기존 실행을 취소한다.
+`.github/workflows/CI.yml`은 `main` 푸시와 PR에서 Vitest, Clippy, `cargo test`를 Windows·macOS에서 실행한다. `main` 푸시는 푸시된 커밋을 검사하고, 같은 저장소·포크 PR은 GitHub가 만든 병합 커밋을 검사한다. 같은 ref와 이벤트의 새 CI 실행이 들어오면 기존 실행을 취소한다.
 
 `v*` 태그의 푸시는 `.github/workflows/build.yml`에서 CI를 호출한다. 태그가 새로 생성됐고 Windows·macOS 테스트가 모두 통과하면 배포물을 빌드한다. 릴리스 실행은 태그별로 묶고, CI와 다른 그룹 이름을 사용한다.
 

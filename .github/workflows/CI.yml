@@ -2,9 +2,7 @@ name: CI
 
 on:
   push:
-    branches: ["**"]
-    # v* 태그의 CI는 build.yml에서 호출한다.
-    tags-ignore: ["v*"]
+    branches: [main]
   pull_request:
   workflow_call:
 
@@ -18,11 +16,7 @@ permissions:
 jobs:
   test:
     name: test (${{ matrix.os }})
-    # 같은 저장소의 PR 브랜치는 push에서 검사한다.
-    if: >-
-      github.event.deleted != true &&
-      (github.event_name != 'pull_request' ||
-       github.event.pull_request.head.repo.full_name != github.repository)
+    if: github.event.deleted != true
     strategy:
       fail-fast: false
       matrix:

@@ -80,7 +80,7 @@ pnpm tauri dev
 | `pnpm build:win`                    | Windows 포터블 exe 빌드(`tauri build --no-bundle`)                                                                                                                                            |
 | `pnpm tauri build`                  | 플랫폼별 배포물 빌드(macOS `.dmg` 등)                                                                                                                                                         |
 
-브랜치·태그 푸시와 포크 PR에서 Windows·macOS 테스트를 실행합니다. 같은 저장소의 PR 브랜치는 푸시한 커밋을, 포크 PR은 병합 커밋을 검사합니다. `v*` 태그의 CI는 `.github/workflows/build.yml`에서 호출합니다. 새 `v*` 태그가 테스트를 통과하면 포터블 exe와 유니버설 dmg를 만들어 Release 초안에 첨부합니다.
+`main`에 푸시하거나 PR을 열고 업데이트하면 Windows·macOS 테스트를 실행합니다. `main`에 푸시한 커밋과 같은 저장소·포크 PR의 병합 커밋을 검사합니다. `v*` 태그의 CI는 `.github/workflows/build.yml`에서 호출합니다. 새 `v*` 태그가 테스트를 통과하면 포터블 exe와 유니버설 dmg를 만들어 Release 초안에 첨부합니다.
 
 ### 구조
 
