@@ -9,7 +9,7 @@ on:
     tags: ["v*"]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}-${{ github.event.created }}
+  group: classmix-release-${{ github.event.ref || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -17,17 +17,12 @@ permissions:
 
 jobs:
   ci:
-    if: github.event.created
     uses: ./.github/workflows/CI.yml
-    permissions:
-      actions: read
-      contents: read
 
   windows-exe:
     name: windows portable exe
     needs: ci
-    # CI가 기존 결과를 재사용하면 내부 테스트 잡은 skipped가 된다.
-    if: ${{ !cancelled() && !failure() && (needs.ci.result == 'success' || needs.ci.outputs.previously_passed == 'true') }}
+    if: github.event.created
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v7
@@ -76,7 +71,7 @@ jobs:
   macos-dmg:
     name: macos universal dmg
     needs: ci
-    if: ${{ !cancelled() && !failure() && (needs.ci.result == 'success' || needs.ci.outputs.previously_passed == 'true') }}
+    if: github.event.created
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v7
