@@ -318,14 +318,26 @@ pub struct WorkspaceSnapshot {
     board: Option<BoardData>,
 }
 
-fn workspace_snapshot(state: &AppState) -> AppResult<Option<WorkspaceSnapshot>> {
+fn workspace_snapshot(
+    state: &AppState,
+    include_history: bool,
+) -> AppResult<Option<WorkspaceSnapshot>> {
     let mut guard = state.lock_file()?;
     let Some(wf) = guard.as_mut() else {
         return Ok(None);
     };
     let workspace = workspace_info(wf)?;
+    if !include_history {
+        wf.history_cache = HistoryCache::default();
+    }
     let board = (!workspace.locked)
-        .then(|| board::board_data_cached(&wf.conn, codec!(wf), &mut wf.history_cache))
+        .then(|| {
+            board::board_data_cached(
+                &wf.conn,
+                codec!(wf),
+                include_history.then_some(&mut wf.history_cache),
+            )
+        })
         .transpose()?;
     Ok(Some(WorkspaceSnapshot { workspace, board }))
 }
@@ -333,8 +345,9 @@ fn workspace_snapshot(state: &AppState) -> AppResult<Option<WorkspaceSnapshot>> 
 #[tauri::command]
 pub async fn get_workspace_snapshot(
     state: State<'_, AppState>,
+    include_history: Option<bool>,
 ) -> AppResult<Option<WorkspaceSnapshot>> {
-    workspace_snapshot(&state)
+    workspace_snapshot(&state, include_history.unwrap_or(true))
 }
 
 /// 다른 이름으로 저장: 사본을 만들고 그 파일로 전환한다.
@@ -678,6 +691,56 @@ mod tests {
     const TEST_PASSWORD: &str = "교무실-비밀번호-2026";
 
     #[test]
+    fn workspace_snapshot_reads_history_details_only_when_requested() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("history.mix");
+        let conn = db::create_new(&path, "t").unwrap();
+        let payload =
+            r#"{"action":"move","label":"반 이동","students":[],"gaps":[],"numbering":[]}"#;
+        conn.execute(
+            "INSERT INTO change_log (id, seq, action, payload, undone, created_at)
+             VALUES (1, 1, 'move', ?1, 0, '2026-01-01')",
+            [payload],
+        )
+        .unwrap();
+        let state = AppState::default();
+        *state.file.lock().unwrap() = Some(WorkFile::new(path, conn, false).unwrap());
+
+        let board = workspace_snapshot(&state, false)
+            .unwrap()
+            .unwrap()
+            .board
+            .unwrap();
+        assert!(board.history.is_none());
+        assert!(board.can_undo && !board.can_redo);
+
+        let board = workspace_snapshot(&state, true)
+            .unwrap()
+            .unwrap()
+            .board
+            .unwrap();
+        assert_eq!(board.history.unwrap()[0].label, "반 이동");
+        state
+            .with_file(|wf| {
+                wf.conn.execute(
+                    "UPDATE change_log SET payload = 'invalid JSON', undone = 1 WHERE id = 1",
+                    [],
+                )?;
+                Ok(())
+            })
+            .unwrap();
+
+        let board = workspace_snapshot(&state, false)
+            .unwrap()
+            .unwrap()
+            .board
+            .unwrap();
+        assert!(board.history.is_none());
+        assert!(!board.can_undo && board.can_redo);
+        assert!(workspace_snapshot(&state, true).is_err());
+    }
+
+    #[test]
     fn locked_file_refuses_every_data_command_until_unlocked() {
         let (_d, _p, state) = locked_state();
         // 잠긴 동안: 일반 동작은 모두 Locked
@@ -687,7 +750,7 @@ mod tests {
             Err(AppError::Locked)
         ));
         // 화면이 잠김을 알 수 있도록 정보는 읽힌다(학생 자료는 없음)
-        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
         assert!(snapshot.board.is_none());
         let info = snapshot.workspace;
         assert!(info.encrypted && info.locked);
@@ -714,7 +777,7 @@ mod tests {
             .unwrap();
         assert_eq!(students.len(), 240);
         assert!(students.iter().any(|s| s.name == "GRACE BRIAR"));
-        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
         assert_eq!(snapshot.board.unwrap().students.len(), 240);
         assert!(snapshot.workspace.encrypted && !snapshot.workspace.locked);
     }
@@ -822,7 +885,7 @@ mod tests {
         let info = state.with_file(|wf| wf.save_as(&target)).unwrap();
         assert!(info.encrypted && !info.locked);
         assert_eq!(state.with_file(|wf| Ok(wf.path.clone())).unwrap(), target);
-        let snapshot = workspace_snapshot(&state).unwrap().unwrap();
+        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
         assert_eq!(snapshot.board.unwrap().students.len(), 240);
 
         let previous = Connection::open(&path).unwrap();

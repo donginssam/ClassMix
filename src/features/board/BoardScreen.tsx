@@ -48,7 +48,7 @@ import {
   allViolations,
   describeViolation,
   newViolationClasses,
-  ruleKindsByStudent,
+  rulesByStudent,
   violationsByClass,
   violationsByStudent,
 } from "@/domain/separation";
@@ -108,6 +108,7 @@ export function BoardScreen() {
   const canRedo = useWorkspace((s) => s.canRedo);
   const undo = useWorkspace((s) => s.undo);
   const redo = useWorkspace((s) => s.redo);
+  const setHistoryOpen = useWorkspace((s) => s.setHistoryOpen);
   const pendingReadingPrompt = useWorkspace((s) => s.pendingReadingPrompt);
   const setPendingReadingPrompt = useWorkspace((s) => s.setPendingReadingPrompt);
 
@@ -143,7 +144,11 @@ export function BoardScreen() {
       );
     return m;
   }, [violations, nameOf]);
-  const ruleKinds = useMemo(() => ruleKindsByStudent(rules), [rules]);
+  const studentRules = useMemo(() => rulesByStudent(rules), [rules]);
+  const ruleKinds = useMemo(
+    () => new Map(Array.from(studentRules, ([id, related]) => [id, new Set(Array.from(related, (r) => r.kind))])),
+    [studentRules],
+  );
   const noReading = useMemo(
     () => students.filter((s) => hasRomanLetters(s.name) && !cleanReading(s.sortName)).length,
     [students],
@@ -318,7 +323,7 @@ export function BoardScreen() {
     }
     const overrides = new Map<number, number>([[t.a, t.toCls]]);
     if (t.kind === "swap") overrides.set(t.b, t.fromCls);
-    setPreviewViolation(newViolationClasses(rules, classOf, overrides));
+    setPreviewViolation(newViolationClasses(studentRules, classOf, overrides));
   };
   const onDragEnd = (e: DragEndEvent) => {
     const t = targetOf(e);
@@ -465,11 +470,7 @@ export function BoardScreen() {
           <ToolButton label="통계" active={prefs.statsOpen} onClick={() => setPrefs({ statsOpen: !prefs.statsOpen })}>
             <BarChart3 />
           </ToolButton>
-          <ToolButton
-            label="변경 이력"
-            active={prefs.historyOpen}
-            onClick={() => setPrefs({ historyOpen: !prefs.historyOpen })}
-          >
+          <ToolButton label="변경 이력" active={prefs.historyOpen} onClick={() => setHistoryOpen(!prefs.historyOpen)}>
             <History />
           </ToolButton>
         </GlassGroup>

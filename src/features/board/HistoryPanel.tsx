@@ -14,13 +14,14 @@ function time(iso: string) {
 /** 변경 이력(작업 파일에 영구 저장). 항목을 누르면 관련 학생을 강조한다. */
 export function HistoryPanel() {
   const history = useWorkspace((s) => s.history);
+  const historyError = useWorkspace((s) => s.historyError);
+  const setHistoryOpen = useWorkspace((s) => s.setHistoryOpen);
   const canUndo = useWorkspace((s) => s.canUndo);
   const canRedo = useWorkspace((s) => s.canRedo);
   const readOnly = useWorkspace((s) => s.workspace?.readOnly ?? true);
   const undo = useWorkspace((s) => s.undo);
   const redo = useWorkspace((s) => s.redo);
   const setHighlight = useBoardUi((s) => s.setHighlight);
-  const setPrefs = useBoardUi((s) => s.setPrefs);
 
   return (
     <aside className="glass mr-3 mb-3 flex w-64 shrink-0 flex-col overflow-hidden rounded-2xl">
@@ -46,18 +47,23 @@ export function HistoryPanel() {
         >
           <Redo2 className="size-4" />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon"
-          className="size-7"
-          onClick={() => setPrefs({ historyOpen: false })}
-          title="닫기"
-        >
+        <Button variant="ghost" size="icon" className="size-7" onClick={() => setHistoryOpen(false)} title="닫기">
           <X className="size-4" />
         </Button>
       </div>
       <ScrollArea className="min-h-0 flex-1">
-        {history.length === 0 ? (
+        {historyError !== null ? (
+          <div className="space-y-2 p-4 text-sm text-muted-foreground">
+            <p role="alert">변경 이력을 불러오지 못했습니다. {historyError}</p>
+            <Button variant="outline" size="sm" onClick={() => setHistoryOpen(true)}>
+              다시 시도
+            </Button>
+          </div>
+        ) : history === null ? (
+          <p role="status" className="p-4 text-sm text-muted-foreground">
+            변경 이력을 불러오는 중…
+          </p>
+        ) : history.length === 0 ? (
           <p className="p-4 text-sm text-muted-foreground">아직 바꾼 것이 없습니다.</p>
         ) : (
           <ol className="divide-y">

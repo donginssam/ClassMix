@@ -47,7 +47,7 @@ pub struct BoardData {
     pub rules: Vec<RuleDto>,
     /// "쌍둥이 아님"으로 넘긴 쌍 [a, b] (a < b)
     pub dismissed_twins: Vec<[i64; 2]>,
-    pub history: Vec<HistoryEntry>,
+    pub history: Option<Vec<HistoryEntry>>,
     pub can_undo: bool,
     pub can_redo: bool,
 }
@@ -123,16 +123,18 @@ fn dismissed_twins(conn: &Connection) -> AppResult<Vec<[i64; 2]>> {
 /// 캐시 없이 보드 데이터를 읽는다(테스트용).
 #[cfg(test)]
 pub fn board_data(conn: &Connection, codec: Codec) -> AppResult<BoardData> {
-    board_data_cached(conn, codec, &mut HistoryCache::default())
+    board_data_cached(conn, codec, Some(&mut HistoryCache::default()))
 }
 
-/// [`board_data`]와 같되, 이력 요약은 캐시를 거친다(열린 파일마다 하나).
+/// 보드를 읽는다. 이력이 필요한 경우에만 열린 파일의 요약 캐시를 넘긴다.
 pub fn board_data_cached(
     conn: &Connection,
     codec: Codec,
-    history_cache: &mut HistoryCache,
+    history_cache: Option<&mut HistoryCache>,
 ) -> AppResult<BoardData> {
-    let history = changes::history_cached(conn, codec, 300, history_cache)?;
+    let history = history_cache
+        .map(|cache| changes::history_cached(conn, codec, 300, cache))
+        .transpose()?;
     let can_undo = conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM change_log WHERE undone = 0)",
         [],

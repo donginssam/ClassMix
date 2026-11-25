@@ -1,4 +1,4 @@
-import { cloneElement, memo, useState, type HTMLAttributes, type ReactElement, type ReactNode } from "react";
+import { memo, useState, type ReactNode } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AlertTriangle, ArrowDownUp, MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import type { ClassStats } from "@/domain/stats";
 import type { Gap, Numbering, RuleKind, Student } from "@/lib/api";
 import { formatScore, formatScoreDelta } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { sameValue } from "@/store/reuse";
 import { actions } from "./actions";
 import { useBoardUi, type ViewPrefs } from "./uiStore";
 
@@ -377,6 +378,8 @@ const StudentCell = memo(function StudentCell({ s, issues, readOnly, ...rest }: 
   );
 });
 
+type CellBodyProps = CellProps & { menu: boolean; setMenu: (open: boolean) => void };
+
 const StudentCellBody = memo(function StudentCellBody({
   s,
   prefs,
@@ -387,12 +390,7 @@ const StudentCellBody = memo(function StudentCellBody({
   readOnly,
   menu,
   setMenu,
-}: CellProps & { menu: boolean; setMenu: (open: boolean) => void }) {
-  const openDialog = useBoardUi((u) => u.openDialog);
-  // 툴팁·메뉴(Radix)는 처음 마우스를 올리거나 열 때 만든다. 메뉴는 한 번 열면 계속 둔다(닫힐 때 포커스 되돌리기가 동작하도록).
-  const [menuArmed, setMenuArmed] = useState(false);
-  if (menu && !menuArmed) setMenuArmed(true);
-
+}: CellBodyProps) {
   const roman = hasRomanLetters(s.name);
   const reading = cleanReading(s.sortName);
   const moved = s.curClass !== s.origClass;
@@ -411,27 +409,16 @@ const StudentCellBody = memo(function StudentCellBody({
           aria-label={s.gender ?? "성별 없음"}
         />
       )}
-      <LazyTooltip
-        className="max-w-80"
-        content={
-          <div className="grid gap-0.5">
-            <div>
-              나이스 기본 편성: {s.origClass}반 {s.origNumber}번{moved && " → 반이 바뀜"}
-            </div>
-            {kindLabels.length > 0 && <div>{kindLabels.join(", ")} 대상</div>}
-            {issues?.map((t) => (
-              <div key={t} className="font-medium">
-                분리 위반: {t}
-              </div>
-            ))}
-            {s.memo && <div>메모: {s.memo}</div>}
-          </div>
-        }
-      >
-        <span className={cn("min-w-0 truncate text-sm", issues && "font-semibold", roman && "text-[13px]")}>
-          {s.nameNorm}
-        </span>
-      </LazyTooltip>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span className={cn("min-w-0 truncate text-sm", issues && "font-semibold", roman && "text-[13px]")}>
+            {s.nameNorm}
+          </span>
+        </TooltipTrigger>
+        <TooltipContent className="max-w-80">
+          <StudentTooltipDetails student={s} kindLabels={kindLabels} issues={issues} />
+        </TooltipContent>
+      </Tooltip>
       {roman &&
         (reading ? (
           <span className="shrink-0 truncate text-[11px] text-muted-foreground">{reading}</span>
@@ -456,103 +443,112 @@ const StudentCellBody = memo(function StudentCellBody({
       </span>
 
       <span className="shrink-0" onPointerDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}>
-        {!menuArmed ? (
-          <Button
-            variant="ghost"
-            size="icon"
-            className="size-5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
-            aria-label={`${s.nameNorm} 메뉴`}
-            aria-haspopup="menu"
-            onClick={() => setMenu(true)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " " || e.key === "ArrowDown") {
-                e.preventDefault();
-                setMenu(true);
-              }
-            }}
-          >
-            <MoreHorizontal className="size-3.5" />
-          </Button>
-        ) : (
-          <DropdownMenu open={menu} onOpenChange={setMenu}>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
-                aria-label={`${s.nameNorm} 메뉴`}
-              >
-                <MoreHorizontal className="size-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuLabel>
-                {s.curClass}반 {s.curNumber}번 {s.nameNorm}
-              </DropdownMenuLabel>
-              {!readOnly && (
-                <>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>다른 반으로 이동</DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      {Array.from({ length: classCount }, (_, i) => i + 1).map((c) => (
-                        <DropdownMenuItem
-                          key={c}
-                          disabled={c === s.curClass}
-                          onSelect={() => void actions.move(s.id, c)}
-                        >
-                          {c}반{c === s.origClass && " (원래 반)"}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem onSelect={() => openDialog({ kind: "number", studentId: s.id })}>
-                    번호 직접 수정…
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void actions.addGapBefore(s.id)}>
-                    앞에 빈 번호 넣기
-                  </DropdownMenuItem>
-                  {roman && (
-                    <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: [s.id] })}>
-                      한글 표기 {reading ? "수정" : "입력"}…
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onSelect={() => openDialog({ kind: "memo", studentId: s.id })}>
-                    메모 {s.memo ? "수정" : "입력"}…
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => openDialog({ kind: "separation", tab: "group", preselect: [s.id] })}
-                  >
-                    분리 학생 규칙 만들기…
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <DropdownMenu open={menu} onOpenChange={setMenu}>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-5 text-muted-foreground opacity-0 group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100"
+              aria-label={`${s.nameNorm} 메뉴`}
+            >
+              <MoreHorizontal className="size-3.5" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="min-w-48">
+            <DropdownMenuLabel>
+              {s.curClass}반 {s.curNumber}번 {s.nameNorm}
+            </DropdownMenuLabel>
+            {!readOnly && <StudentMenuItems student={s} classCount={classCount} roman={roman} hasReading={!!reading} />}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </span>
     </>
   );
-});
+}, sameCellBodyProps);
 
-/** 마우스를 처음 올릴 때 Radix 툴팁을 만든다. 학생 칸마다 툴팁을 미리 만들어 두면 다시 그릴 때 비용이 크다. */
-function LazyTooltip({
-  children,
-  content,
-  className,
-}: {
-  children: ReactElement<HTMLAttributes<HTMLElement>>;
-  content: ReactNode;
-  className?: string;
-}) {
-  const [armed, setArmed] = useState(false);
-  if (!armed) return cloneElement(children, { onPointerEnter: () => setArmed(true) });
+// 보드를 갱신할 때 위반 문구가 그대로인 학생은 본문을 다시 그릴 필요가 없다.
+function sameCellBodyProps(prev: CellBodyProps, next: CellBodyProps) {
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent className={className}>{content}</TooltipContent>
-    </Tooltip>
+    prev.s === next.s &&
+    prev.prefs === next.prefs &&
+    prev.pdf === next.pdf &&
+    prev.classCount === next.classCount &&
+    prev.kinds === next.kinds &&
+    prev.readOnly === next.readOnly &&
+    prev.menu === next.menu &&
+    prev.setMenu === next.setMenu &&
+    sameValue(prev.issues, next.issues)
+  );
+}
+
+// Radix 포털이 열릴 때만 상세 내용과 메뉴 항목을 렌더링한다.
+function StudentTooltipDetails({
+  student: s,
+  kindLabels,
+  issues,
+}: {
+  student: Student;
+  kindLabels: string[];
+  issues?: string[];
+}) {
+  return (
+    <div className="grid gap-0.5">
+      <div>
+        나이스 기본 편성: {s.origClass}반 {s.origNumber}번{s.curClass !== s.origClass && " → 반이 바뀜"}
+      </div>
+      {kindLabels.length > 0 && <div>{kindLabels.join(", ")} 대상</div>}
+      {issues?.map((t) => (
+        <div key={t} className="font-medium">
+          분리 위반: {t}
+        </div>
+      ))}
+      {s.memo && <div>메모: {s.memo}</div>}
+    </div>
+  );
+}
+
+function StudentMenuItems({
+  student: s,
+  classCount,
+  roman,
+  hasReading,
+}: {
+  student: Student;
+  classCount: number;
+  roman: boolean;
+  hasReading: boolean;
+}) {
+  const openDialog = useBoardUi((u) => u.openDialog);
+  return (
+    <>
+      <DropdownMenuSub>
+        <DropdownMenuSubTrigger>다른 반으로 이동</DropdownMenuSubTrigger>
+        <DropdownMenuSubContent>
+          {Array.from({ length: classCount }, (_, i) => i + 1).map((c) => (
+            <DropdownMenuItem key={c} disabled={c === s.curClass} onSelect={() => void actions.move(s.id, c)}>
+              {c}반{c === s.origClass && " (원래 반)"}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuSubContent>
+      </DropdownMenuSub>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "number", studentId: s.id })}>
+        번호 직접 수정…
+      </DropdownMenuItem>
+      <DropdownMenuItem onSelect={() => void actions.addGapBefore(s.id)}>앞에 빈 번호 넣기</DropdownMenuItem>
+      {roman && (
+        <DropdownMenuItem onSelect={() => openDialog({ kind: "reading", studentIds: [s.id] })}>
+          한글 표기 {hasReading ? "수정" : "입력"}…
+        </DropdownMenuItem>
+      )}
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "memo", studentId: s.id })}>
+        메모 {s.memo ? "수정" : "입력"}…
+      </DropdownMenuItem>
+      <DropdownMenuSeparator />
+      <DropdownMenuItem onSelect={() => openDialog({ kind: "separation", tab: "group", preselect: [s.id] })}>
+        분리 학생 규칙 만들기…
+      </DropdownMenuItem>
+    </>
   );
 }
 
