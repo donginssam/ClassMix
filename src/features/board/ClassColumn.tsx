@@ -1,6 +1,7 @@
 import { memo, useState, type ReactNode } from "react";
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { AlertTriangle, ArrowDownUp, MoreHorizontal } from "lucide-react";
+import { useShallow } from "zustand/react/shallow";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -33,7 +34,9 @@ export const ROW_H = 30;
 export const AXIS_W = 44;
 export const headerHeight = (pdf: boolean) => (pdf ? 88 : 72);
 
-export function columnMinWidth(prefs: ViewPrefs, pdf: boolean) {
+type CellViewPrefs = Pick<ViewPrefs, "showGender" | "showBirth" | "showScore" | "showPrev" | "showMemo">;
+
+export function columnMinWidth(prefs: CellViewPrefs, pdf: boolean) {
   return (
     // 이름 칸(약 6글자)과 메뉴 단추. 메모는 남는 폭에만 보인다.
     132 + (prefs.showPrev ? 34 : 0) + (pdf && prefs.showScore ? 54 : 0) + (pdf && prefs.showBirth ? 54 : 0)
@@ -104,7 +107,15 @@ export const ClassColumn = memo(function ClassColumn(props: ClassColumnProps) {
   const { cls, rows, slotsByNumber, stats, numbering, violations, showPdf: pdf, readOnly, nameOf } = props;
   const { setNodeRef, isOver } = useDroppable({ id: `c-${cls}`, data: { cls }, disabled: readOnly });
   const preview = useBoardUi((s) => s.previewViolation.has(cls));
-  const prefs = useBoardUi((s) => s.prefs);
+  const prefs = useBoardUi(
+    useShallow(({ prefs: { showGender, showBirth, showScore, showPrev, showMemo } }) => ({
+      showGender,
+      showBirth,
+      showScore,
+      showPrev,
+      showMemo,
+    })),
+  );
   const lastNumber = Math.max(stats.lastNumber, ...[...slotsByNumber.keys()]);
 
   return (
@@ -326,7 +337,7 @@ const KIND_LABEL: Partial<Record<RuleKind, string>> = {
 
 type CellProps = {
   s: Student;
-  prefs: ViewPrefs;
+  prefs: CellViewPrefs;
   pdf: boolean;
   classCount: number;
   issues?: string[];

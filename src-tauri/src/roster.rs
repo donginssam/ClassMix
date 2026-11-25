@@ -42,7 +42,7 @@ pub fn list_students(conn: &Connection, codec: Codec) -> AppResult<Vec<StudentDt
                 s.match_method, s.memo, s.sort_name,
                 EXISTS (SELECT 1 FROM separation_member m JOIN separation_rule r ON r.id = m.rule_id
                         WHERE m.student_id = s.id AND r.kind = 'same_name')
-         FROM student s ORDER BY s.cur_class, s.cur_number",
+         FROM student s ORDER BY s.cur_class, s.cur_number, s.id",
     )?;
     let mut out = Vec::new();
     let mut rows = stmt.query([])?;
@@ -71,6 +71,30 @@ pub fn list_students(conn: &Connection, codec: Codec) -> AppResult<Vec<StudentDt
         });
     }
     Ok(out)
+}
+
+/// 배치 변경이 건드릴 수 있는 학생 값: 현재 반·번호와 한글 표기.
+pub type StudentPlacement = (i64, i64, i64, Option<String>);
+
+pub fn list_student_placements(
+    conn: &Connection,
+    codec: Codec,
+) -> AppResult<Vec<StudentPlacement>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, cur_class, cur_number, sort_name FROM student ORDER BY cur_class, cur_number, id",
+    )?;
+    let mut rows = stmt.query([])?;
+    let mut placements = Vec::new();
+    while let Some(row) = rows.next()? {
+        let id = row.get(0)?;
+        placements.push((
+            id,
+            row.get(1)?,
+            row.get(2)?,
+            codec.get_opt_text("student.sort_name", id, row.get(3)?)?,
+        ));
+    }
+    Ok(placements)
 }
 
 #[derive(Debug, Clone, Serialize)]

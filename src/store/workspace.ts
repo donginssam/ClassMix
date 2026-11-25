@@ -2,12 +2,21 @@ import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
 import { useBoardUi } from "@/features/board/uiStore";
-import { api, errorMessage, type BoardData, type ChangeSet, type Student, type WorkspaceInfo } from "@/lib/api";
-import { reuseList, sameValue } from "./reuse";
+import {
+  api,
+  errorMessage,
+  type BoardData,
+  type ChangeSet,
+  type Student,
+  type WorkspaceInfo,
+  type WorkspaceSnapshot,
+} from "@/lib/api";
+import { reuseList, reuseStudentPlacements, sameValue } from "./reuse";
 
 interface WorkspaceState extends BoardData {
   workspace: WorkspaceInfo | null;
   studentsById: ReadonlyMap<number, Student>;
+  rosterVersion: string | null;
   historyError: string | null;
   setHistoryOpen: (open: boolean) => void;
   /**
@@ -37,9 +46,10 @@ async function updateTitle(w: WorkspaceInfo | null) {
   }
 }
 
-const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById" | "historyError"> = {
+const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById" | "rosterVersion" | "historyError"> = {
   students: [],
   studentsById: new Map(),
+  rosterVersion: null,
   gaps: [],
   classStates: [],
   rules: [],
@@ -50,38 +60,56 @@ const EMPTY_BOARD: BoardData & Pick<WorkspaceState, "studentsById" | "historyErr
   canRedo: false,
 };
 
+function snapshotStudents(snapshot: WorkspaceSnapshot | null, previous: WorkspaceState): Student[] | null {
+  const board = snapshot?.board;
+  if (!board) return null;
+  if (board.students) return reuseList(previous.students, board.students, (s) => s.id);
+  if (!board.studentPlacements || !previous.rosterVersion || previous.rosterVersion !== snapshot.rosterVersion)
+    return null;
+  return reuseStudentPlacements(previous.students, previous.studentsById, board.studentPlacements);
+}
+
 export const useWorkspace = create<WorkspaceState>((set, get) => {
   let refreshVersion = 0;
 
   const refresh = async () => {
     const version = ++refreshVersion;
     const includeHistory = useBoardUi.getState().prefs.historyOpen;
-    const snapshot = await api.getWorkspaceSnapshot(includeHistory).catch((error: unknown) => {
-      if (version === refreshVersion && includeHistory && useBoardUi.getState().prefs.historyOpen) {
-        set({ historyError: errorMessage(error) });
-      }
-      throw error;
-    });
+    const fetchSnapshot = (knownRosterVersion: string | null) =>
+      api.getWorkspaceSnapshot(includeHistory, knownRosterVersion).catch((error: unknown) => {
+        if (version === refreshVersion && includeHistory && useBoardUi.getState().prefs.historyOpen) {
+          set({ historyError: errorMessage(error) });
+        }
+        throw error;
+      });
+    let snapshot = await fetchSnapshot(get().rosterVersion);
     if (version !== refreshVersion) return;
+    let students = snapshotStudents(snapshot, get());
+    if (snapshot?.board && !students) {
+      snapshot = await fetchSnapshot(null);
+      if (version !== refreshVersion) return;
+      students = snapshotStudents(snapshot, get());
+      if (snapshot?.board && !students) throw new Error("학생 목록을 다시 불러올 수 없습니다.");
+    }
     const board = snapshot?.board;
     let workspace = snapshot?.workspace ?? null;
     set((prev) => {
       if (prev.workspace && workspace && sameValue(prev.workspace, workspace)) workspace = prev.workspace;
-      if (!board) return { workspace, ...EMPTY_BOARD };
-      // 다시 읽은 값 중 바뀌지 않은 객체·목록은 이전 참조를 그대로 써서, 바뀐 부분만 다시 그려지게 한다.
-      const students = reuseList(prev.students, board.students, (s) => s.id);
+      if (!board || !students) return { workspace, ...EMPTY_BOARD };
       const history = useBoardUi.getState().prefs.historyOpen ? board.history : null;
       return {
         workspace,
-        ...board,
         students,
         studentsById: students === prev.students ? prev.studentsById : new Map(students.map((s) => [s.id, s])),
+        rosterVersion: snapshot?.rosterVersion ?? null,
         gaps: reuseList(prev.gaps, board.gaps, (g) => g.id),
         classStates: reuseList(prev.classStates, board.classStates, (c) => c.class),
         rules: reuseList(prev.rules, board.rules, (r) => r.id),
         dismissedTwins: reuseList(prev.dismissedTwins, board.dismissedTwins, ([a, b]) => `${a}-${b}`),
         history: history && prev.history ? reuseList(prev.history, history, (h) => h.id) : history,
         historyError: null,
+        canUndo: board.canUndo,
+        canRedo: board.canRedo,
       };
     });
     await updateTitle(workspace);

@@ -1,6 +1,7 @@
 //! 프런트엔드에서 호출하는 Tauri 커맨드.
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::{Connection, params};
@@ -19,6 +20,8 @@ use crate::roster::{self, PdfApplyReport, PdfLink, PdfRowInput};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
 
+static NEXT_ROSTER_GENERATION: AtomicU64 = AtomicU64::new(1);
+
 pub struct WorkFile {
     pub path: PathBuf,
     pub conn: Connection,
@@ -29,6 +32,8 @@ pub struct WorkFile {
     pub cipher: Option<Cipher>,
     /// 보드를 다시 읽을 때 이력 복호화·파싱을 줄이는 캐시. 파일을 닫으면 함께 버린다.
     pub history_cache: HistoryCache,
+    /// 현재 반·번호·한글 표기 이외의 학생 자료가 바뀌거나 파일을 다시 열면 갱신한다.
+    roster_generation: u64,
 }
 
 impl WorkFile {
@@ -41,7 +46,12 @@ impl WorkFile {
             encrypted,
             cipher: None,
             history_cache: HistoryCache::default(),
+            roster_generation: NEXT_ROSTER_GENERATION.fetch_add(1, Ordering::Relaxed),
         })
+    }
+
+    fn invalidate_roster(&mut self) {
+        self.roster_generation = NEXT_ROSTER_GENERATION.fetch_add(1, Ordering::Relaxed);
     }
 
     fn locked(&self) -> bool {
@@ -132,7 +142,16 @@ impl AppState {
         f(wf)
     }
 
+    /// 배치 외 학생 자료를 바꿀 수 있는 쓰기 경로.
     fn with_writable<T>(&self, f: impl FnOnce(&mut WorkFile) -> AppResult<T>) -> AppResult<T> {
+        self.with_writable_file(|wf| {
+            wf.invalidate_roster();
+            f(wf)
+        })
+    }
+
+    /// 학생 자료의 버전을 유지하는 호출부는 배치 조회에 포함된 값만 바꿀 수 있다.
+    fn with_writable_file<T>(&self, f: impl FnOnce(&mut WorkFile) -> AppResult<T>) -> AppResult<T> {
         self.with_file(|wf| {
             if wf.read_only {
                 return Err(AppError::ReadOnly);
@@ -316,38 +335,63 @@ pub async fn close_work_file(state: State<'_, AppState>) -> AppResult<()> {
 pub struct WorkspaceSnapshot {
     workspace: WorkspaceInfo,
     board: Option<BoardData>,
+    roster_version: Option<String>,
 }
 
 fn workspace_snapshot(
     state: &AppState,
     include_history: bool,
+    known_roster_version: Option<&str>,
 ) -> AppResult<Option<WorkspaceSnapshot>> {
     let mut guard = state.lock_file()?;
     let Some(wf) = guard.as_mut() else {
         return Ok(None);
     };
-    let workspace = workspace_info(wf)?;
     if !include_history {
         wf.history_cache = HistoryCache::default();
     }
+    let data_version = || -> rusqlite::Result<i64> {
+        wf.conn
+            .pragma_query_value(None, "data_version", |row| row.get(0))
+    };
+    let before = data_version()?;
+    let tx = wf.conn.unchecked_transaction()?;
+    let workspace = workspace_info(wf)?;
+    let current = data_version()?;
+    // 외부 연결이 읽기 트랜잭션 시작 전에 쓰면 학생 자료 전체를 다시 보낸다.
+    let roster_version = (!workspace.locked && before == current)
+        .then(|| format!("{}:{current}", wf.roster_generation));
+    let placements_only =
+        roster_version.is_some() && roster_version.as_deref() == known_roster_version;
     let board = (!workspace.locked)
         .then(|| {
             board::board_data_cached(
-                &wf.conn,
+                &tx,
                 codec!(wf),
                 include_history.then_some(&mut wf.history_cache),
+                placements_only,
             )
         })
         .transpose()?;
-    Ok(Some(WorkspaceSnapshot { workspace, board }))
+    tx.commit()?;
+    Ok(Some(WorkspaceSnapshot {
+        workspace,
+        board,
+        roster_version,
+    }))
 }
 
 #[tauri::command]
 pub async fn get_workspace_snapshot(
     state: State<'_, AppState>,
     include_history: Option<bool>,
+    known_roster_version: Option<String>,
 ) -> AppResult<Option<WorkspaceSnapshot>> {
-    workspace_snapshot(&state, include_history.unwrap_or(true))
+    workspace_snapshot(
+        &state,
+        include_history.unwrap_or(true),
+        known_roster_version.as_deref(),
+    )
 }
 
 /// 다른 이름으로 저장: 사본을 만들고 그 파일로 전환한다.
@@ -439,17 +483,18 @@ pub async fn apply_pdf_mapping(
 
 #[tauri::command]
 pub async fn apply_change(state: State<'_, AppState>, change: ChangeSet) -> AppResult<()> {
-    state.with_writable(|wf| changes::apply_change(&mut wf.conn, codec!(wf), &change))
+    // 변경 묶음이 바꾸는 학생 값은 모두 배치 조회에 포함된다.
+    state.with_writable_file(|wf| changes::apply_change(&mut wf.conn, codec!(wf), &change))
 }
 
 #[tauri::command]
 pub async fn undo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
-    state.with_writable(|wf| changes::undo(&mut wf.conn, codec!(wf)))
+    state.with_writable_file(|wf| changes::undo(&mut wf.conn, codec!(wf)))
 }
 
 #[tauri::command]
 pub async fn redo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
-    state.with_writable(|wf| changes::redo(&mut wf.conn, codec!(wf)))
+    state.with_writable_file(|wf| changes::redo(&mut wf.conn, codec!(wf)))
 }
 
 #[tauri::command]
@@ -531,6 +576,7 @@ pub async fn unlock_work_file(
     state.with_file_even_locked(|wf| {
         same_file(wf, &path)?;
         wf.cipher = Some(cipher);
+        wf.invalidate_roster();
         workspace_info(wf)
     })
 }
@@ -706,7 +752,7 @@ mod tests {
         let state = AppState::default();
         *state.file.lock().unwrap() = Some(WorkFile::new(path, conn, false).unwrap());
 
-        let board = workspace_snapshot(&state, false)
+        let board = workspace_snapshot(&state, false, None)
             .unwrap()
             .unwrap()
             .board
@@ -714,7 +760,7 @@ mod tests {
         assert!(board.history.is_none());
         assert!(board.can_undo && !board.can_redo);
 
-        let board = workspace_snapshot(&state, true)
+        let board = workspace_snapshot(&state, true, None)
             .unwrap()
             .unwrap()
             .board
@@ -730,14 +776,103 @@ mod tests {
             })
             .unwrap();
 
-        let board = workspace_snapshot(&state, false)
+        let board = workspace_snapshot(&state, false, None)
             .unwrap()
             .unwrap()
             .board
             .unwrap();
         assert!(board.history.is_none());
         assert!(!board.can_undo && board.can_redo);
-        assert!(workspace_snapshot(&state, true).is_err());
+        assert!(workspace_snapshot(&state, true, None).is_err());
+    }
+
+    #[test]
+    fn workspace_snapshot_reuses_roster_for_placement_edits_until_other_data_changes() {
+        let (_dir, path, state) = locked_state();
+        state
+            .with_file_even_locked(|wf| {
+                let header = crypto::header(&wf.conn)?.unwrap();
+                wf.cipher = Some(crypto::unlock(&header, TEST_PASSWORD)?);
+                Ok(())
+            })
+            .unwrap();
+        let initial = workspace_snapshot(&state, false, None).unwrap().unwrap();
+        let version = initial.roster_version.as_deref();
+        let students = initial.board.unwrap().students.unwrap();
+        let student = students.iter().find(|s| s.name == "GRACE BRIAR").unwrap();
+        let id = student.id;
+        let reading = ChangeSet {
+            action: "set_reading".into(),
+            label: "한글 표기".into(),
+            students: vec![],
+            gaps: vec![],
+            numbering: vec![],
+            readings: vec![changes::ReadingChange {
+                student_id: id,
+                from: student.sort_name.clone(),
+                to: Some("그레이스".into()),
+            }],
+        };
+        state
+            .with_writable_file(|wf| changes::apply_change(&mut wf.conn, codec!(wf), &reading))
+            .unwrap();
+        let snapshot = workspace_snapshot(&state, true, version).unwrap().unwrap();
+        assert_eq!(snapshot.roster_version.as_deref(), version);
+        let board = snapshot.board.unwrap();
+        assert!(board.students.is_none());
+        let places = board.student_placements.unwrap();
+        assert_eq!(places.len(), students.len());
+        assert_eq!(
+            places.iter().find(|p| p.0 == id).unwrap().3.as_deref(),
+            Some("그레이스")
+        );
+        assert!(board.can_undo && !board.can_redo);
+        assert_eq!(board.history.unwrap()[0].label, "한글 표기");
+
+        state
+            .with_writable_file(|wf| changes::undo(&mut wf.conn, codec!(wf)))
+            .unwrap();
+        let board = workspace_snapshot(&state, false, version)
+            .unwrap()
+            .unwrap()
+            .board
+            .unwrap();
+        assert_eq!(
+            board
+                .student_placements
+                .unwrap()
+                .into_iter()
+                .find(|p| p.0 == id)
+                .unwrap()
+                .3,
+            student.sort_name
+        );
+        assert!(!board.can_undo && board.can_redo);
+
+        state
+            .with_writable(|wf| board::set_memo(&wf.conn, codec!(wf), id, Some("메모".into())))
+            .unwrap();
+        let snapshot = workspace_snapshot(&state, false, version).unwrap().unwrap();
+        assert_ne!(snapshot.roster_version.as_deref(), version);
+        let list = snapshot.board.unwrap().students.unwrap();
+        assert_eq!(
+            list.iter().find(|s| s.id == id).unwrap().memo.as_deref(),
+            Some("메모")
+        );
+
+        Connection::open(path)
+            .unwrap()
+            .execute("UPDATE student SET gender = '남' WHERE id = ?1", [id])
+            .unwrap();
+        let fresh = workspace_snapshot(&state, false, snapshot.roster_version.as_deref())
+            .unwrap()
+            .unwrap();
+        assert_ne!(fresh.roster_version, snapshot.roster_version);
+        let list = fresh.board.unwrap().students.unwrap();
+        assert_eq!(
+            list.iter().find(|s| s.id == id).unwrap().gender.as_deref(),
+            Some("남")
+        );
     }
 
     #[test]
@@ -750,7 +885,7 @@ mod tests {
             Err(AppError::Locked)
         ));
         // 화면이 잠김을 알 수 있도록 정보는 읽힌다(학생 자료는 없음)
-        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
+        let snapshot = workspace_snapshot(&state, true, None).unwrap().unwrap();
         assert!(snapshot.board.is_none());
         let info = snapshot.workspace;
         assert!(info.encrypted && info.locked);
@@ -777,8 +912,8 @@ mod tests {
             .unwrap();
         assert_eq!(students.len(), 240);
         assert!(students.iter().any(|s| s.name == "GRACE BRIAR"));
-        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
-        assert_eq!(snapshot.board.unwrap().students.len(), 240);
+        let snapshot = workspace_snapshot(&state, true, None).unwrap().unwrap();
+        assert_eq!(snapshot.board.unwrap().students.unwrap().len(), 240);
         assert!(snapshot.workspace.encrypted && !snapshot.workspace.locked);
     }
 
@@ -885,8 +1020,8 @@ mod tests {
         let info = state.with_file(|wf| wf.save_as(&target)).unwrap();
         assert!(info.encrypted && !info.locked);
         assert_eq!(state.with_file(|wf| Ok(wf.path.clone())).unwrap(), target);
-        let snapshot = workspace_snapshot(&state, true).unwrap().unwrap();
-        assert_eq!(snapshot.board.unwrap().students.len(), 240);
+        let snapshot = workspace_snapshot(&state, true, None).unwrap().unwrap();
+        assert_eq!(snapshot.board.unwrap().students.unwrap().len(), 240);
 
         let previous = Connection::open(&path).unwrap();
         let opened_by: Option<String> = previous

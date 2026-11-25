@@ -9,7 +9,7 @@ use crate::changes::{self, HistoryCache, HistoryEntry};
 use crate::crypto::Codec;
 use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
-use crate::roster::{self, GapDto, StudentDto};
+use crate::roster::{self, GapDto, StudentDto, StudentPlacement};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -41,7 +41,8 @@ pub struct RuleDto {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct BoardData {
-    pub students: Vec<StudentDto>,
+    pub students: Option<Vec<StudentDto>>,
+    pub student_placements: Option<Vec<StudentPlacement>>,
     pub gaps: Vec<GapDto>,
     pub class_states: Vec<ClassStateDto>,
     pub rules: Vec<RuleDto>,
@@ -123,7 +124,7 @@ fn dismissed_twins(conn: &Connection) -> AppResult<Vec<[i64; 2]>> {
 /// 캐시 없이 보드 데이터를 읽는다(테스트용).
 #[cfg(test)]
 pub fn board_data(conn: &Connection, codec: Codec) -> AppResult<BoardData> {
-    board_data_cached(conn, codec, Some(&mut HistoryCache::default()))
+    board_data_cached(conn, codec, Some(&mut HistoryCache::default()), false)
 }
 
 /// 보드를 읽는다. 이력이 필요한 경우에만 열린 파일의 요약 캐시를 넘긴다.
@@ -131,6 +132,7 @@ pub fn board_data_cached(
     conn: &Connection,
     codec: Codec,
     history_cache: Option<&mut HistoryCache>,
+    placements_only: bool,
 ) -> AppResult<BoardData> {
     let history = history_cache
         .map(|cache| changes::history_cached(conn, codec, 300, cache))
@@ -145,8 +147,14 @@ pub fn board_data_cached(
         [],
         |r| r.get(0),
     )?;
+    let (students, student_placements) = if placements_only {
+        (None, Some(roster::list_student_placements(conn, codec)?))
+    } else {
+        (Some(roster::list_students(conn, codec)?), None)
+    };
     Ok(BoardData {
-        students: roster::list_students(conn, codec)?,
+        students,
+        student_placements,
         gaps: roster::list_gaps(conn, codec)?,
         class_states: list_class_states(conn)?,
         rules: list_rules(conn, codec)?,

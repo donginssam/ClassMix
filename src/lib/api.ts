@@ -127,9 +127,15 @@ export interface BoardData {
   canRedo: boolean;
 }
 
-interface WorkspaceSnapshot {
+export type StudentPlacement = [id: number, curClass: number, curNumber: number, sortName: string | null];
+
+export interface WorkspaceSnapshot {
   workspace: WorkspaceInfo;
-  board: BoardData | null;
+  board:
+    | (Omit<BoardData, "students"> &
+        ({ students: Student[]; studentPlacements: null } | { students: null; studentPlacements: StudentPlacement[] }))
+    | null;
+  rosterVersion: string | null;
 }
 
 export interface Seat {
@@ -214,8 +220,8 @@ export const api = {
   createWorkFile: (path: string) => invoke<WorkspaceInfo>("create_work_file", { path }),
   openWorkFile: (path: string) => invoke<OpenResult>("open_work_file", { path }),
   closeWorkFile: () => invoke<void>("close_work_file"),
-  getWorkspaceSnapshot: (includeHistory: boolean) =>
-    invoke<WorkspaceSnapshot | null>("get_workspace_snapshot", { includeHistory }),
+  getWorkspaceSnapshot: (includeHistory: boolean, knownRosterVersion: string | null) =>
+    invoke<WorkspaceSnapshot | null>("get_workspace_snapshot", { includeHistory, knownRosterVersion }),
   saveWorkFileAs: (path: string) => invoke<WorkspaceInfo>("save_work_file_as", { path }),
   saveWorkFileCopy: (path: string) => invoke<string>("save_work_file_copy", { path }),
   listRecentFiles: () => invoke<RecentFile[]>("list_recent_files"),

@@ -1,3 +1,5 @@
+import type { Student, StudentPlacement } from "@/lib/api";
+
 /**
  * 다시 읽은 보드 데이터에서, 내용이 같은 객체는 이전 객체를 그대로 쓴다(구조 공유).
  * 학생 한 명을 옮겨도 나머지 학생 객체와 목록의 참조가 유지되어, memo한 화면 조각이 다시 그려지지 않는다.
@@ -35,4 +37,25 @@ export function reuseList<T>(prev: readonly T[], next: T[], key: (item: T) => un
     return kept;
   });
   return changed ? out : (prev as T[]);
+}
+/** 받은 순서대로 배치를 합친다. 학생 구성이 다르면 전체 목록을 다시 받아야 한다. */
+export function reuseStudentPlacements(
+  previous: Student[],
+  byId: ReadonlyMap<number, Student>,
+  placements: StudentPlacement[],
+): Student[] | null {
+  if (previous.length !== placements.length) return null;
+  const students: Student[] = [];
+  let identical = true;
+  for (const [id, curClass, curNumber, sortName] of placements) {
+    const old = byId.get(id);
+    if (!old) return null;
+    const student =
+      old.curClass === curClass && old.curNumber === curNumber && old.sortName === sortName
+        ? old
+        : { ...old, curClass, curNumber, sortName };
+    if (student !== previous[students.length]) identical = false;
+    students.push(student);
+  }
+  return identical ? previous : students;
 }

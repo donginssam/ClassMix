@@ -323,36 +323,25 @@ function Review({
                 {unmatchedRows.map((i) => {
                   const r = parsed.rows[i];
                   const chosen = manual.get(i);
-                  const options = [...(chosen != null ? [byId.get(chosen)!] : []), ...freeStudents];
                   return (
                     <tr key={i} className="border-b last:border-0">
                       <td className="py-1.5">
                         <PdfCell r={r} />
                       </td>
                       <td className="py-1.5">
-                        <Select
-                          value={chosen != null ? String(chosen) : "none"}
-                          onValueChange={(v) =>
+                        <StudentLinkSelect
+                          row={r}
+                          selected={chosen == null ? undefined : byId.get(chosen)}
+                          candidates={freeStudents}
+                          onSelect={(id) =>
                             setManual((prev) => {
                               const next = new Map(prev);
-                              if (v === "none") next.delete(i);
-                              else next.set(i, Number(v));
+                              if (id === null) next.delete(i);
+                              else next.set(i, id);
                               return next;
                             })
                           }
-                        >
-                          <SelectTrigger className="w-80">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="none">연결 안 함</SelectItem>
-                            {options.map((s) => (
-                              <SelectItem key={s.id} value={String(s.id)}>
-                                {s.origClass}반 {s.origNumber}번 {s.nameNorm} (이전 {s.prevClass}반 {s.prevNumber}번)
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                        />
                       </td>
                     </tr>
                   );
@@ -399,6 +388,55 @@ function Review({
         </Button>
       </DialogFooter>
     </>
+  );
+}
+
+function linkChoiceLabel(s: Student) {
+  return `${s.origClass}반 ${s.origNumber}번 ${s.nameNorm} (이전 ${s.prevClass}반 ${s.prevNumber}번)`;
+}
+
+function StudentLinkSelect({
+  row,
+  selected,
+  candidates,
+  onSelect,
+}: {
+  row: PdfRow;
+  selected: Student | undefined;
+  candidates: Student[];
+  onSelect: (id: number | null) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
+  const label = selected ? linkChoiceLabel(selected) : "연결 안 함";
+  return (
+    <Select
+      open={open}
+      onOpenChange={setOpen}
+      value={selected ? String(selected.id) : "none"}
+      onValueChange={(value) => onSelect(value === "none" ? null : Number(value))}
+    >
+      <SelectTrigger
+        className="w-80"
+        aria-label={`${row.class}반 ${row.number}번 ${row.name} 연결할 학생, ${label}`}
+        onFocus={() => setFocused(true)}
+        onBlur={() => setFocused(false)}
+      >
+        <SelectValue>{label}</SelectValue>
+      </SelectTrigger>
+      {/* 포커스된 버튼에 후보를 유지하면 목록을 열기 전에도 키보드 입력으로 찾을 수 있다. */}
+      {(open || focused) && (
+        <SelectContent>
+          <SelectItem value="none">연결 안 함</SelectItem>
+          {selected && <SelectItem value={String(selected.id)}>{linkChoiceLabel(selected)}</SelectItem>}
+          {candidates.map((s) => (
+            <SelectItem key={s.id} value={String(s.id)}>
+              {linkChoiceLabel(s)}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      )}
+    </Select>
   );
 }
 
