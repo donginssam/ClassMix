@@ -927,6 +927,33 @@ mod tests {
     }
 
     #[test]
+    fn history_cache_never_outlives_an_encryption_change() {
+        let (_d, _path, mut conn) = populated_file();
+        let cs = move_change(&conn, PLAIN);
+        changes::apply_change(&mut conn, PLAIN, &cs).unwrap();
+        let mut cache = changes::HistoryCache::default();
+        let plain = changes::history_cached(&conn, PLAIN, 300, &mut cache).unwrap();
+        assert!(!plain.is_empty());
+        let json = |h: &[changes::HistoryEntry]| serde_json::to_value(h).unwrap();
+
+        let (salt, old) = prepare_new_key(PASSWORD).unwrap();
+        enable(&mut conn, &salt, &old).unwrap();
+        // 평문 때 채운 캐시가 남아 있어도, 저장된 값이 바뀌었으므로 다시 풀어서 같은 내용을 낸다
+        let enc = changes::history_cached(&conn, Codec(Some(&old)), 300, &mut cache).unwrap();
+        assert_eq!(json(&enc), json(&plain));
+
+        let (new_salt, new) = prepare_new_key("새-비밀번호-2027").unwrap();
+        change_password(&mut conn, &old, &new_salt, &new).unwrap();
+        // 옛 키로는 캐시가 있어도 읽을 수 없다(캐시가 복호화 검사를 건너뛰지 않음)
+        assert!(changes::history_cached(&conn, Codec(Some(&old)), 300, &mut cache).is_err());
+        let mut cache = changes::HistoryCache::default();
+        let first = changes::history_cached(&conn, Codec(Some(&new)), 300, &mut cache).unwrap();
+        let again = changes::history_cached(&conn, Codec(Some(&new)), 300, &mut cache).unwrap();
+        assert_eq!(json(&first), json(&plain));
+        assert_eq!(json(&again), json(&plain));
+    }
+
+    #[test]
     fn change_password_refuses_wrong_current_or_plain_file() {
         let (_d, _p, mut conn) = populated_file();
         let (new_salt, new) = prepare_new_key("새-비밀번호-2027").unwrap();

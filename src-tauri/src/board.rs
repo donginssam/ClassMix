@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, HashSet};
 use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
-use crate::changes::{self, HistoryEntry};
+use crate::changes::{self, HistoryCache, HistoryEntry};
 use crate::crypto::Codec;
 use crate::db::{next_id, now};
 use crate::error::{AppError, AppResult};
@@ -120,8 +120,19 @@ fn dismissed_twins(conn: &Connection) -> AppResult<Vec<[i64; 2]>> {
     Ok(rows)
 }
 
+/// 캐시 없이 보드 데이터를 읽는다(테스트용).
+#[cfg(test)]
 pub fn board_data(conn: &Connection, codec: Codec) -> AppResult<BoardData> {
-    let history = changes::history(conn, codec, 300)?;
+    board_data_cached(conn, codec, &mut HistoryCache::default())
+}
+
+/// [`board_data`]와 같되, 이력 요약은 캐시를 거친다(열린 파일마다 하나).
+pub fn board_data_cached(
+    conn: &Connection,
+    codec: Codec,
+    history_cache: &mut HistoryCache,
+) -> AppResult<BoardData> {
+    let history = changes::history_cached(conn, codec, 300, history_cache)?;
     let can_undo = conn.query_row(
         "SELECT EXISTS (SELECT 1 FROM change_log WHERE undone = 0)",
         [],

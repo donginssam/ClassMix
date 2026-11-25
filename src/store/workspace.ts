@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { toast } from "sonner";
 import { api, errorMessage, type BoardData, type ChangeSet, type Student, type WorkspaceInfo } from "@/lib/api";
+import { reuseList, sameValue } from "./reuse";
 
 interface WorkspaceState extends BoardData {
   workspace: WorkspaceInfo | null;
@@ -45,11 +46,24 @@ export const useWorkspace = create<WorkspaceState>((set) => {
     const version = ++refreshVersion;
     const snapshot = await api.getWorkspaceSnapshot();
     if (version !== refreshVersion) return;
-    const workspace = snapshot?.workspace ?? null;
     const board = snapshot?.board;
-    set({
-      workspace,
-      ...(board ? { ...board, studentsById: new Map(board.students.map((s) => [s.id, s])) } : EMPTY_BOARD),
+    let workspace = snapshot?.workspace ?? null;
+    set((prev) => {
+      if (prev.workspace && workspace && sameValue(prev.workspace, workspace)) workspace = prev.workspace;
+      if (!board) return { workspace, ...EMPTY_BOARD };
+      // 다시 읽은 값 중 바뀌지 않은 객체·목록은 이전 참조를 그대로 써서, 바뀐 부분만 다시 그려지게 한다.
+      const students = reuseList(prev.students, board.students, (s) => s.id);
+      return {
+        workspace,
+        ...board,
+        students,
+        studentsById: students === prev.students ? prev.studentsById : new Map(students.map((s) => [s.id, s])),
+        gaps: reuseList(prev.gaps, board.gaps, (g) => g.id),
+        classStates: reuseList(prev.classStates, board.classStates, (c) => c.class),
+        rules: reuseList(prev.rules, board.rules, (r) => r.id),
+        dismissedTwins: reuseList(prev.dismissedTwins, board.dismissedTwins, ([a, b]) => `${a}-${b}`),
+        history: reuseList(prev.history, board.history, (h) => h.id),
+      };
     });
     await updateTitle(workspace);
   };

@@ -8,7 +8,7 @@ use serde::Serialize;
 use tauri::{AppHandle, State};
 
 use crate::board::{self, BoardData, NewRule};
-use crate::changes::{self, ChangeSet};
+use crate::changes::{self, ChangeSet, HistoryCache};
 use crate::crypto::{self, Cipher, Codec};
 use crate::db::{self, FILE_EXTENSION};
 use crate::error::{AppError, AppResult};
@@ -27,6 +27,8 @@ pub struct WorkFile {
     pub encrypted: bool,
     /// 비밀번호로 만든 키. 파일을 연 동안만 메모리에 두고, 닫으면 버린다(키 내용은 지워짐).
     pub cipher: Option<Cipher>,
+    /// 보드를 다시 읽을 때 이력 복호화·파싱을 줄이는 캐시. 파일을 닫으면 함께 버린다.
+    pub history_cache: HistoryCache,
 }
 
 impl WorkFile {
@@ -38,6 +40,7 @@ impl WorkFile {
             read_only,
             encrypted,
             cipher: None,
+            history_cache: HistoryCache::default(),
         })
     }
 
@@ -316,13 +319,13 @@ pub struct WorkspaceSnapshot {
 }
 
 fn workspace_snapshot(state: &AppState) -> AppResult<Option<WorkspaceSnapshot>> {
-    let guard = state.lock_file()?;
-    let Some(wf) = guard.as_ref() else {
+    let mut guard = state.lock_file()?;
+    let Some(wf) = guard.as_mut() else {
         return Ok(None);
     };
     let workspace = workspace_info(wf)?;
     let board = (!workspace.locked)
-        .then(|| board::board_data(&wf.conn, codec!(wf)))
+        .then(|| board::board_data_cached(&wf.conn, codec!(wf), &mut wf.history_cache))
         .transpose()?;
     Ok(Some(WorkspaceSnapshot { workspace, board }))
 }

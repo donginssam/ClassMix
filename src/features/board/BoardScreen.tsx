@@ -84,6 +84,9 @@ import { scrollToStudent, useBoardUi } from "./uiStore";
 export type { ClassSlot };
 
 /** 학생 행 위를 먼저, 없으면 반 카드를 놓을 곳으로 고른다. */
+// 모듈 상수로 둔다: 렌더마다 새 객체를 넘기면 dnd-kit의 센서·컨텍스트가 매번 바뀌어 모든 학생 칸이 다시 그려진다.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 6 } };
+
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
   const list = hits.length ? hits : rectIntersection(args);
@@ -293,7 +296,7 @@ export function BoardScreen() {
   const canSwap = selStudents.length === 2 && selStudents[0].curClass !== selStudents[1].curClass;
 
   // ───────── 드래그 ─────────
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(useSensor(PointerSensor, POINTER_SENSOR_OPTIONS));
   const [dragId, setDragId] = useState<number | null>(null);
   const targetOf = (e: DragOverEvent | DragEndEvent) => {
     const from = e.active.data.current as { studentId: number; cls: number } | undefined;
