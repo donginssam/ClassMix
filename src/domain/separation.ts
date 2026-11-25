@@ -59,30 +59,40 @@ export function violationsByStudent(violations: Violation[]): Map<number, Violat
   return m;
 }
 
-/** 학생 → 그 학생이 들어 있는 켜진 규칙 종류 */
-export function ruleKindsByStudent(rules: Rule[]): Map<number, Set<RuleKind>> {
-  const m = new Map<number, Set<RuleKind>>();
+/** 학생 → 그 학생이 들어 있는 켜진 규칙 */
+export function rulesByStudent(rules: Rule[]): Map<number, Set<Rule>> {
+  const byStudent = new Map<number, Set<Rule>>();
   for (const r of rules) {
     if (!r.enabled) continue;
     for (const mem of r.members) {
-      const set = m.get(mem.studentId) ?? new Set<RuleKind>();
-      set.add(r.kind);
-      m.set(mem.studentId, set);
+      const studentRules = byStudent.get(mem.studentId) ?? new Set<Rule>();
+      studentRules.add(r);
+      byStudent.set(mem.studentId, studentRules);
     }
   }
-  return m;
+  return byStudent;
 }
 
 /**
  * 가상의 이동 뒤 "새로" 생기는 위반의 반 목록(드래그 중 미리 보기용).
  * @param overrides 학생 id → 옮겨 갈 반
  */
-export function newViolationClasses(rules: Rule[], classOf: ClassOf, overrides: Map<number, number>): Set<number> {
+export function newViolationClasses(
+  studentRules: ReadonlyMap<number, ReadonlySet<Rule>>,
+  classOf: ClassOf,
+  overrides: ReadonlyMap<number, number>,
+): Set<number> {
+  const affected = new Set<Rule>();
+  for (const id of overrides.keys()) {
+    for (const rule of studentRules.get(id) ?? []) affected.add(rule);
+  }
   const after: ClassOf = (id) => overrides.get(id) ?? classOf(id);
   const key = (v: Violation) => `${v.rule.id}:${v.cls}:${[...v.studentIds].sort().join(",")}`;
-  const before = new Set(allViolations(rules, classOf).map(key));
   const out = new Set<number>();
-  for (const v of allViolations(rules, after)) if (!before.has(key(v))) out.add(v.cls);
+  for (const rule of affected) {
+    const before = new Set(ruleViolations(rule, classOf).map(key));
+    for (const v of ruleViolations(rule, after)) if (!before.has(key(v))) out.add(v.cls);
+  }
   return out;
 }
 

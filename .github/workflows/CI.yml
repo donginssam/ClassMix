@@ -1,79 +1,28 @@
 name: CI
-run-name: CI ${{ github.sha }}
 
 on:
   push:
-    branches: [main]
+    branches: ["**"]
+    # v* 태그의 CI는 build.yml에서 호출한다.
+    tags-ignore: ["v*"]
   pull_request:
   workflow_call:
-    outputs:
-      previously_passed:
-        description: 같은 커밋의 Windows·macOS 테스트가 이미 통과했는지 여부
-        value: ${{ jobs.previous-tests.outputs.passed }}
 
 concurrency:
-  group: classmix-ci-${{ github.sha }}
-  queue: max
+  group: classmix-ci-${{ github.event_name }}-${{ github.event.ref || github.ref }}
+  cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  previous-tests:
-    runs-on: ubuntu-latest
-    permissions:
-      actions: read
-    outputs:
-      passed: ${{ steps.lookup.outputs.passed }}
-    steps:
-      - name: 같은 커밋의 테스트 기록 확인
-        id: lookup
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-          # PR 실행 목록은 PR head SHA로 검색하고, 실행 제목으로 실제 병합 SHA를 확인한다.
-          RUN_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
-        run: |
-          if ! runs=$(gh api --paginate --slurp --method GET "repos/$GITHUB_REPOSITORY/actions/runs" \
-            -f head_sha="$RUN_HEAD_SHA" -f event="$GITHUB_EVENT_NAME" -F per_page=100); then
-            echo '::warning::테스트 기록을 조회하지 못해 테스트를 실행합니다.'
-            exit 0
-          fi
-
-          run_ids=$(jq -r --arg sha "$GITHUB_SHA" '
-            .[].workflow_runs[]
-            | (.path | split("@")[0]) as $path
-            | select(
-                if .event == "pull_request" then
-                  $path == ".github/workflows/CI.yml" and .display_title == ("CI " + $sha)
-                else
-                  $path == ".github/workflows/build.yml" or
-                  ($path == ".github/workflows/CI.yml" and .head_branch == "main")
-                end
-              )
-            | .id
-          ' <<< "$runs")
-
-          for run_id in $run_ids; do
-            # 릴리스의 배포물 빌드가 실패해도 성공한 테스트 결과를 재사용한다.
-            if ! jobs=$(gh api --paginate --slurp --method GET "repos/$GITHUB_REPOSITORY/actions/runs/$run_id/jobs" \
-              -f filter=all -F per_page=100); then
-              continue
-            fi
-            if jq -e '
-              [.[].jobs[] | select(.conclusion == "success") | .name | split(" / ") | last]
-              | index("test (windows-latest)") != null and index("test (macos-latest)") != null
-            ' <<< "$jobs" > /dev/null; then
-              echo "커밋 ${GITHUB_SHA}의 Windows·macOS 테스트가 실행 ${run_id}에서 통과했습니다."
-              echo 'passed=true' >> "$GITHUB_OUTPUT"
-              break
-            fi
-          done
-
   test:
     name: test (${{ matrix.os }})
-    needs: previous-tests
-    if: needs.previous-tests.outputs.passed != 'true'
+    # 같은 저장소의 PR 브랜치는 push에서 검사한다.
+    if: >-
+      github.event.deleted != true &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name != github.repository)
     strategy:
       fail-fast: false
       matrix:

@@ -48,7 +48,7 @@ import {
   allViolations,
   describeViolation,
   newViolationClasses,
-  ruleKindsByStudent,
+  rulesByStudent,
   violationsByClass,
   violationsByStudent,
 } from "@/domain/separation";
@@ -84,6 +84,9 @@ import { scrollToStudent, useBoardUi } from "./uiStore";
 export type { ClassSlot };
 
 /** 학생 행 위를 먼저, 없으면 반 카드를 놓을 곳으로 고른다. */
+// 모듈 상수로 둔다: 렌더마다 새 객체를 넘기면 dnd-kit의 센서·컨텍스트가 매번 바뀌어 모든 학생 칸이 다시 그려진다.
+const POINTER_SENSOR_OPTIONS = { activationConstraint: { distance: 6 } };
+
 const collision: CollisionDetection = (args) => {
   const hits = pointerWithin(args);
   const list = hits.length ? hits : rectIntersection(args);
@@ -105,6 +108,7 @@ export function BoardScreen() {
   const canRedo = useWorkspace((s) => s.canRedo);
   const undo = useWorkspace((s) => s.undo);
   const redo = useWorkspace((s) => s.redo);
+  const setHistoryOpen = useWorkspace((s) => s.setHistoryOpen);
   const pendingReadingPrompt = useWorkspace((s) => s.pendingReadingPrompt);
   const setPendingReadingPrompt = useWorkspace((s) => s.setPendingReadingPrompt);
 
@@ -140,7 +144,11 @@ export function BoardScreen() {
       );
     return m;
   }, [violations, nameOf]);
-  const ruleKinds = useMemo(() => ruleKindsByStudent(rules), [rules]);
+  const studentRules = useMemo(() => rulesByStudent(rules), [rules]);
+  const ruleKinds = useMemo(
+    () => new Map(Array.from(studentRules, ([id, related]) => [id, new Set(Array.from(related, (r) => r.kind))])),
+    [studentRules],
+  );
   const noReading = useMemo(
     () => students.filter((s) => hasRomanLetters(s.name) && !cleanReading(s.sortName)).length,
     [students],
@@ -293,7 +301,7 @@ export function BoardScreen() {
   const canSwap = selStudents.length === 2 && selStudents[0].curClass !== selStudents[1].curClass;
 
   // ───────── 드래그 ─────────
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }));
+  const sensors = useSensors(useSensor(PointerSensor, POINTER_SENSOR_OPTIONS));
   const [dragId, setDragId] = useState<number | null>(null);
   const targetOf = (e: DragOverEvent | DragEndEvent) => {
     const from = e.active.data.current as { studentId: number; cls: number } | undefined;
@@ -315,7 +323,7 @@ export function BoardScreen() {
     }
     const overrides = new Map<number, number>([[t.a, t.toCls]]);
     if (t.kind === "swap") overrides.set(t.b, t.fromCls);
-    setPreviewViolation(newViolationClasses(rules, classOf, overrides));
+    setPreviewViolation(newViolationClasses(studentRules, classOf, overrides));
   };
   const onDragEnd = (e: DragEndEvent) => {
     const t = targetOf(e);
@@ -462,11 +470,7 @@ export function BoardScreen() {
           <ToolButton label="통계" active={prefs.statsOpen} onClick={() => setPrefs({ statsOpen: !prefs.statsOpen })}>
             <BarChart3 />
           </ToolButton>
-          <ToolButton
-            label="변경 이력"
-            active={prefs.historyOpen}
-            onClick={() => setPrefs({ historyOpen: !prefs.historyOpen })}
-          >
+          <ToolButton label="변경 이력" active={prefs.historyOpen} onClick={() => setHistoryOpen(!prefs.historyOpen)}>
             <History />
           </ToolButton>
         </GlassGroup>
