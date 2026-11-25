@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { setNumberPreview } from "@/domain/changes";
 import { hasRomanLetters } from "@/domain/normalize";
-import { cleanReading, isHangulOnly } from "@/domain/numbering";
+import { cleanReading, isHangulOnly, MAX_STUDENT_NUMBER } from "@/domain/numbering";
 import { api, errorMessage, type Gap, type Student } from "@/lib/api";
 import { useWorkspace } from "@/store/workspace";
 import { actions, boardState } from "./actions";
@@ -54,12 +54,13 @@ function NumberDialog({ studentId, onClose }: { studentId: number | null; onClos
 function NumberDialogBody({ student, onClose }: { student: Student; onClose: () => void }) {
   const [value, setValue] = useState(String(student.curNumber));
   const n = Number(value);
-  const valid = /^\d+$/.test(value.trim()) && n >= 1;
+  // 상한을 넘는 값은 미리 보기(오류 문구)만 보여 주고 적용하지 않는다.
+  const valid = /^\d{1,9}$/.test(value.trim()) && n >= 1;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const preview = useMemo(() => (valid ? setNumberPreview(boardState(), student.id, n) : null), [student, value]);
 
   const submit = async () => {
-    if (!valid) return;
+    if (!valid || n > MAX_STUDENT_NUMBER) return;
     if (await actions.setNumber(student.id, n)) onClose();
   };
 
@@ -90,6 +91,7 @@ function NumberDialogBody({ student, onClose }: { student: Student; onClose: () 
               id="num"
               autoFocus
               inputMode="numeric"
+              maxLength={9}
               className="w-24 tabular-nums"
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -100,7 +102,7 @@ function NumberDialogBody({ student, onClose }: { student: Student; onClose: () 
             <Button type="button" variant="outline" onClick={onClose}>
               취소
             </Button>
-            <Button type="submit" disabled={!valid || n === student.curNumber}>
+            <Button type="submit" disabled={!valid || n > MAX_STUDENT_NUMBER || n === student.curNumber}>
               적용
             </Button>
           </DialogFooter>

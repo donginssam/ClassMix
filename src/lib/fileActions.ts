@@ -45,6 +45,17 @@ export async function openWorkFilePath(path: string): Promise<boolean> {
   }
 }
 
+/**
+ * 보드에 남은 선택·강조·대화상자를 지운다. 학생 id는 파일마다 1부터 매겨지므로,
+ * 남겨 두면 다음 파일에서 같은 id의 다른 학생이 선택된 것처럼 보인다.
+ */
+function resetBoardUi() {
+  const ui = useBoardUi.getState();
+  ui.closeDialog();
+  ui.clearSelection();
+  ui.setHighlight([]);
+}
+
 function samePath(a: string, b: string) {
   const norm = (p: string) => p.replace(/\\/g, "/").replace(/^\/\/\?\//, "");
   // Windows 경로는 대소문자를 구분하지 않는다.
@@ -70,11 +81,7 @@ export async function openRequestedFile(path: string, opts: { confirm?: boolean 
         { title: "다른 파일 열기", kind: "info", okLabel: "닫고 열기", cancelLabel: "취소" },
       ).catch(() => false));
     if (!ok) return false;
-    // 보드에 남은 선택·대화상자를 지운다(새 파일에는 없는 학생 id일 수 있음).
-    const ui = useBoardUi.getState();
-    ui.closeDialog();
-    ui.clearSelection();
-    ui.setHighlight([]);
+    resetBoardUi();
   }
   return openWorkFilePath(path);
 }
@@ -132,6 +139,7 @@ export async function closeWorkFile(): Promise<void> {
   try {
     await api.closeWorkFile();
   } finally {
+    resetBoardUi();
     await useWorkspace.getState().setWorkspace(null);
   }
 }

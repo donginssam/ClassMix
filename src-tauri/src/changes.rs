@@ -145,6 +145,9 @@ impl ChangeSet {
     }
 }
 
+/// 직접 만드는 빈 번호의 가장 큰 번호(프런트엔드 `MAX_STUDENT_NUMBER`와 같음).
+pub const MAX_MANUAL_GAP_NUMBER: i64 = 99;
+
 fn stale() -> AppError {
     AppError::InvalidInput(
         "화면의 반편성 상태가 파일과 다릅니다. 화면을 새로 고친 뒤 다시 시도해 주세요.".into(),
@@ -234,6 +237,11 @@ fn apply_in_tx(tx: &Transaction, codec: Codec, cs: &ChangeSet, class_count: i64)
                 return Err(AppError::InvalidInput(
                     "빈 번호 값이 잘못되었습니다.".into(),
                 ));
+            }
+            if row.origin == "manual" && row.number > MAX_MANUAL_GAP_NUMBER {
+                return Err(AppError::InvalidInput(format!(
+                    "빈 번호는 {MAX_MANUAL_GAP_NUMBER}번까지만 만들 수 있습니다."
+                )));
             }
             let gid = next_id(tx, "number_gap")?;
             tx.execute(
@@ -578,6 +586,35 @@ mod tests {
         assert!(err.to_string().contains("겹칩니다"));
         assert_eq!(seat(&conn, 1), a);
         assert!(history(&conn, PLAIN, 10).unwrap().is_empty());
+    }
+
+    #[test]
+    fn rejects_manual_gap_above_the_limit() {
+        let (_d, mut conn) = setup();
+        let row = |number| GapRow {
+            number,
+            anchor_key: "x".into(),
+            planned_name: None,
+            origin: "manual".into(),
+            created_at: None,
+        };
+        let before = current_gaps(&conn.transaction().unwrap(), PLAIN, 2).unwrap();
+        let cs = |n| ChangeSet {
+            action: "gap_add".into(),
+            label: "빈 번호".into(),
+            students: vec![],
+            gaps: vec![ClassGaps {
+                class: 2,
+                before: before.clone(),
+                after: [before.clone(), vec![row(n)]].concat(),
+            }],
+            numbering: vec![],
+            readings: vec![],
+        };
+        let err = apply_change(&mut conn, PLAIN, &cs(MAX_MANUAL_GAP_NUMBER + 1)).unwrap_err();
+        assert!(err.to_string().contains("99번까지"));
+        assert!(history(&conn, PLAIN, 10).unwrap().is_empty());
+        apply_change(&mut conn, PLAIN, &cs(MAX_MANUAL_GAP_NUMBER)).unwrap();
     }
 
     #[test]
