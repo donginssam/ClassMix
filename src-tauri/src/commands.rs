@@ -163,7 +163,7 @@ impl AppState {
             .map_err(|_| AppError::Other("내부 잠금 오류".into()))
     }
 
-    /// 열린 파일을 닫는다(동시 열기 표시를 지움).
+    /// 열린 파일을 닫는다.
     pub fn close(&self) {
         if let Ok(mut guard) = self.lock_file() {
             guard.take();
@@ -642,7 +642,7 @@ fn enable_workspace_encryption(
     workspace_info(guard.as_ref().ok_or(AppError::NoOpenFile)?)
 }
 
-/// 교체한 작업 파일을 다시 연다. 다시 열지 못하면 이미 닫힌 상태이므로
+/// 작업 파일을 다시 연다. 교체에 실패했을 때도 원래 파일을 다시 열기 위해 호출한다. 다시 열지 못하면 이미 닫힌 상태이므로
 /// 프런트엔드가 화면을 정리하도록 `FileClosed`로 알린다.
 fn reopen_after_replace(path: PathBuf, replaced: bool) -> AppResult<WorkFile> {
     db::open_existing(&path)
