@@ -9,7 +9,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager};
 
 use crate::error::AppResult;
-use crate::paths::file_name;
+use crate::paths::{StagedFile, file_name};
 
 const MAX_RECENT: usize = 10;
 
@@ -38,14 +38,7 @@ pub struct RecentFile {
 
 #[cfg(windows)]
 fn dir_is_writable(dir: &Path) -> bool {
-    let probe = dir.join(".classmix_write_test");
-    match std::fs::write(&probe, b"") {
-        Ok(()) => {
-            let _ = std::fs::remove_file(&probe);
-            true
-        }
-        Err(_) => false,
-    }
+    StagedFile::new(&dir.join("ClassMix.settings.json")).is_ok()
 }
 
 pub fn settings_path(app: &AppHandle) -> PathBuf {
@@ -76,14 +69,11 @@ pub fn save_to(path: &Path, settings: &Settings) -> AppResult<()> {
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;
     }
-    let json = serde_json::to_string_pretty(settings)
-        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
     // 임시 파일에 다 쓴 뒤 바꿔 넣는다: 쓰다가 멈춰도 기존 설정 파일이 깨지지 않는다.
-    let tmp = crate::db::temp_path_for(path);
-    std::fs::write(&tmp, json).inspect_err(|_| {
-        let _ = std::fs::remove_file(&tmp);
-    })?;
-    crate::db::replace_with(&tmp, path)
+    let mut staged = StagedFile::new(path)?;
+    serde_json::to_writer_pretty(staged.writer(), settings)
+        .map_err(|e| crate::error::AppError::Other(e.to_string()))?;
+    staged.publish()
 }
 
 pub fn push_recent(settings: &mut Settings, path: &Path) {

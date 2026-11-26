@@ -25,6 +25,9 @@ pub enum AppError {
     WrongPassword,
     #[error("암호화 처리 중 오류가 발생했습니다: {0}")]
     Crypto(String),
+    /// 처리 도중 작업 파일을 닫아야 했다. 프런트엔드는 열린 파일 화면을 정리한다.
+    #[error("{0}")]
+    FileClosed(String),
     #[error("{0}")]
     Other(String),
 }
@@ -60,6 +63,7 @@ impl AppError {
             AppError::Locked => "locked",
             AppError::WrongPassword => "wrong_password",
             AppError::Crypto(_) => "crypto",
+            AppError::FileClosed(_) => "file_closed",
             AppError::Other(_) => "other",
         }
     }

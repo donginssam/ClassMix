@@ -6,7 +6,7 @@ import { parsePdfPages, type PdfParseResult } from "@/domain/pdfTable";
 
 pdfjs.GlobalWorkerOptions.workerSrc = workerUrl;
 
-export async function parsePdf(data: Uint8Array): Promise<PdfParseResult> {
-  const pages = await extractPdfPages(pdfjs as never, data);
+export async function parsePdf(data: Uint8Array, signal?: AbortSignal): Promise<PdfParseResult> {
+  const pages = await extractPdfPages(pdfjs as never, data, signal);
   return parsePdfPages(pages);
 }

@@ -36,12 +36,12 @@ aes-gcm = { version = "0.11", features = ["zeroize"] }
 base64 = "0.23"
 zeroize = "1.9"
 getrandom = "0.4"
+tempfile = "3"
+zip = { version = "9.8.2", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.56"
-
-[dev-dependencies]
-tempfile = "3"
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
 
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]

@@ -13,7 +13,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { EncryptionMode } from "@/features/board/uiStore";
-import { api, errorMessage, type WorkspaceInfo } from "@/lib/api";
+import { api, errorCode, errorMessage, type WorkspaceInfo } from "@/lib/api";
+import { closeWorkFile } from "@/lib/fileActions";
 import { useWorkspace } from "@/store/workspace";
 
 /** Rust `crypto::MIN_PASSWORD_LEN`과 같은 값 */
@@ -46,6 +47,14 @@ function useSubmit(action: () => Promise<WorkspaceInfo>, success: [string, strin
     try {
       ws = await action();
     } catch (e) {
+      if (errorCode(e) === "file_closed") {
+        // 처리 도중 작업 파일이 닫혔다. 대화상자와 편성표 화면을 정리하고 다시 열도록 안내한다.
+        setBusy(false);
+        onDone();
+        toast.error("작업 파일을 닫았습니다.", { description: errorMessage(e) });
+        await closeWorkFile();
+        return;
+      }
       // 비밀번호가 틀린 경우 등: 대화상자에 그대로 보여 준다.
       setError(errorMessage(e));
       setBusy(false);
@@ -86,6 +95,7 @@ function EnableBody({ onDone }: { onDone: () => void }) {
           <span className="text-foreground">
             이름 · 진급반번호 · 생년월일 · 기준성적 · 메모 · 변경 이력 · 분리 규칙 사유
           </span>
+          <span>현재·원래 반과 번호, 성별, 원본 파일 이름은 평문으로 저장됩니다.</span>
         </DialogDescription>
       </DialogHeader>
       <form
@@ -214,7 +224,7 @@ function ChangeBody({ onDone }: { onDone: () => void }) {
       <DialogHeader>
         <DialogTitle>작업 파일 암호 변경하기</DialogTitle>
         <DialogDescription className="grid gap-1">
-          <span>현재 비밀번호를 확인한 뒤, 새 비밀번호로 모든 자료를 다시 암호화합니다.</span>
+          <span>현재 비밀번호를 확인한 뒤, 보호된 자료를 새 비밀번호로 다시 암호화합니다.</span>
           <span>새 비밀번호도 잊으면 파일을 다시 열 수 없습니다.</span>
         </DialogDescription>
       </DialogHeader>

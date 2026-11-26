@@ -15,15 +15,20 @@ use crate::db::{self, FILE_EXTENSION};
 use crate::error::{AppError, AppResult};
 use crate::export::{self, ExportReport};
 use crate::os_integration::{self, AssociationStatus};
-use crate::paths::{ensure_extension, file_name, has_extension, is_same_file};
+use crate::paths::{
+    StagedFile, ensure_extension, file_name, has_extension, is_same_file, read_document,
+};
 use crate::roster::{self, PdfApplyReport, PdfLink, PdfRowInput};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
 
 static NEXT_ROSTER_GENERATION: AtomicU64 = AtomicU64::new(1);
+const MAX_PDF_BYTES: u64 = 64 * 1024 * 1024;
+const MAX_PDF_ROWS: usize = 10_000;
 
 pub struct WorkFile {
     pub path: PathBuf,
+    file_identity: same_file::Handle,
     pub conn: Connection,
     pub read_only: bool,
     /// 암호가 걸린 파일인지(meta에 salt가 있음)
@@ -39,8 +44,10 @@ pub struct WorkFile {
 impl WorkFile {
     fn new(path: PathBuf, conn: Connection, read_only: bool) -> AppResult<Self> {
         let encrypted = crypto::header(&conn)?.is_some();
+        let file_identity = same_file::Handle::from_path(&path)?;
         Ok(Self {
             path,
+            file_identity,
             conn,
             read_only,
             encrypted,
@@ -203,11 +210,17 @@ pub struct WorkspaceInfo {
 
 fn workspace_info(wf: &WorkFile) -> AppResult<WorkspaceInfo> {
     let c = &wf.conn;
-    let (title, target_grade, class_count, created_at, updated_at) = c.query_row(
+    let (title, target_grade, class_count, created_at, updated_at): (_, _, Option<i64>, _, _) = c
+        .query_row(
         "SELECT title, target_grade, class_count, created_at, updated_at FROM meta WHERE id = 1",
         [],
         |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)),
     )?;
+    if class_count.is_some_and(|n| !(1..=xlsx_import::MAX_CLASS_COUNT).contains(&n)) {
+        return Err(AppError::InvalidInput(
+            "작업 파일의 반 수가 지원 범위를 벗어났습니다.".into(),
+        ));
+    }
     let student_count = c.query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))?;
     let source = |kind: &str| -> AppResult<Option<String>> {
         let mut stmt = c.prepare(
@@ -289,6 +302,8 @@ pub async fn open_work_file(
     let path = PathBuf::from(path);
     // 새 파일을 먼저 열어 본 뒤에 지금 파일을 닫는다(ClassMix 파일이 아니거나 못 열면 지금 파일을 그대로 둔다).
     let (conn, outcome) = db::open_existing(&path)?;
+    let wf = WorkFile::new(path.clone(), conn, outcome.read_only)?;
+    let workspace = workspace_info(&wf)?;
     state.close();
     let mut warnings = Vec::new();
     if outcome.newer_version {
@@ -302,20 +317,19 @@ pub async fn open_work_file(
     }
     if !outcome.read_only {
         let opened_by: Option<String> =
-            conn.query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?;
+            wf.conn
+                .query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?;
         let me = host_name();
         if let Some(other) = opened_by.filter(|h| *h != me) {
             warnings.push(format!(
                 "이 파일이 다른 PC({other})에서 열려 있거나, 그 PC에서 제대로 닫히지 않았습니다. 두 곳에서 동시에 고치면 변경 내용이 섞일 수 있습니다."
             ));
         }
-        conn.execute(
+        wf.conn.execute(
             "UPDATE meta SET opened_by = ?1, opened_at = ?2 WHERE id = 1",
             params![me, db::now()],
         )?;
     }
-    let wf = WorkFile::new(path.clone(), conn, outcome.read_only)?;
-    let workspace = workspace_info(&wf)?;
     *state.lock_file()? = Some(wf);
     remember(&app, &path);
     Ok(OpenResult {
@@ -443,7 +457,7 @@ pub struct ImportXlsxResult {
 pub async fn import_xlsx(state: State<'_, AppState>, path: String) -> AppResult<ImportXlsxResult> {
     let src = PathBuf::from(&path);
     let file_name = file_name(&src);
-    let bytes = std::fs::read(&src)?;
+    let bytes = xlsx_import::read_xlsx_file(&src)?;
     let plan = xlsx_import::plan_import(&file_name, xlsx_import::parse_roster_bytes(&bytes)?)?;
     state.with_writable(|wf| {
         xlsx_import::apply_import(&mut wf.conn, codec!(wf), &file_name, &bytes, &plan)?;
@@ -457,11 +471,14 @@ pub async fn import_xlsx(state: State<'_, AppState>, path: String) -> AppResult<
 /// PDF 파일 내용을 그대로 돌려준다(프런트엔드에서 pdf.js로 파싱).
 #[tauri::command]
 pub async fn read_pdf_file(path: String) -> AppResult<tauri::ipc::Response> {
-    let p = PathBuf::from(&path);
-    if !has_extension(&p, "pdf") {
+    Ok(tauri::ipc::Response::new(read_pdf(Path::new(&path))?))
+}
+
+fn read_pdf(path: &Path) -> AppResult<Vec<u8>> {
+    if !has_extension(path, "pdf") {
         return Err(AppError::InvalidInput("PDF 파일이 아닙니다.".into()));
     }
-    Ok(tauri::ipc::Response::new(std::fs::read(p)?))
+    read_document(path, MAX_PDF_BYTES, "PDF")
 }
 
 #[tauri::command]
@@ -471,9 +488,14 @@ pub async fn apply_pdf_mapping(
     rows: Vec<PdfRowInput>,
     links: Vec<PdfLink>,
 ) -> AppResult<PdfApplyReport> {
+    if rows.len() > MAX_PDF_ROWS || links.len() > rows.len() {
+        return Err(AppError::InvalidInput(
+            "반영할 PDF 학생 행 또는 연결이 너무 많습니다.".into(),
+        ));
+    }
     let src = PathBuf::from(&path);
     let file_name = file_name(&src);
-    let bytes = std::fs::read(&src)?;
+    let bytes = read_pdf(&src)?;
     state.with_writable(|wf| {
         roster::apply_pdf(&mut wf.conn, codec!(wf), &file_name, &bytes, &rows, &links)
     })
@@ -587,20 +609,89 @@ pub async fn enable_encryption(
     state: State<'_, AppState>,
     password: String,
 ) -> AppResult<WorkspaceInfo> {
-    let path = state.with_writable(|wf| {
+    let (path, generation) = state.with_file(|wf| {
+        if wf.read_only {
+            return Err(AppError::ReadOnly);
+        }
         if wf.encrypted {
             return Err(AppError::InvalidInput("이미 암호가 걸려 있습니다.".into()));
         }
-        Ok(wf.path.clone())
+        Ok((wf.path.clone(), wf.roster_generation))
     })?;
     let (salt, cipher) = crypto::prepare_new_key(&password)?;
-    state.with_writable(|wf| {
-        same_file(wf, &path)?;
-        crypto::enable(&mut wf.conn, &salt, &cipher)?;
-        wf.encrypted = true;
-        wf.cipher = Some(cipher);
-        workspace_info(wf)
-    })
+    enable_workspace_encryption(&state, path, generation, &salt, cipher)
+}
+
+fn enable_workspace_encryption(
+    state: &AppState,
+    path: PathBuf,
+    generation: u64,
+    salt: &[u8],
+    cipher: Cipher,
+) -> AppResult<WorkspaceInfo> {
+    let mut guard = state.lock_file()?;
+    let wf = guard.as_ref().ok_or(AppError::NoOpenFile)?;
+    same_file(wf, &path)?;
+    if wf.roster_generation != generation || wf.encrypted || wf.read_only {
+        return Err(AppError::InvalidInput(
+            "작업 중 파일이 바뀌었습니다. 다시 시도해 주세요.".into(),
+        ));
+    }
+    if wf.file_identity != same_file::Handle::from_path(&path)? {
+        return Err(workspace_changed_externally());
+    }
+    let data_version = || {
+        wf.conn
+            .query_row("PRAGMA data_version", [], |r| r.get::<_, i64>(0))
+    };
+    let version = data_version()?;
+    let staged = StagedFile::new(&path)?;
+    crypto::stage_encryption(&wf.conn, &staged, salt, &cipher)?;
+    if data_version()? != version || wf.file_identity != same_file::Handle::from_path(&path)? {
+        return Err(workspace_changed_externally());
+    }
+
+    // Windows에서는 열린 DB를 교체할 수 없다. 실패하면 기존 파일에 다시 연결한다.
+    drop(guard.take());
+    let published = staged.publish();
+    let mut next = reopen_after_replace(path, published.is_ok())?;
+    let verification = if published.is_ok() {
+        crypto::verify_key(&next.conn, &cipher)
+    } else {
+        Ok(false)
+    };
+    if matches!(verification, Ok(true)) {
+        next.cipher = Some(cipher);
+    }
+    *guard = Some(next);
+    published?;
+    if !verification? {
+        return Err(AppError::Crypto(
+            "저장한 파일의 비밀번호를 확인하지 못했습니다. 다시 열어 주세요.".into(),
+        ));
+    }
+    workspace_info(guard.as_ref().ok_or(AppError::NoOpenFile)?)
+}
+
+/// 교체한(또는 교체하지 못한) 작업 파일을 다시 연다. 다시 열지 못하면 이미 닫힌 상태이므로
+/// 프런트엔드가 화면을 정리하도록 `FileClosed`로 알린다.
+fn reopen_after_replace(path: PathBuf, replaced: bool) -> AppResult<WorkFile> {
+    db::open_existing(&path)
+        .and_then(|(conn, outcome)| WorkFile::new(path, conn, outcome.read_only))
+        .map_err(|e| {
+            let done = if replaced {
+                "암호는 설정되었지만"
+            } else {
+                "암호를 설정하지 못했고"
+            };
+            AppError::FileClosed(format!(
+                "{done} 작업 파일을 다시 열지 못해 닫았습니다. 파일을 다시 열어 주세요. ({e})"
+            ))
+        })
+}
+
+fn workspace_changed_externally() -> AppError {
+    AppError::InvalidInput("다른 곳에서 작업 파일이 바뀌었습니다. 다시 열어 주세요.".into())
 }
 
 /// 암호 해제: 비밀번호를 다시 확인한 뒤 모든 대상 칸을 한꺼번에 복호화한다.
@@ -735,6 +826,43 @@ mod tests {
     }
 
     const TEST_PASSWORD: &str = "교무실-비밀번호-2026";
+
+    #[test]
+    fn failed_reopen_after_replace_reports_a_closed_file() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("사라진 파일.mix");
+        let Err(AppError::FileClosed(message)) = reopen_after_replace(missing.clone(), true) else {
+            panic!("다시 열지 못하면 닫힌 파일로 알려야 합니다.");
+        };
+        assert!(message.contains("암호는 설정되었지만"), "{message}");
+        let Err(err) = reopen_after_replace(missing, false) else {
+            panic!("다시 열지 못하면 오류여야 합니다.");
+        };
+        assert_eq!(err.code(), "file_closed");
+        assert!(err.to_string().contains("암호를 설정하지 못했고"));
+    }
+
+    #[test]
+    fn enabling_workspace_encryption_keeps_the_work_file_open() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("새 작업.mix");
+        let conn = db::create_new(&path, "새 작업").unwrap();
+        let wf = WorkFile::new(path.clone(), conn, false).unwrap();
+        let generation = wf.roster_generation;
+        let state = AppState {
+            file: Mutex::new(Some(wf)),
+            ..AppState::default()
+        };
+        let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
+        let info =
+            enable_workspace_encryption(&state, path.clone(), generation, &salt, cipher).unwrap();
+        assert!(info.encrypted && !info.locked);
+        assert_eq!(info.title, "새 작업");
+        state.close();
+
+        let (conn, _) = db::open_existing(&path).unwrap();
+        assert!(WorkFile::new(path, conn, false).unwrap().locked());
+    }
 
     #[test]
     fn workspace_snapshot_reads_history_details_only_when_requested() {

@@ -211,6 +211,11 @@ export interface AppErrorPayload {
   message: string;
 }
 
+export function errorCode(e: unknown): string | undefined {
+  if (e && typeof e === "object" && "code" in e) return String((e as AppErrorPayload).code);
+  return undefined;
+}
+
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) return String((e as AppErrorPayload).message);
   return String(e);

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { AlertTriangle, FileText, Link2Off, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -50,12 +50,19 @@ export function PdfImportDialog({
   const students = useWorkspace((s) => s.students);
   const refresh = useWorkspace((s) => s.refresh);
   const [stage, setStage] = useState<Stage>({ kind: "pick" });
+  const parsing = useRef<AbortController | null>(null);
+  useEffect(() => () => parsing.current?.abort(), []);
 
   const load = async (path: string) => {
+    parsing.current?.abort();
+    const controller = new AbortController();
+    parsing.current = controller;
     setStage({ kind: "parsing", path });
     try {
       const { parsePdf } = await import("@/lib/pdf");
-      const parsed = await parsePdf(await api.readPdfFile(path));
+      controller.signal.throwIfAborted();
+      const parsed = await parsePdf(await api.readPdfFile(path), controller.signal);
+      controller.signal.throwIfAborted();
       if (parsed.rows.length === 0) {
         setStage({ kind: "pick", error: parsed.problems.join(" ") || "PDF에서 학생 행을 찾지 못했습니다." });
         return;
@@ -63,7 +70,11 @@ export function PdfImportDialog({
       const match = matchPdfRows(parsed.rows, students);
       setStage({ kind: "review", path, parsed, match });
     } catch (e) {
-      setStage({ kind: "pick", error: `PDF를 읽지 못했습니다. ${errorMessage(e)}` });
+      if (!controller.signal.aborted) {
+        setStage({ kind: "pick", error: `PDF를 읽지 못했습니다. ${errorMessage(e)}` });
+      }
+    } finally {
+      if (parsing.current === controller) parsing.current = null;
     }
   };
 
@@ -80,7 +91,8 @@ export function PdfImportDialog({
   const samples = useDevSamples();
 
   const close = (o: boolean) => {
-    if (!o && stage.kind !== "applying" && stage.kind !== "parsing") {
+    if (!o && stage.kind !== "applying") {
+      parsing.current?.abort();
       onOpenChange(false);
       setStage({ kind: "pick" });
     }
@@ -158,6 +170,17 @@ export function PdfImportDialog({
           <div className="flex flex-col items-center gap-3 py-16 text-sm text-muted-foreground">
             <Loader2 className="size-8 animate-spin" />
             {stage.kind === "parsing" ? "PDF 표를 읽는 중…" : "작업 파일에 반영하는 중…"}
+            {stage.kind === "parsing" && (
+              <Button
+                variant="outline"
+                onClick={() => {
+                  parsing.current?.abort();
+                  setStage({ kind: "pick" });
+                }}
+              >
+                읽기 취소
+              </Button>
+            )}
           </div>
         )}
 

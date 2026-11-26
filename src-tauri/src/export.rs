@@ -5,16 +5,16 @@
 //! 저장한 뒤 같은 파일을 다시 읽어 행 수·학번·반·번호가 맞는지 확인한다(왕복 검증).
 
 use std::collections::{HashMap, HashSet};
-use std::io::Cursor;
+use std::io::Read;
 use std::path::Path;
 
 use rusqlite::{Connection, params};
 use serde::Serialize;
 
 use crate::crypto::Codec;
-use crate::db::temp_path_for;
 use crate::error::{AppError, AppResult};
-use crate::xlsx_import::{header_columns, parse_roster};
+use crate::paths::StagedFile;
+use crate::xlsx_import::{MAX_XLSX_BYTES, header_columns, load_workbook, parse_roster_bytes};
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -98,14 +98,28 @@ fn check_blocking(conn: &Connection, seats: &[Seat]) -> AppResult<()> {
     Ok(())
 }
 
+/// 저장된 원본 XLSX 칸의 최대 길이. 암호화된 값은 `<nonce_b64>:<암호문_b64>`이므로
+/// 평문 한도(+태그 16바이트)를 base64로 늘린 길이에 nonce(16자)와 `:`를 더한다.
+const MAX_STORED_XLSX_LEN: u64 = (MAX_XLSX_BYTES + 16).div_ceil(3) * 4 + 17;
+
 fn template(conn: &Connection, codec: Codec) -> AppResult<Vec<u8>> {
-    let (id, raw): (i64, rusqlite::types::Value) = conn
+    // 내용을 메모리로 읽기 전에 SQL에서 길이부터 확인한다.
+    let (id, len): (i64, i64) = conn
         .query_row(
-            "SELECT id, content FROM source_file WHERE kind = 'xlsx' ORDER BY id DESC LIMIT 1",
+            "SELECT id, length(content) FROM source_file WHERE kind = 'xlsx' ORDER BY id DESC LIMIT 1",
             [],
             |r| Ok((r.get(0)?, r.get(1)?)),
         )
         .map_err(|_| AppError::InvalidInput("작업 파일에 원본 XLSX가 없습니다.".into()))?;
+    if u64::try_from(len).map_or(true, |len| len > MAX_STORED_XLSX_LEN) {
+        return Err(AppError::InvalidXlsx(
+            "작업 파일에 저장된 원본 XLSX가 지원 크기를 넘습니다.".into(),
+        ));
+    }
+    let raw: rusqlite::types::Value =
+        conn.query_row("SELECT content FROM source_file WHERE id = ?1", [id], |r| {
+            r.get(0)
+        })?;
     codec.get_blob("source_file.content", id, raw)
 }
 
@@ -114,8 +128,7 @@ pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<Ex
     check_blocking(conn, &seats)?;
     let bytes = template(conn, codec)?;
 
-    let mut book = umya_spreadsheet::reader::xlsx::read_reader(Cursor::new(bytes), true)
-        .map_err(|e| AppError::Xlsx(e.to_string()))?;
+    let mut book = load_workbook(&bytes)?;
     let sheet = book
         .sheet_mut(0)
         .map_err(|e| AppError::Xlsx(e.to_string()))?;
@@ -162,15 +175,19 @@ pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<Ex
     }
 
     // 3) 임시 파일에 쓴 뒤 바꿔치기(쓰다가 실패해도 기존 파일이 깨지지 않게)
-    let tmp = temp_path_for(path);
-    umya_spreadsheet::writer::xlsx::write(&book, &tmp).map_err(|e| {
-        let _ = std::fs::remove_file(&tmp);
-        AppError::Xlsx(format!("저장하지 못했습니다: {e}"))
-    })?;
+    let mut staged = StagedFile::new(path)?;
+    umya_spreadsheet::writer::xlsx::write_writer(&book, staged.writer())
+        .map_err(|e| AppError::Xlsx(format!("저장하지 못했습니다: {e}")))?;
+    drop(book);
 
     // 4) 왕복 검증
     let verify = || -> AppResult<()> {
-        let rows = parse_roster(&tmp)?;
+        let mut output = Vec::new();
+        staged
+            .reopen()?
+            .take(MAX_XLSX_BYTES + 1)
+            .read_to_end(&mut output)?;
+        let rows = parse_roster_bytes(&output)?;
         if rows.len() != seats.len() {
             return Err(AppError::Other(format!(
                 "왕복 검증 실패: 행 수가 다릅니다(파일 {} / 학생 {}).",
@@ -201,13 +218,8 @@ pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<Ex
         }
         Ok(())
     };
-    if let Err(e) = verify() {
-        let _ = std::fs::remove_file(&tmp);
-        return Err(e);
-    }
-    std::fs::rename(&tmp, path).inspect_err(|_| {
-        let _ = std::fs::remove_file(&tmp);
-    })?;
+    verify()?;
+    staged.publish()?;
 
     conn.execute(
         "UPDATE meta SET updated_at = ?1 WHERE id = 1",
@@ -230,7 +242,7 @@ mod tests {
     use super::*;
     use crate::changes::{self, ChangeSet, NumberingChange, Seat as S, StudentMove};
     use crate::crypto::PLAIN;
-    use crate::xlsx_import::{apply_import, plan_import};
+    use crate::xlsx_import::{apply_import, parse_roster, plan_import};
 
     fn fixture() -> std::path::PathBuf {
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx")
@@ -252,13 +264,28 @@ mod tests {
     }
 
     #[test]
+    fn oversized_stored_source_is_rejected_before_reading() {
+        let (dir, conn) = setup();
+        conn.execute(
+            "UPDATE source_file SET content = zeroblob(?1) WHERE kind = 'xlsx'",
+            [MAX_STORED_XLSX_LEN as i64 + 1],
+        )
+        .unwrap();
+        let out = dir.path().join("큰 원본.xlsx");
+        let Err(AppError::InvalidXlsx(message)) = export_xlsx(&conn, PLAIN, &out) else {
+            panic!("저장된 원본이 너무 크면 거부해야 합니다.");
+        };
+        assert!(message.contains("지원 크기"));
+        assert!(!out.exists());
+    }
+
+    #[test]
     fn unchanged_export_matches_original() {
         let (dir, conn) = setup();
         let out = dir.path().join("한글 폴더/업로드.xlsx");
         std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let rep = export_xlsx(&conn, PLAIN, &out).unwrap();
         assert_eq!((rep.rows, rep.changed_students), (240, 0));
-        assert!(!temp_path_for(&out).exists());
 
         let orig: Vec<_> = parse_roster(&fixture())
             .unwrap()

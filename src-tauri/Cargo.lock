@@ -601,8 +601,10 @@ dependencies = [
  "tempfile",
  "thiserror 2.0.21",
  "umya-spreadsheet",
+ "windows-sys 0.61.2",
  "winreg",
  "zeroize",
+ "zip",
 ]
 
 [[package]]

@@ -6,22 +6,22 @@
 //!   `<nonce_b64>:<ciphertext_b64>`(암호문 끝에 인증 태그 16바이트 포함)로 저장한다.
 //!   nonce는 값마다 새로 뽑은 96비트 난수이고, `표.열#행id`를 추가 인증 데이터(AAD)로 묶어
 //!   암호문을 다른 칸으로 옮기거나 다른 학생(행)과 맞바꾸면 복호화가 실패한다.
-//! - 평문으로 두는 것: ID·연결(외래 키), 반·번호 자리, 성별, 종류·상태 값, 시각. 이름이 없으면
-//!   개인을 알 수 없는 값이고, 중복 번호 검사·정렬을 SQL에서 하기 위해서다.
-//! - 설정/해제: 한 트랜잭션에서 모든 대상 칸을 한꺼번에 바꾼 뒤 VACUUM 해 지워진 평문 조각이
-//!   파일에 남지 않게 한다.
+//! - 평문으로 두는 것: ID·연결(외래 키), 반·번호 자리, 성별, 종류·상태 값, 시각.
+//! - 암호 설정은 새 v1 DB에 선택된 값을 암호화해 기록한다. 해제와 변경은 기존 암호화 값을 다시 쓴다.
 
 use aes_gcm::Aes256Gcm;
 use aes_gcm::aead::{Aead, KeyInit, Nonce, Payload};
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD as B64;
 use rusqlite::types::Value;
-use rusqlite::{Connection, params};
+use rusqlite::{Connection, Transaction, TransactionBehavior, params};
 use zeroize::Zeroizing;
 
+use crate::db;
 use crate::error::{AppError, AppResult};
+use crate::paths::StagedFile;
 
-/// PBKDF2 반복 횟수(OWASP 권장값). 파일마다 meta에 저장하므로 나중에 올려도 기존 파일은 그대로 열린다.
+/// v1 작업 파일이 사용하는 PBKDF2 반복 횟수.
 pub const PBKDF2_ROUNDS: u32 = 600_000;
 const SALT_LEN: usize = 16;
 const NONCE_LEN: usize = 12;
@@ -304,14 +304,7 @@ fn recode_all(conn: &Connection, from: Codec, to: Codec) -> AppResult<()> {
             let mut out: Vec<Value> = Vec::with_capacity(cols.len() + 1);
             for ((col, kind), v) in cols.iter().zip(vals) {
                 let c = format!("{table}.{col}");
-                out.push(match kind {
-                    Kind::Text => to.opt_text(&c, id, from.get_opt_text(&c, id, v)?.as_deref())?,
-                    Kind::Int => to.opt_int(&c, id, from.get_opt_int(&c, id, v)?)?,
-                    Kind::Blob => match v {
-                        Value::Null => Value::Null,
-                        v => to.blob(&c, id, &from.get_blob(&c, id, v)?)?,
-                    },
-                });
+                out.push(recode_value(from, to, &c, id, *kind, v)?);
             }
             out.push(Value::Integer(id));
             stmt.execute(rusqlite::params_from_iter(out))?;
@@ -320,45 +313,77 @@ fn recode_all(conn: &Connection, from: Codec, to: Codec) -> AppResult<()> {
     Ok(())
 }
 
+fn recode_value(
+    from: Codec,
+    to: Codec,
+    col: &str,
+    id: i64,
+    kind: Kind,
+    value: Value,
+) -> AppResult<Value> {
+    match kind {
+        Kind::Text => to.opt_text(col, id, from.get_opt_text(col, id, value)?.as_deref()),
+        Kind::Int => to.opt_int(col, id, from.get_opt_int(col, id, value)?),
+        Kind::Blob => match value {
+            Value::Null => Ok(Value::Null),
+            value => to.blob(col, id, &from.get_blob(col, id, value)?),
+        },
+    }
+}
+
 // ───────────── 파일 단위 동작 ─────────────
 
 /// meta에 저장된 암호화 설정. 암호화하지 않은 파일이면 None.
 pub struct Header {
     salt: Vec<u8>,
-    rounds: u32,
     check: String,
 }
 
 pub fn header(conn: &Connection) -> AppResult<Option<Header>> {
-    let (salt, rounds, check): (Option<String>, Option<i64>, Option<String>) = conn.query_row(
-        "SELECT enc_salt, enc_iterations, enc_check FROM meta WHERE id = 1",
-        [],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
-    )?;
+    let mut stmt =
+        conn.prepare("SELECT enc_salt, enc_iterations, enc_check FROM meta WHERE id = 1")?;
+    let mut rows = stmt.query([])?;
+    let row = rows.next()?.ok_or(AppError::NotClassMixFile)?;
+    let invalid =
+        || AppError::Crypto("v1 암호화 설정이 손상되었거나 지원 범위를 벗어났습니다.".into());
+    let salt = row.get_ref(0)?.as_str_or_null().map_err(|_| invalid())?;
+    let rounds = row.get_ref(1)?.as_i64_or_null().map_err(|_| invalid())?;
+    let check = row.get_ref(2)?.as_str_or_null().map_err(|_| invalid())?;
     match (salt, rounds, check) {
         (None, None, None) => Ok(None),
-        (Some(s), Some(n), Some(c)) => Ok(Some(Header {
-            salt: B64
-                .decode(s)
-                .map_err(|_| AppError::Crypto("salt 형식 오류".into()))?,
-            rounds: u32::try_from(n)
-                .ok()
-                .filter(|n| *n > 0)
-                .ok_or_else(|| AppError::Crypto("반복 횟수 오류".into()))?,
-            check: c,
-        })),
-        _ => Err(AppError::Crypto("암호화 설정이 손상되었습니다.".into())),
+        (Some(salt), Some(rounds), Some(check)) if rounds == i64::from(PBKDF2_ROUNDS) => {
+            let (nonce, ciphertext) = check.split_once(':').ok_or_else(invalid)?;
+            let valid_b64 = |s: &str, len: usize| {
+                s.len() == len.div_ceil(3) * 4
+                    && B64.decode(s).is_ok_and(|bytes| bytes.len() == len)
+            };
+            if !valid_b64(salt, SALT_LEN)
+                || !valid_b64(nonce, NONCE_LEN)
+                || !valid_b64(ciphertext, CHECK_TEXT.len() + 16)
+            {
+                return Err(invalid());
+            }
+            Ok(Some(Header {
+                salt: B64.decode(salt).map_err(|_| invalid())?,
+                check: check.to_owned(),
+            }))
+        }
+        _ => Err(invalid()),
     }
 }
 
 /// 비밀번호로 키를 만들고 확인한다. 키 계산은 수백 밀리초가 걸리므로 DB 잠금 밖에서 부른다.
 pub fn unlock(header: &Header, password: &str) -> AppResult<Cipher> {
-    let cipher = Cipher::derive(password, &header.salt, header.rounds)?;
+    let cipher = Cipher::derive(password, &header.salt, PBKDF2_ROUNDS)?;
     if cipher.verify(&header.check) {
         Ok(cipher)
     } else {
         Err(AppError::WrongPassword)
     }
+}
+
+pub fn verify_key(conn: &Connection, cipher: &Cipher) -> AppResult<bool> {
+    Ok(header(conn)?.is_some_and(|header| cipher.verify(&header.check)))
 }
 
 /// 새 salt로 키를 만든다(암호화 켜기 전, DB 잠금 밖에서).
@@ -394,17 +419,106 @@ fn vacuum_after_commit(conn: &Connection) {
     }
 }
 
-/// 암호화 켜기: 모든 대상 칸을 한꺼번에 암호화하고 salt·확인 토큰을 meta에 남긴 뒤 VACUUM.
+/// 앱이 만든 새 DB에만 암호화된 레코드를 기록한다. 원본을 읽는 동안 스키마와 데이터를 고정한다.
+pub fn stage_encryption(
+    conn: &Connection,
+    staged: &StagedFile,
+    salt: &[u8],
+    cipher: &Cipher,
+) -> AppResult<()> {
+    let source = Transaction::new_unchecked(conn, TransactionBehavior::Immediate)?;
+    db::validate_schema(&source)?;
+    if header(&source)?.is_some() {
+        return Err(AppError::InvalidInput("이미 암호가 걸려 있습니다.".into()));
+    }
+
+    let mut target = db::empty_database(staged)?;
+    let tx = target.transaction()?;
+    tx.pragma_update(None, "defer_foreign_keys", "ON")?;
+    let tables: Vec<String> = {
+        let mut stmt =
+            tx.prepare("SELECT name FROM main.sqlite_schema WHERE type = 'table' ORDER BY name")?;
+        stmt.query_map([], |row| row.get(0))?
+            .collect::<Result<_, _>>()?
+    };
+    for table in tables {
+        copy_encrypted_rows(&source, &tx, &table, Codec(Some(cipher)))?;
+    }
+    set_encryption_header(&tx, salt, cipher)?;
+    tx.commit()?;
+    db::validate_schema(&target)?;
+    let integrity: String = target.query_row("PRAGMA quick_check(1)", [], |r| r.get(0))?;
+    if integrity != "ok" || !header(&target)?.is_some_and(|h| cipher.verify(&h.check)) {
+        return Err(AppError::Crypto(
+            "새로 암호화한 작업 파일을 확인하지 못했습니다.".into(),
+        ));
+    }
+    source.commit()?;
+    Ok(())
+}
+
+fn copy_encrypted_rows(
+    source: &Connection,
+    target: &Connection,
+    table: &str,
+    codec: Codec,
+) -> AppResult<()> {
+    // 표 이름은 앱이 만든 스키마에서만 가져온다. 원본의 테이블 구조는 이미 일치 여부를 검사했다.
+    let mut select = source.prepare(&format!("SELECT * FROM main.\"{table}\""))?;
+    let encrypted_columns = ENCRYPTED.iter().find(|(name, _)| *name == table);
+    let id_column = encrypted_columns
+        .map(|_| select.column_index("id"))
+        .transpose()?;
+    let columns: Vec<Option<(String, Kind)>> = select
+        .column_names()
+        .map(|col| {
+            encrypted_columns
+                .and_then(|(_, encrypted)| encrypted.iter().find(|(name, _)| *name == col))
+                .map(|(_, kind)| (format!("{table}.{col}"), *kind))
+        })
+        .collect();
+    let placeholders = vec!["?"; columns.len()].join(", ");
+    let mut insert = target.prepare(&format!(
+        "INSERT INTO main.\"{table}\" VALUES ({placeholders})"
+    ))?;
+    let mut rows = select.query([])?;
+    while let Some(row) = rows.next()? {
+        let id = id_column
+            .map(|i| row.get::<_, i64>(i))
+            .transpose()?
+            .unwrap_or_default();
+        let values = columns
+            .iter()
+            .enumerate()
+            .map(|(i, column)| {
+                let value = row.get::<_, Value>(i)?;
+                match column {
+                    Some((col, kind)) => recode_value(Codec(None), codec, col, id, *kind, value),
+                    None => Ok(value),
+                }
+            })
+            .collect::<AppResult<Vec<_>>>()?;
+        insert.execute(rusqlite::params_from_iter(values))?;
+    }
+    Ok(())
+}
+
+fn set_encryption_header(conn: &Connection, salt: &[u8], cipher: &Cipher) -> AppResult<()> {
+    conn.execute(
+        "UPDATE meta SET enc_salt = ?1, enc_iterations = ?2, enc_check = ?3 WHERE id = 1",
+        params![B64.encode(salt), PBKDF2_ROUNDS, cipher.check_token()?],
+    )?;
+    Ok(())
+}
+
+#[cfg(test)]
 pub fn enable(conn: &mut Connection, salt: &[u8], cipher: &Cipher) -> AppResult<()> {
     if header(conn)?.is_some() {
         return Err(AppError::InvalidInput("이미 암호가 걸려 있습니다.".into()));
     }
     let tx = conn.transaction()?;
     recode_all(&tx, PLAIN, Codec(Some(cipher)))?;
-    tx.execute(
-        "UPDATE meta SET enc_salt = ?1, enc_iterations = ?2, enc_check = ?3 WHERE id = 1",
-        params![B64.encode(salt), PBKDF2_ROUNDS, cipher.check_token()?],
-    )?;
+    set_encryption_header(&tx, salt, cipher)?;
     tx.commit()?;
     vacuum_after_commit(conn);
     Ok(())
@@ -729,6 +843,29 @@ mod tests {
     }
 
     #[test]
+    fn staged_v1_encryption_preserves_data_and_writes_encrypted_values() {
+        let (dir, path, conn) = populated_file();
+        let before = snapshot(&conn, PLAIN);
+        let (salt, cipher) = prepare_new_key(PASSWORD).unwrap();
+        let destination = dir.path().join("암호화됨.mix");
+        let staged = StagedFile::new(&destination).unwrap();
+        stage_encryption(&conn, &staged, &salt, &cipher).unwrap();
+        assert_eq!(snapshot(&conn, PLAIN), before);
+        assert!(file_contains(&path, b"GRACE BRIAR"));
+        assert!(!file_contains(staged.path(), b"GRACE BRIAR"));
+        staged.publish().unwrap();
+
+        let (encrypted, _) = db::open_existing(&destination).unwrap();
+        let loaded = unlock(&header(&encrypted).unwrap().unwrap(), PASSWORD).unwrap();
+        let codec = Codec(Some(&loaded));
+        assert_eq!(snapshot(&encrypted, codec), before);
+        assert_all_tokens(&encrypted);
+        let xlsx = dir.path().join("왕복.xlsx");
+        crate::export::export_xlsx(&encrypted, codec, &xlsx).unwrap();
+        assert!(xlsx.is_file());
+    }
+
+    #[test]
     fn enable_encrypts_everything_and_disable_restores_it() {
         let (_d, path, mut conn) = populated_file();
         let before = snapshot(&conn, PLAIN);
@@ -781,7 +918,7 @@ mod tests {
         assert_eq!(genders, vec!["여".to_string()]);
         // 4) salt·반복 횟수·확인 토큰이 meta에
         let h = header(&conn).unwrap().unwrap();
-        assert_eq!((h.salt.len(), h.rounds), (SALT_LEN, PBKDF2_ROUNDS));
+        assert_eq!(h.salt.len(), SALT_LEN);
         assert_eq!(h.salt, salt);
         assert!(is_token(&h.check));
         // 5) 키로 읽으면 암호화 전과 완전히 같다. 키 없이는 읽을 수 없다.
@@ -1164,19 +1301,17 @@ mod tests {
     }
 
     #[test]
-    fn unlock_uses_rounds_stored_in_the_file() {
-        // 반복 횟수를 나중에 바꿔도 예전 파일은 저장된 횟수로 열린다
+    fn unlock_accepts_v1_rounds() {
         let dir = tempfile::tempdir().unwrap();
         let conn = crate::db::create_new(&dir.path().join("r.mix"), "r").unwrap();
         let salt = b"0123456789abcdef";
-        let c = Cipher::derive(PASSWORD, salt, 1000).unwrap();
+        let c = Cipher::derive(PASSWORD, salt, PBKDF2_ROUNDS).unwrap();
         conn.execute(
-            "UPDATE meta SET enc_salt = ?1, enc_iterations = 1000, enc_check = ?2",
-            params![B64.encode(salt), c.check_token().unwrap()],
+            "UPDATE meta SET enc_salt = ?1, enc_iterations = ?2, enc_check = ?3",
+            params![B64.encode(salt), PBKDF2_ROUNDS, c.check_token().unwrap()],
         )
         .unwrap();
         let h = header(&conn).unwrap().unwrap();
-        assert_eq!(h.rounds, 1000);
         assert!(unlock(&h, PASSWORD).is_ok());
         assert!(matches!(
             unlock(&h, "다른-비밀번호-입니다"),
@@ -1206,13 +1341,11 @@ mod tests {
             .unwrap();
         };
 
-        // 반복 횟수를 줄이는 공격(1회) → 키가 달라져 거절
-        conn.execute("UPDATE meta SET enc_iterations = 1", [])
-            .unwrap();
-        assert!(matches!(
-            unlock(&header(&conn).unwrap().unwrap(), PASSWORD),
-            Err(AppError::WrongPassword)
-        ));
+        for rounds in [PBKDF2_ROUNDS - 1, PBKDF2_ROUNDS + 1] {
+            conn.execute("UPDATE meta SET enc_iterations = ?1", [rounds])
+                .unwrap();
+            assert!(header(&conn).is_err());
+        }
         restore(&conn);
         // salt 변조 → 거절
         conn.execute(
@@ -1244,6 +1377,8 @@ mod tests {
             "UPDATE meta SET enc_iterations = 0",
             "UPDATE meta SET enc_iterations = -5",
             "UPDATE meta SET enc_salt = '!!!not-base64'",
+            "UPDATE meta SET enc_salt = 'YQ=='",
+            "UPDATE meta SET enc_check = 'YQ==:YQ=='",
         ] {
             conn.execute(sql, []).unwrap();
             assert!(header(&conn).is_err(), "{sql}");
@@ -1740,6 +1875,11 @@ mod tests {
         let memo_before = memo_of(&conn, students[0].id);
         let rule_before = rule_of(&conn);
         // 두 번째 문장(수정 시각 기록)이 실패하게 만든다
+        conn.set_db_config(
+            rusqlite::config::DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER,
+            true,
+        )
+        .unwrap();
         conn.execute_batch(
             "CREATE TRIGGER fail_meta BEFORE UPDATE OF updated_at ON meta BEGIN SELECT RAISE(ABORT, '주입한 실패'); END;",
         )
