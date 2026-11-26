@@ -163,7 +163,7 @@ impl AppState {
             .map_err(|_| AppError::Other("내부 잠금 오류".into()))
     }
 
-    /// 열린 파일을 닫는다(열림 표시를 지움).
+    /// 열린 파일을 닫는다(동시 열기 표시를 지움).
     pub fn close(&self) {
         if let Ok(mut guard) = self.lock_file() {
             guard.take();
@@ -642,7 +642,7 @@ fn enable_workspace_encryption(
     workspace_info(guard.as_ref().ok_or(AppError::NoOpenFile)?)
 }
 
-/// 교체한(또는 교체하지 못한) 작업 파일을 다시 연다. 다시 열지 못하면 이미 닫힌 상태이므로
+/// 교체한 작업 파일을 다시 연다. 다시 열지 못하면 이미 닫힌 상태이므로
 /// 프런트엔드가 화면을 정리하도록 `FileClosed`로 알린다.
 fn reopen_after_replace(path: PathBuf, replaced: bool) -> AppResult<WorkFile> {
     db::open_existing(&path)
@@ -1136,7 +1136,7 @@ mod tests {
             .with_file_even_locked(|wf| {
                 let header = crypto::header(&wf.conn)?.unwrap();
                 wf.cipher = Some(crypto::unlock(&header, TEST_PASSWORD)?);
-                // 예전 버전이 남긴 열림 표시(PC 이름)
+                // 예전 버전이 남긴 동시 열기 표시(PC 이름)
                 wf.conn
                     .execute("UPDATE meta SET opened_by = 'test' WHERE id = 1", [])?;
                 Ok(())
@@ -1154,7 +1154,7 @@ mod tests {
         let snapshot = workspace_snapshot(&state, true, None).unwrap().unwrap();
         assert_eq!(snapshot.board.unwrap().students.unwrap().len(), 240);
 
-        // 새 파일에는 예전 열림 표시가 따라가지 않는다.
+        // 새 파일에는 예전 동시 열기 표시가 따라가지 않는다.
         let opened_by: Option<String> = state
             .with_file(|wf| {
                 Ok(wf
