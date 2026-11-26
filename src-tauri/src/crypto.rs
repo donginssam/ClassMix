@@ -419,16 +419,24 @@ fn vacuum_after_commit(conn: &Connection) {
     }
 }
 
-/// 앱이 만든 새 DB에만 암호화된 레코드를 기록한다. 원본을 읽는 동안 스키마와 데이터를 고정한다.
+/// 원본 작업 파일에 배타 잠금을 건다. 호출자는 이 트랜잭션을 교체가 끝날 때까지 유지해, 복사한 뒤
+/// 교체하기 전에 다른 PC가 원본에 커밋한 변경이 교체로 사라지지 않게 한다. 원본에는 아무것도 쓰지 않는다.
+pub fn lock_source(conn: &Connection) -> AppResult<Transaction<'_>> {
+    Ok(Transaction::new_unchecked(
+        conn,
+        TransactionBehavior::Exclusive,
+    )?)
+}
+
+/// 앱이 만든 새 DB에만 암호화된 레코드를 기록한다. `source`는 `lock_source`로 잠근 원본이다.
 pub fn stage_encryption(
-    conn: &Connection,
+    source: &Transaction<'_>,
     staged: &StagedFile,
     salt: &[u8],
     cipher: &Cipher,
 ) -> AppResult<()> {
-    let source = Transaction::new_unchecked(conn, TransactionBehavior::Immediate)?;
-    db::validate_schema(&source)?;
-    if header(&source)?.is_some() {
+    db::validate_schema(source)?;
+    if header(source)?.is_some() {
         return Err(AppError::InvalidInput("이미 암호가 걸려 있습니다.".into()));
     }
 
@@ -442,7 +450,7 @@ pub fn stage_encryption(
             .collect::<Result<_, _>>()?
     };
     for table in tables {
-        copy_encrypted_rows(&source, &tx, &table, Codec(Some(cipher)))?;
+        copy_encrypted_rows(source, &tx, &table, Codec(Some(cipher)))?;
     }
     set_encryption_header(&tx, salt, cipher)?;
     tx.commit()?;
@@ -453,7 +461,6 @@ pub fn stage_encryption(
             "새로 암호화한 작업 파일을 확인하지 못했습니다.".into(),
         ));
     }
-    source.commit()?;
     Ok(())
 }
 
@@ -849,7 +856,9 @@ mod tests {
         let (salt, cipher) = prepare_new_key(PASSWORD).unwrap();
         let destination = dir.path().join("암호화됨.mix");
         let staged = StagedFile::new(&destination).unwrap();
-        stage_encryption(&conn, &staged, &salt, &cipher).unwrap();
+        let source = lock_source(&conn).unwrap();
+        stage_encryption(&source, &staged, &salt, &cipher).unwrap();
+        drop(source);
         assert_eq!(snapshot(&conn, PLAIN), before);
         assert!(file_contains(&path, b"GRACE BRIAR"));
         assert!(!file_contains(staged.path(), b"GRACE BRIAR"));

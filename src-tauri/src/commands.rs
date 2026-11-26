@@ -637,23 +637,28 @@ fn enable_workspace_encryption(
             "작업 중 파일이 바뀌었습니다. 다시 시도해 주세요.".into(),
         ));
     }
-    if wf.file_identity != same_file::Handle::from_path(&path)? {
-        return Err(workspace_changed_externally());
-    }
-    let data_version = || {
-        wf.conn
-            .query_row("PRAGMA data_version", [], |r| r.get::<_, i64>(0))
-    };
-    let version = data_version()?;
-    let staged = StagedFile::new(&path)?;
-    crypto::stage_encryption(&wf.conn, &staged, salt, &cipher)?;
-    if data_version()? != version || wf.file_identity != same_file::Handle::from_path(&path)? {
-        return Err(workspace_changed_externally());
+    let mut staged = Some(StagedFile::new(&path)?);
+    {
+        // 복사부터 교체까지 원본을 배타 잠금으로 묶는다. 그 사이 다른 PC의 커밋은 잠금에 막혀
+        // 교체 전 원본에 들어갔다가 사라지지 않는다. 잠근 뒤에 파일과 열린 곳을 다시 확인한다.
+        let source = crypto::lock_source(&wf.conn)?;
+        if wf.file_identity != same_file::Handle::from_path(&path)? {
+            return Err(workspace_changed_externally());
+        }
+        ensure_not_open_elsewhere(&source)?;
+        let file = staged.as_ref().ok_or(AppError::NoOpenFile)?;
+        crypto::stage_encryption(&source, file, salt, &cipher)?;
+        // Windows가 아니면 열린 파일도 교체할 수 있으므로 잠금을 쥔 채 교체한다. 실패하면 원본은 그대로다.
+        #[cfg(not(windows))]
+        staged.take().ok_or(AppError::NoOpenFile)?.publish()?;
+        // 원본에는 쓴 것이 없으므로 트랜잭션은 되돌리며 닫는다.
+        drop(source);
     }
 
-    // Windows에서는 열린 DB를 교체할 수 없다. 실패하면 기존 파일에 다시 연결한다.
+    // Windows는 열린 DB를 교체할 수 없어 연결을 닫은 뒤 교체한다. 이때 다른 PC가 파일을 열고 있으면
+    // 그쪽 핸들이 교체를 막으므로 변경이 사라지지 않는다. 실패하면 기존 파일에 다시 연결한다.
     drop(guard.take());
-    let published = staged.publish();
+    let published = staged.map_or(Ok(()), StagedFile::publish);
     let mut next = reopen_after_replace(path, published.is_ok())?;
     let verification = if published.is_ok() {
         crypto::verify_key(&next.conn, &cipher)
@@ -688,6 +693,20 @@ fn reopen_after_replace(path: PathBuf, replaced: bool) -> AppResult<WorkFile> {
                 "{done} 작업 파일을 다시 열지 못해 닫았습니다. 파일을 다시 열어 주세요. ({e})"
             ))
         })
+}
+
+/// 다른 PC가 이 파일을 연 뒤 아직 닫지 않았으면(열림 표시가 다른 PC 이름) 파일 교체를 거부한다.
+/// 그 PC는 교체 전 파일에 계속 쓰게 되어 변경이 사라진다. 비정상 종료로 남은 표시는 다시 열면 지워진다.
+fn ensure_not_open_elsewhere(conn: &Connection) -> AppResult<()> {
+    let opened_by: Option<String> =
+        conn.query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?;
+    match opened_by {
+        Some(other) if other != host_name() => Err(AppError::InvalidInput(format!(
+            "이 파일이 다른 PC({other})에서도 열려 있어 암호를 설정할 수 없습니다. 그 PC에서 파일을 닫은 뒤 \
+             다시 시도해 주세요. 그 PC가 비정상 종료되었다면 이 PC에서 파일을 다시 열면 됩니다."
+        ))),
+        _ => Ok(()),
+    }
 }
 
 fn workspace_changed_externally() -> AppError {
@@ -826,6 +845,53 @@ mod tests {
     }
 
     const TEST_PASSWORD: &str = "교무실-비밀번호-2026";
+
+    fn encryption_state(path: &Path) -> (AppState, u64) {
+        let conn = db::open_existing(path).unwrap().0;
+        let wf = WorkFile::new(path.to_path_buf(), conn, false).unwrap();
+        let generation = wf.roster_generation;
+        let state = AppState {
+            file: Mutex::new(Some(wf)),
+            ..AppState::default()
+        };
+        (state, generation)
+    }
+
+    #[test]
+    fn encryption_waits_for_no_writer_and_refuses_files_open_elsewhere() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("공유 작업.mix");
+        drop(db::create_new(&path, "공유 작업").unwrap());
+        let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
+
+        // 다른 PC가 열어 둔 파일은 교체하지 않는다.
+        let other = db::open_existing(&path).unwrap().0;
+        other
+            .execute("UPDATE meta SET opened_by = '다른-PC' WHERE id = 1", [])
+            .unwrap();
+        let (state, generation) = encryption_state(&path);
+        let Err(err) = enable_workspace_encryption(&state, path.clone(), generation, &salt, cipher)
+        else {
+            panic!("다른 PC에서 열린 파일은 거부해야 합니다.");
+        };
+        assert!(err.to_string().contains("다른-PC"), "{err}");
+
+        // 다른 연결이 쓰기 트랜잭션을 쥐고 있으면 배타 잠금을 얻지 못해 교체하지 않는다.
+        other
+            .execute("UPDATE meta SET opened_by = NULL WHERE id = 1", [])
+            .unwrap();
+        other.execute_batch("BEGIN IMMEDIATE").unwrap();
+        let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
+        let result = enable_workspace_encryption(&state, path.clone(), generation, &salt, cipher);
+        assert!(
+            matches!(&result, Err(AppError::Db(e)) if e.sqlite_error_code() == Some(rusqlite::ErrorCode::DatabaseBusy)),
+            "잠금 대기 실패여야 합니다"
+        );
+        other.execute_batch("ROLLBACK").unwrap();
+        state.close();
+        let (conn, _) = db::open_existing(&path).unwrap();
+        assert!(!WorkFile::new(path, conn, false).unwrap().encrypted);
+    }
 
     #[test]
     fn failed_reopen_after_replace_reports_a_closed_file() {
