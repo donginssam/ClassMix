@@ -85,26 +85,16 @@ impl WorkFile {
         self.copy_to(target)?;
         let (conn, outcome) = db::open_existing(target)?;
         conn.execute(
-            "UPDATE meta SET opened_by = ?1, opened_at = ?2, updated_at = ?2 WHERE id = 1",
-            params![host_name(), db::now()],
+            "UPDATE meta SET updated_at = ?1 WHERE id = 1",
+            params![db::now()],
         )?;
         let mut next = Self::new(target.to_path_buf(), conn, outcome.read_only)?;
         let mut info = workspace_info(&next)?;
         // 사본을 열 준비가 끝나면 같은 키를 넘겨 비밀번호를 다시 묻지 않는다.
         next.cipher = self.cipher.take();
         info.locked = next.locked();
-        self.clear_open_marker();
         *self = next;
         Ok(info)
-    }
-
-    fn clear_open_marker(&self) {
-        if !self.read_only {
-            let _ = self.conn.execute(
-                "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
-                [],
-            );
-        }
     }
 }
 
@@ -175,16 +165,10 @@ impl AppState {
 
     /// 열린 파일을 닫는다(열림 표시를 지움).
     pub fn close(&self) {
-        if let Ok(mut guard) = self.lock_file()
-            && let Some(wf) = guard.take()
-        {
-            wf.clear_open_marker();
+        if let Ok(mut guard) = self.lock_file() {
+            guard.take();
         }
     }
-}
-
-fn host_name() -> String {
-    gethostname::gethostname().to_string_lossy().to_string()
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -282,10 +266,6 @@ pub async fn create_work_file(
         .unwrap_or_else(|| "반편성".into());
     state.close();
     let conn = db::create_new(&path, &title)?;
-    conn.execute(
-        "UPDATE meta SET opened_by = ?1, opened_at = ?2 WHERE id = 1",
-        params![host_name(), db::now()],
-    )?;
     let wf = WorkFile::new(path.clone(), conn, false)?;
     let info = workspace_info(&wf)?;
     *state.lock_file()? = Some(wf);
@@ -314,21 +294,6 @@ pub async fn open_work_file(
             "이전 버전 파일을 새 형식으로 바꿨습니다. 원본 사본: {}",
             b.display()
         ));
-    }
-    if !outcome.read_only {
-        let opened_by: Option<String> =
-            wf.conn
-                .query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?;
-        let me = host_name();
-        if let Some(other) = opened_by.filter(|h| *h != me) {
-            warnings.push(format!(
-                "이 파일이 다른 PC({other})에서 열려 있거나, 그 PC에서 제대로 닫히지 않았습니다. 두 곳에서 동시에 고치면 변경 내용이 섞일 수 있습니다."
-            ));
-        }
-        wf.conn.execute(
-            "UPDATE meta SET opened_by = ?1, opened_at = ?2 WHERE id = 1",
-            params![me, db::now()],
-        )?;
     }
     *state.lock_file()? = Some(wf);
     remember(&app, &path);
@@ -645,7 +610,6 @@ fn enable_workspace_encryption(
         if wf.file_identity != same_file::Handle::from_path(&path)? {
             return Err(workspace_changed_externally());
         }
-        ensure_not_open_elsewhere(&source)?;
         let file = staged.as_ref().ok_or(AppError::NoOpenFile)?;
         crypto::stage_encryption(&source, file, salt, &cipher)?;
         // Windows가 아니면 열린 파일도 교체할 수 있으므로 잠금을 쥔 채 교체한다. 실패하면 원본은 그대로다.
@@ -693,20 +657,6 @@ fn reopen_after_replace(path: PathBuf, replaced: bool) -> AppResult<WorkFile> {
                 "{done} 작업 파일을 다시 열지 못해 닫았습니다. 파일을 다시 열어 주세요. ({e})"
             ))
         })
-}
-
-/// 다른 PC가 이 파일을 연 뒤 아직 닫지 않았으면(열림 표시가 다른 PC 이름) 파일 교체를 거부한다.
-/// 그 PC는 교체 전 파일에 계속 쓰게 되어 변경이 사라진다. 비정상 종료로 남은 표시는 다시 열면 지워진다.
-fn ensure_not_open_elsewhere(conn: &Connection) -> AppResult<()> {
-    let opened_by: Option<String> =
-        conn.query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?;
-    match opened_by {
-        Some(other) if other != host_name() => Err(AppError::InvalidInput(format!(
-            "이 파일이 다른 PC({other})에서도 열려 있어 암호를 설정할 수 없습니다. 그 PC에서 파일을 닫은 뒤 \
-             다시 시도해 주세요. 그 PC가 비정상 종료되었다면 이 PC에서 파일을 다시 열면 됩니다."
-        ))),
-        _ => Ok(()),
-    }
 }
 
 fn workspace_changed_externally() -> AppError {
@@ -858,28 +808,14 @@ mod tests {
     }
 
     #[test]
-    fn encryption_waits_for_no_writer_and_refuses_files_open_elsewhere() {
+    fn encryption_does_not_replace_while_another_connection_writes() {
         let dir = tempfile::tempdir().unwrap();
-        let path = dir.path().join("공유 작업.mix");
-        drop(db::create_new(&path, "공유 작업").unwrap());
-        let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
-
-        // 다른 PC가 열어 둔 파일은 교체하지 않는다.
+        let path = dir.path().join("작업.mix");
+        drop(db::create_new(&path, "작업").unwrap());
         let other = db::open_existing(&path).unwrap().0;
-        other
-            .execute("UPDATE meta SET opened_by = '다른-PC' WHERE id = 1", [])
-            .unwrap();
         let (state, generation) = encryption_state(&path);
-        let Err(err) = enable_workspace_encryption(&state, path.clone(), generation, &salt, cipher)
-        else {
-            panic!("다른 PC에서 열린 파일은 거부해야 합니다.");
-        };
-        assert!(err.to_string().contains("다른-PC"), "{err}");
 
         // 다른 연결이 쓰기 트랜잭션을 쥐고 있으면 배타 잠금을 얻지 못해 교체하지 않는다.
-        other
-            .execute("UPDATE meta SET opened_by = NULL WHERE id = 1", [])
-            .unwrap();
         other.execute_batch("BEGIN IMMEDIATE").unwrap();
         let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
         let result = enable_workspace_encryption(&state, path.clone(), generation, &salt, cipher);
@@ -1200,6 +1136,7 @@ mod tests {
             .with_file_even_locked(|wf| {
                 let header = crypto::header(&wf.conn)?.unwrap();
                 wf.cipher = Some(crypto::unlock(&header, TEST_PASSWORD)?);
+                // 예전 버전이 남긴 열림 표시(PC 이름)
                 wf.conn
                     .execute("UPDATE meta SET opened_by = 'test' WHERE id = 1", [])?;
                 Ok(())
@@ -1217,9 +1154,13 @@ mod tests {
         let snapshot = workspace_snapshot(&state, true, None).unwrap().unwrap();
         assert_eq!(snapshot.board.unwrap().students.unwrap().len(), 240);
 
-        let previous = Connection::open(&path).unwrap();
-        let opened_by: Option<String> = previous
-            .query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))
+        // 새 파일에는 예전 열림 표시가 따라가지 않는다.
+        let opened_by: Option<String> = state
+            .with_file(|wf| {
+                Ok(wf
+                    .conn
+                    .query_row("SELECT opened_by FROM meta WHERE id = 1", [], |r| r.get(0))?)
+            })
             .unwrap();
         assert!(opened_by.is_none());
     }

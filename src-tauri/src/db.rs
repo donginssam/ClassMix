@@ -7,7 +7,7 @@ use sha2::{Digest, Sha256};
 
 use crate::crypto::Codec;
 use crate::error::{AppError, AppResult};
-use crate::paths::{StagedFile, resolve_parent};
+use crate::paths::{StagedFile, ensure_local_volume, resolve_parent};
 
 /// `PRAGMA application_id` 값. ASCII 'CMIX'.
 pub const APPLICATION_ID: i32 = 0x434D_4958;
@@ -116,6 +116,7 @@ pub fn empty_database(staged: &StagedFile) -> AppResult<Connection> {
 /// 새 작업 파일을 만든다. 같은 경로에 파일이 있으면(저장 대화상자에서 덮어쓰기 확인을 받은 경우)
 /// 새 파일을 다 만든 뒤에 바꿔 넣으므로, 만들다 실패해도 기존 파일은 그대로 남는다.
 pub fn create_new(path: &Path, title: &str) -> AppResult<Connection> {
+    ensure_local_volume(path)?;
     let staged = StagedFile::new(path)?;
     {
         let conn = empty_database(&staged)?;
@@ -172,6 +173,7 @@ pub fn open_existing(path: &Path) -> AppResult<(Connection, OpenOutcome)> {
             path.display()
         )));
     }
+    ensure_local_volume(path)?;
     let conn = open_connection(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     let (app_id, version) = read_header(&conn)?;
     if app_id != APPLICATION_ID || version < 1 {
@@ -203,6 +205,12 @@ pub fn open_existing(path: &Path) -> AppResult<(Connection, OpenOutcome)> {
         migrate(&conn, version)?;
         validate_schema(&conn)?;
     }
+    // 예전 버전이 남긴 열림 표시(PC 이름)를 지운다. 값이 있을 때만 써서, 열기만으로 파일이 바뀌지 않게 한다.
+    conn.execute(
+        "UPDATE meta SET opened_by = NULL, opened_at = NULL \
+         WHERE id = 1 AND (opened_by IS NOT NULL OR opened_at IS NOT NULL)",
+        [],
+    )?;
     Ok((conn, outcome))
 }
 
@@ -251,9 +259,10 @@ pub fn insert_source_file(
     Ok(())
 }
 
-/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 사본에는 열림 표시를 남기지 않는다.
+/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 예전 버전의 열림 표시(PC 이름)는 사본에 남기지 않는다.
 /// 임시 파일에 다 만든 뒤 바꿔 넣으므로, 실패해도 대상 위치의 기존 파일은 그대로 남는다.
 pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
+    ensure_local_volume(target)?;
     validate_schema(conn)?;
     let staged = StagedFile::new(target)?;
     {
@@ -326,6 +335,32 @@ mod tests {
             open_existing(&text),
             Err(AppError::NotClassMixFile)
         ));
+    }
+
+    #[test]
+    fn opening_clears_legacy_open_marker_without_touching_clean_files() {
+        let dir = tmp();
+        let path = dir.path().join("예전 표시.mix");
+        drop(create_new(&path, "예전 표시").unwrap());
+        // 표시가 없는 파일은 열기만으로 바뀌지 않는다.
+        let before = std::fs::read(&path).unwrap();
+        drop(open_existing(&path).unwrap());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        // 예전 버전이 남긴 PC 이름은 쓰기 가능하게 열 때 지운다.
+        Connection::open(&path)
+            .unwrap()
+            .execute(
+                "UPDATE meta SET opened_by = '김OO의 PC', opened_at = 'x' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let (conn, _) = open_existing(&path).unwrap();
+        let marker: (Option<String>, Option<String>) = conn
+            .query_row("SELECT opened_by, opened_at FROM meta", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(marker, (None, None));
     }
 
     #[test]

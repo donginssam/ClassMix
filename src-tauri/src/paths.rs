@@ -48,6 +48,92 @@ pub fn resolve_parent(path: &Path) -> AppResult<PathBuf> {
     Ok(fs::canonicalize(parent)?.join(name))
 }
 
+/// 작업 파일(`.mix`)은 이 PC의 디스크(내장 디스크, USB 같은 이동식 디스크)에만 둔다.
+/// 네트워크 드라이브에서는 여러 PC가 같은 파일을 동시에 열 수 있고 SQLite 잠금도 믿을 수 없다.
+/// 다른 사람과는 USB로 복사해 주고받는다.
+pub fn ensure_local_volume(path: &Path) -> AppResult<()> {
+    let target = resolve_parent(path)?;
+    let parent = target
+        .parent()
+        .ok_or_else(|| AppError::InvalidInput("작업 파일 폴더가 필요합니다.".into()))?;
+    if is_network_volume(parent)? {
+        return Err(AppError::InvalidInput(
+            "네트워크 드라이브에 있는 작업 파일은 열거나 저장할 수 없습니다. \
+             내 PC의 디스크나 USB에 복사한 뒤 사용해 주세요."
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
+/// macOS: 마운트 정보에 로컬 표시(MNT_LOCAL)가 없으면 네트워크 볼륨(SMB, NFS, AFP, WebDAV 등)이다.
+#[cfg(target_os = "macos")]
+fn is_network_volume(dir: &Path) -> io::Result<bool> {
+    let st = statfs(dir)?;
+    Ok(st.f_flags & (libc::MNT_LOCAL as u32) == 0)
+}
+
+/// Linux: 네트워크 파일시스템의 종류 번호로 판별한다(statfs(2)의 f_type).
+#[cfg(target_os = "linux")]
+fn is_network_volume(dir: &Path) -> io::Result<bool> {
+    const NETWORK_TYPES: [i64; 9] = [
+        0x6969,      // NFS
+        0x517B,      // SMB
+        0xFF53_4D42, // CIFS
+        0xFE53_4D42, // SMB2
+        0x7375_7245, // Coda
+        0x5346_414F, // AFS
+        0x564C,      // NCP
+        0x0102_1997, // 9P
+        0x00C3_6400, // Ceph
+    ];
+    #[allow(clippy::unnecessary_cast)] // f_type의 정수 형식은 libc 구현마다 다르다.
+    let kind = statfs(dir)?.f_type as i64;
+    Ok(NETWORK_TYPES.contains(&kind))
+}
+
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+fn statfs(dir: &Path) -> io::Result<libc::statfs> {
+    use std::os::unix::ffi::OsStrExt;
+    let c_path = std::ffi::CString::new(dir.as_os_str().as_bytes())?;
+    // SAFETY: c_path는 NUL로 끝나는 경로이고, st는 statfs가 채울 수 있는 크기의 0으로 초기화된 구조체다.
+    unsafe {
+        let mut st: libc::statfs = std::mem::zeroed();
+        if libc::statfs(c_path.as_ptr(), &mut st) != 0 {
+            return Err(io::Error::last_os_error());
+        }
+        Ok(st)
+    }
+}
+
+#[cfg(all(unix, not(any(target_os = "macos", target_os = "linux"))))]
+fn is_network_volume(_dir: &Path) -> io::Result<bool> {
+    Ok(false)
+}
+
+/// Windows: UNC 경로(`\\서버\공유`, 매핑한 네트워크 드라이브도 정규화하면 이렇게 바뀐다)와
+/// 드라이브 종류가 네트워크(DRIVE_REMOTE)인 드라이브를 거부한다. 판별할 수 없는 형식도 거부한다.
+#[cfg(windows)]
+fn is_network_volume(dir: &Path) -> io::Result<bool> {
+    use std::path::{Component, Prefix};
+    use windows_sys::Win32::Storage::FileSystem::GetDriveTypeW;
+    const DRIVE_REMOTE: u32 = 4;
+    let Some(Component::Prefix(prefix)) = dir.components().next() else {
+        return Ok(true);
+    };
+    match prefix.kind() {
+        Prefix::Disk(letter) | Prefix::VerbatimDisk(letter) => {
+            let root: Vec<u16> = format!("{}:\\", char::from(letter))
+                .encode_utf16()
+                .chain([0])
+                .collect();
+            // SAFETY: root는 NUL로 끝나는 UTF-16 드라이브 루트 경로다.
+            Ok(unsafe { GetDriveTypeW(root.as_ptr()) } == DRIVE_REMOTE)
+        }
+        _ => Ok(true),
+    }
+}
+
 /// 같은 파일시스템에 전용 임시 디렉터리와 독점 파일을 만든다.
 /// 쓰기와 검사에는 열린 핸들을 쓰고, SQLite가 경로를 요구할 때만 파일 이름을 넘긴다.
 pub struct StagedFile {
@@ -387,6 +473,14 @@ mod tests {
         assert!(StagedFile::new(&shared.join("a.mix")).is_ok());
         set_mode(0o755).unwrap();
         assert!(StagedFile::new(&shared.join("a.mix")).is_ok());
+    }
+
+    #[test]
+    fn work_files_on_local_disks_are_accepted() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(ensure_local_volume(&dir.path().join("새 작업.mix")).is_ok());
+        // 폴더가 없으면 판별할 수 없으므로 오류다.
+        assert!(ensure_local_volume(&dir.path().join("없는 폴더/a.mix")).is_err());
     }
 
     #[test]
