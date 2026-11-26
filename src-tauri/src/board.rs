@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::changes::{self, HistoryCache, HistoryEntry};
 use crate::crypto::Codec;
-use crate::db::{next_id, now};
+use crate::db::{next_id, now, touch};
 use crate::error::{AppError, AppResult};
 use crate::roster::{self, GapDto, StudentDto, StudentPlacement};
 
@@ -184,10 +184,7 @@ pub fn set_memo(
     if n != 1 {
         return Err(AppError::InvalidInput("학생을 찾을 수 없습니다.".into()));
     }
-    tx.execute(
-        "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-        params![now()],
-    )?;
+    touch(&tx, &now())?;
     tx.commit()?;
     Ok(())
 }
@@ -271,7 +268,7 @@ pub fn create_rule(conn: &mut Connection, codec: Codec, rule: &NewRule) -> AppRe
             params![id, m.student_id, m.role],
         )?;
     }
-    tx.execute("UPDATE meta SET updated_at = ?1 WHERE id = 1", params![ts])?;
+    touch(&tx, &ts)?;
     tx.commit()?;
     Ok(id)
 }
@@ -298,10 +295,7 @@ pub fn update_rule(
     if n != 1 {
         return Err(AppError::InvalidInput("규칙을 찾을 수 없습니다.".into()));
     }
-    tx.execute(
-        "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-        params![now()],
-    )?;
+    touch(&tx, &now())?;
     tx.commit()?;
     Ok(())
 }
@@ -318,10 +312,7 @@ pub fn delete_rule(conn: &Connection, id: i64) -> AppResult<()> {
             "지울 수 없는 규칙입니다. 동명이인 규칙은 끄기만 할 수 있습니다.".into(),
         ));
     }
-    tx.execute(
-        "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-        params![now()],
-    )?;
+    touch(&tx, &now())?;
     tx.commit()?;
     Ok(())
 }
@@ -370,7 +361,7 @@ pub fn resolve_twin_candidates(
             }
         }
     }
-    tx.execute("UPDATE meta SET updated_at = ?1 WHERE id = 1", params![ts])?;
+    touch(&tx, &ts)?;
     tx.commit()?;
     Ok(())
 }

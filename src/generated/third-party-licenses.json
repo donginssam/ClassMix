@@ -596,7 +596,7 @@
     },
     {
      "name": "lucide-react",
-     "version": "1.76.0",
+     "version": "1.80.0",
      "license": "ISC",
      "texts": [
       13
@@ -803,7 +803,7 @@
     },
     {
      "name": "anyhow",
-     "version": "1.0.104",
+     "version": "1.0.105",
      "license": "MIT OR Apache-2.0",
      "texts": [
       34,
@@ -902,7 +902,7 @@
     },
     {
      "name": "brotli-decompressor",
-     "version": "6.3.2",
+     "version": "6.4.0",
      "license": "BSD-3-Clause/MIT",
      "texts": [
       32
@@ -1053,7 +1053,7 @@
     },
     {
      "name": "cookie",
-     "version": "0.18.2",
+     "version": "0.18.3",
      "license": "MIT OR Apache-2.0",
      "texts": [
       59,
@@ -1125,7 +1125,7 @@
     },
     {
      "name": "crc32fast",
-     "version": "1.5.5",
+     "version": "1.5.6",
      "license": "MIT OR Apache-2.0",
      "texts": [
       64,
@@ -1547,7 +1547,7 @@
     },
     {
      "name": "hashbrown",
-     "version": "0.17.1",
+     "version": "0.17.2",
      "license": "MIT OR Apache-2.0",
      "texts": [
       35,
@@ -2529,7 +2529,7 @@
     },
     {
      "name": "sha2",
-     "version": "0.11.1",
+     "version": "0.11.2",
      "license": "MIT OR Apache-2.0",
      "texts": [
       25,
@@ -2834,7 +2834,7 @@
     },
     {
      "name": "toml",
-     "version": "1.2.2+spec-1.1.0",
+     "version": "1.2.3+spec-1.1.0",
      "license": "MIT OR Apache-2.0",
      "texts": [
       164,
@@ -2852,7 +2852,7 @@
     },
     {
      "name": "toml_parser",
-     "version": "1.1.6+spec-1.1.0",
+     "version": "1.1.7+spec-1.1.0",
      "license": "MIT OR Apache-2.0",
      "texts": [
       164,
@@ -3218,7 +3218,7 @@
     },
     {
      "name": "wry",
-     "version": "0.57.3",
+     "version": "0.57.4",
      "license": "Apache-2.0 OR MIT",
      "texts": [
       35,
@@ -3310,7 +3310,7 @@
     },
     {
      "name": "zlib-rs",
-     "version": "0.6.8",
+     "version": "0.6.9",
      "license": "Zlib",
      "texts": [
       210

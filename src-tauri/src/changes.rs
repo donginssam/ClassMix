@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::Codec;
-use crate::db::{next_id, now};
+use crate::db::{next_id, now, touch};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -363,10 +363,7 @@ fn apply_in_tx(
             "{c}반 {n}번이 겹칩니다. 변경을 적용하지 않았습니다."
         )));
     }
-    tx.execute(
-        "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-        params![now()],
-    )?;
+    touch(tx, &now())?;
     Ok(())
 }
 
@@ -560,24 +557,7 @@ pub fn history_cached(
 mod tests {
     use super::*;
     use crate::crypto::PLAIN;
-    use crate::xlsx_import::{apply_import, parse_roster, plan_import};
-    use std::path::Path;
-
-    pub(crate) fn setup() -> (tempfile::TempDir, Connection) {
-        let dir = tempfile::tempdir().unwrap();
-        let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
-        let fx = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx");
-        let plan = plan_import("sample.xlsx", parse_roster(&fx).unwrap()).unwrap();
-        apply_import(
-            &mut conn,
-            PLAIN,
-            "sample.xlsx",
-            &std::fs::read(&fx).unwrap(),
-            &plan,
-        )
-        .unwrap();
-        (dir, conn)
-    }
+    use crate::test_support::sample_db;
 
     fn seat(conn: &Connection, id: i64) -> (i64, i64) {
         conn.query_row(
@@ -612,7 +592,7 @@ mod tests {
 
     #[test]
     fn apply_undo_redo_and_persist_history() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let from = seat(&conn, 1);
         let to = (if from.0 == 1 { 2 } else { 1 }, 99);
         apply_change(&mut conn, PLAIN, &mv(1, from, to)).unwrap();
@@ -641,7 +621,7 @@ mod tests {
 
     #[test]
     fn cached_history_matches_fresh_history_when_ids_are_reused() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let mut cache = HistoryCache::default();
         let a = seat(&conn, 1);
         let a_to = (if a.0 == 1 { 2 } else { 1 }, 99);
@@ -673,7 +653,7 @@ mod tests {
 
     #[test]
     fn rejects_duplicate_seat_and_leaves_state() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let a = seat(&conn, 1);
         let b = seat(&conn, 2);
         let mut cs = mv(1, a, b);
@@ -686,7 +666,7 @@ mod tests {
 
     #[test]
     fn rejects_manual_gap_above_the_limit() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let row = |number| GapRow {
             number,
             anchor_key: "x".into(),
@@ -715,7 +695,7 @@ mod tests {
 
     #[test]
     fn gaps_saved_above_the_limit_by_an_older_version_still_undo_and_redo() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let row = |number, planned: Option<&str>| GapRow {
             number,
             anchor_key: "x".into(),
@@ -772,14 +752,14 @@ mod tests {
 
     #[test]
     fn rejects_out_of_range_class() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let a = seat(&conn, 1);
         assert!(apply_change(&mut conn, PLAIN, &mv(1, a, (9, 1))).is_err());
     }
 
     #[test]
     fn gap_snapshot_must_match() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         // 1반에는 가져온 결번 26번이 있다
         let before = vec![GapRow {
             number: 26,
@@ -806,7 +786,7 @@ mod tests {
 
     #[test]
     fn new_change_clears_redo_and_validates_reading() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let r = |from: Option<&str>, to: Option<&str>| ChangeSet {
             action: "set_reading".into(),
             label: "한글 표기".into(),

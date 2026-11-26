@@ -339,6 +339,11 @@ pub struct Header {
     check: String,
 }
 
+/// 암호가 걸린 파일의 헤더. 암호가 없으면 오류.
+pub fn required_header(conn: &Connection) -> AppResult<Header> {
+    header(conn)?.ok_or_else(|| AppError::InvalidInput("암호가 걸려 있지 않습니다.".into()))
+}
+
 pub fn header(conn: &Connection) -> AppResult<Option<Header>> {
     let mut stmt =
         conn.prepare("SELECT enc_salt, enc_iterations, enc_check FROM meta WHERE id = 1")?;
@@ -533,9 +538,7 @@ pub fn enable(conn: &mut Connection, salt: &[u8], cipher: &Cipher) -> AppResult<
 
 /// 암호화 끄기: 모든 대상 칸을 한꺼번에 풀고 meta의 암호 설정을 지운다.
 pub fn disable(conn: &mut Connection, cipher: &Cipher) -> AppResult<()> {
-    let Some(h) = header(conn)? else {
-        return Err(AppError::InvalidInput("암호가 걸려 있지 않습니다.".into()));
-    };
+    let h = required_header(conn)?;
     if !cipher.verify(&h.check) {
         return Err(AppError::WrongPassword);
     }
@@ -558,9 +561,7 @@ pub fn change_password(
     new_salt: &[u8],
     new_cipher: &Cipher,
 ) -> AppResult<()> {
-    let Some(h) = header(conn)? else {
-        return Err(AppError::InvalidInput("암호가 걸려 있지 않습니다.".into()));
-    };
+    let h = required_header(conn)?;
     if !current.verify(&h.check) {
         return Err(AppError::WrongPassword);
     }
@@ -593,14 +594,11 @@ mod tests {
     };
     use crate::export;
     use crate::roster::{self, PdfLink, PdfRowInput};
+    use crate::test_support::{fixture, import_sample};
     use crate::xlsx_import::{apply_import, parse_roster, plan_import};
     use std::path::{Path, PathBuf};
 
     const PASSWORD: &str = "교무실-비밀번호-2026";
-
-    fn fixture() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx")
-    }
 
     fn is_token(s: &str) -> bool {
         let Some((n, c)) = s.split_once(':') else {
@@ -677,15 +675,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("암호 테스트.mix");
         let mut conn = crate::db::create_new(&path, "t").unwrap();
-        let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
-        apply_import(
-            &mut conn,
-            PLAIN,
-            "sample.xlsx",
-            &std::fs::read(fixture()).unwrap(),
-            &plan,
-        )
-        .unwrap();
+        import_sample(&mut conn);
         let students = roster::list_students(&conn, PLAIN).unwrap();
         let grace = students.iter().find(|s| s.name == "GRACE BRIAR").unwrap();
         let first = &students[0];

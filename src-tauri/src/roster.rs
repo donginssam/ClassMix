@@ -7,7 +7,7 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::Codec;
-use crate::db::{insert_source_file, next_id, now};
+use crate::db::{insert_source_file, next_id, now, touch};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -258,7 +258,7 @@ pub fn apply_pdf(
             }
         }
     }
-    tx.execute("UPDATE meta SET updated_at = ?1 WHERE id = 1", params![ts])?;
+    touch(&tx, &ts)?;
     tx.commit()?;
     Ok(PdfApplyReport {
         linked: links.len(),
@@ -270,24 +270,7 @@ pub fn apply_pdf(
 mod tests {
     use super::*;
     use crate::crypto::PLAIN;
-    use crate::xlsx_import::{apply_import, parse_roster, plan_import};
-    use std::path::Path;
-
-    fn setup() -> (tempfile::TempDir, Connection) {
-        let dir = tempfile::tempdir().unwrap();
-        let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
-        let fx = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx");
-        let plan = plan_import("sample.xlsx", parse_roster(&fx).unwrap()).unwrap();
-        apply_import(
-            &mut conn,
-            PLAIN,
-            "sample.xlsx",
-            &std::fs::read(&fx).unwrap(),
-            &plan,
-        )
-        .unwrap();
-        (dir, conn)
-    }
+    use crate::test_support::sample_db;
 
     fn row(name: &str) -> PdfRowInput {
         PdfRowInput {
@@ -308,7 +291,7 @@ mod tests {
 
     #[test]
     fn lists_students_with_same_name_flag() {
-        let (_d, conn) = setup();
+        let (_d, conn) = sample_db();
         let s = list_students(&conn, PLAIN).unwrap();
         assert_eq!(s.len(), 240);
         assert_eq!(s.iter().filter(|x| x.same_name).count(), 24);
@@ -317,7 +300,7 @@ mod tests {
 
     #[test]
     fn applies_and_replaces_pdf_mapping() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let id: i64 = conn
             .query_row(
                 "SELECT id FROM student WHERE student_no='2026510398'",
@@ -360,7 +343,7 @@ mod tests {
 
     #[test]
     fn rejects_double_links() {
-        let (_d, mut conn) = setup();
+        let (_d, mut conn) = sample_db();
         let rows = vec![row("a"), row("b")];
         let links = vec![
             PdfLink {

@@ -8,7 +8,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Read;
 use std::path::Path;
 
-use rusqlite::{Connection, params};
+use rusqlite::Connection;
 use serde::Serialize;
 
 use crate::crypto::Codec;
@@ -227,11 +227,7 @@ pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<Ex
     verify()?;
     staged.publish()?;
 
-    conn.execute(
-        "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-        params![crate::db::now()],
-    )
-    .ok();
+    crate::db::touch(conn, &crate::db::now()).ok();
 
     Ok(ExportReport {
         path: path.to_string_lossy().to_string(),
@@ -248,30 +244,12 @@ mod tests {
     use super::*;
     use crate::changes::{self, ChangeSet, NumberingChange, Seat as S, StudentMove};
     use crate::crypto::PLAIN;
-    use crate::xlsx_import::{apply_import, parse_roster, plan_import};
-
-    fn fixture() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx")
-    }
-
-    fn setup() -> (tempfile::TempDir, Connection) {
-        let dir = tempfile::tempdir().unwrap();
-        let mut conn = crate::db::create_new(&dir.path().join("t.mix"), "t").unwrap();
-        let plan = plan_import("sample.xlsx", parse_roster(&fixture()).unwrap()).unwrap();
-        apply_import(
-            &mut conn,
-            PLAIN,
-            "sample.xlsx",
-            &std::fs::read(fixture()).unwrap(),
-            &plan,
-        )
-        .unwrap();
-        (dir, conn)
-    }
+    use crate::test_support::{fixture, sample_db};
+    use crate::xlsx_import::parse_roster;
 
     #[test]
     fn oversized_stored_source_is_rejected_before_reading() {
-        let (dir, conn) = setup();
+        let (dir, conn) = sample_db();
         conn.execute(
             "UPDATE source_file SET content = zeroblob(?1) WHERE kind = 'xlsx'",
             [MAX_STORED_XLSX_LEN as i64 + 1],
@@ -287,7 +265,7 @@ mod tests {
 
     #[test]
     fn unchanged_export_matches_original() {
-        let (dir, conn) = setup();
+        let (dir, conn) = sample_db();
         let out = dir.path().join("한글 폴더/업로드.xlsx");
         std::fs::create_dir_all(out.parent().unwrap()).unwrap();
         let rep = export_xlsx(&conn, PLAIN, &out).unwrap();
@@ -353,7 +331,7 @@ mod tests {
 
     #[test]
     fn exports_changed_seats_as_numbers() {
-        let (dir, mut conn) = setup();
+        let (dir, mut conn) = sample_db();
         let (id, c, n, no): (i64, i64, i64, String) = conn
             .query_row(
                 "SELECT id, cur_class, cur_number, student_no FROM student WHERE cur_class = 1 ORDER BY cur_number DESC LIMIT 1",
@@ -401,7 +379,7 @@ mod tests {
     /// 원본 XLSX에 학생과 이어지지 않는 행이 있으면(작업 파일이 어긋남) 지우지 않고 멈춘다.
     #[test]
     fn refuses_rows_without_student() {
-        let (dir, conn) = setup();
+        let (dir, conn) = sample_db();
         conn.execute("DELETE FROM student WHERE row_index = 3", [])
             .unwrap();
         let out = dir.path().join("o.xlsx");
@@ -415,7 +393,7 @@ mod tests {
 
     #[test]
     fn blocks_duplicate_seats() {
-        let (dir, conn) = setup();
+        let (dir, conn) = sample_db();
         conn.execute(
             "UPDATE student SET cur_class = 1, cur_number = 1 WHERE id IN (1, 2)",
             [],

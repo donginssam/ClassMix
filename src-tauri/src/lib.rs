@@ -10,6 +10,8 @@ mod os_integration;
 mod paths;
 mod roster;
 mod settings;
+#[cfg(test)]
+mod test_support;
 mod xlsx_import;
 
 use std::path::PathBuf;

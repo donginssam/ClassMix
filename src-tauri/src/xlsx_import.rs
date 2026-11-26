@@ -669,10 +669,7 @@ pub fn apply_import(
 mod tests {
     use super::*;
     use crate::crypto::PLAIN;
-
-    fn fixture() -> std::path::PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx")
-    }
+    use crate::test_support::fixture;
 
     #[test]
     fn parses_sample() {

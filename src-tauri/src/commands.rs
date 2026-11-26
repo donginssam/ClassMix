@@ -89,10 +89,7 @@ impl WorkFile {
     fn save_as(&mut self, target: &Path) -> AppResult<WorkspaceInfo> {
         self.copy_to(target)?;
         let (conn, outcome) = db::open_existing(target)?;
-        conn.execute(
-            "UPDATE meta SET updated_at = ?1 WHERE id = 1",
-            params![db::now()],
-        )?;
+        db::touch(&conn, &db::now())?;
         let mut next = Self::new(target.to_path_buf(), conn, outcome.read_only)?;
         let mut info = workspace_info(&next)?;
         // 사본을 열 준비가 끝나면 같은 키를 넘겨 비밀번호를 다시 묻지 않는다.
@@ -108,6 +105,12 @@ macro_rules! codec {
     ($wf:expr) => {
         Codec($wf.cipher.as_ref())
     };
+}
+
+fn lock<T>(mutex: &Mutex<T>) -> AppResult<MutexGuard<'_, T>> {
+    mutex
+        .lock()
+        .map_err(|_| AppError::Other("내부 잠금 오류".into()))
 }
 
 #[derive(Default)]
@@ -163,9 +166,7 @@ impl AppState {
     }
 
     fn lock_file(&self) -> AppResult<MutexGuard<'_, Option<WorkFile>>> {
-        self.file
-            .lock()
-            .map_err(|_| AppError::Other("내부 잠금 오류".into()))
+        lock(&self.file)
     }
 
     /// 열린 파일을 닫는다.
@@ -691,11 +692,8 @@ pub async fn disable_encryption(
     state: State<'_, AppState>,
     password: String,
 ) -> AppResult<WorkspaceInfo> {
-    let (path, header) = state.with_writable(|wf| {
-        let h = crypto::header(&wf.conn)?
-            .ok_or_else(|| AppError::InvalidInput("암호가 걸려 있지 않습니다.".into()))?;
-        Ok((wf.path.clone(), h))
-    })?;
+    let (path, header) =
+        state.with_writable(|wf| Ok((wf.path.clone(), crypto::required_header(&wf.conn)?)))?;
     let cipher = crypto::unlock(&header, &password)?;
     state.with_writable(|wf| {
         same_file(wf, &path)?;
@@ -718,11 +716,8 @@ pub async fn change_password(
             "새 비밀번호가 지금 비밀번호와 같습니다.".into(),
         ));
     }
-    let (path, header) = state.with_writable(|wf| {
-        let h = crypto::header(&wf.conn)?
-            .ok_or_else(|| AppError::InvalidInput("암호가 걸려 있지 않습니다.".into()))?;
-        Ok((wf.path.clone(), h))
-    })?;
+    let (path, header) =
+        state.with_writable(|wf| Ok((wf.path.clone(), crypto::required_header(&wf.conn)?)))?;
     // 지금 비밀번호 확인과 새 키 계산은 DB 잠금 밖에서 한다.
     let current_cipher = crypto::unlock(&header, &current)?;
     let (salt, new_cipher) = crypto::prepare_new_key(&new_password)?;
@@ -739,10 +734,7 @@ pub async fn change_password(
 /// 더블클릭·끌어다 놓기(아이콘)·두 번째 실행으로 받은 `.mix` 경로를 한 번만 꺼내 준다.
 #[tauri::command]
 pub async fn take_launch_file(state: State<'_, AppState>) -> AppResult<Option<String>> {
-    let mut p = state
-        .pending_open
-        .lock()
-        .map_err(|_| AppError::Other("내부 잠금 오류".into()))?;
+    let mut p = lock(&state.pending_open)?;
     Ok(p.take().map(|p| p.to_string_lossy().to_string()))
 }
 
@@ -796,17 +788,7 @@ mod tests {
         let dir = tempfile::tempdir().unwrap();
         let path = dir.path().join("잠김.mix");
         let mut conn = db::create_new(&path, "t").unwrap();
-        let fx = Path::new(env!("CARGO_MANIFEST_DIR")).join("../tests/fixtures/sample.xlsx");
-        let plan = xlsx_import::plan_import("sample.xlsx", xlsx_import::parse_roster(&fx).unwrap())
-            .unwrap();
-        xlsx_import::apply_import(
-            &mut conn,
-            crypto::PLAIN,
-            "sample.xlsx",
-            &std::fs::read(&fx).unwrap(),
-            &plan,
-        )
-        .unwrap();
+        crate::test_support::import_sample(&mut conn);
         let (salt, cipher) = crypto::prepare_new_key(TEST_PASSWORD).unwrap();
         crypto::enable(&mut conn, &salt, &cipher).unwrap();
         drop(conn);

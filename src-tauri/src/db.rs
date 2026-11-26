@@ -24,6 +24,12 @@ pub fn now() -> String {
     chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
 }
 
+/// 작업 파일의 마지막 수정 시각(`meta.updated_at`)을 `at`으로 바꾼다.
+pub fn touch(conn: &Connection, at: &str) -> AppResult<()> {
+    conn.execute("UPDATE meta SET updated_at = ?1 WHERE id = 1", params![at])?;
+    Ok(())
+}
+
 fn configure(conn: &Connection) -> AppResult<()> {
     conn.pragma_update(None, "foreign_keys", "ON")?;
     // 지우거나 덮어쓴 레코드 자리를 0으로 채워, 파일 안에 이전 값(평문)이 남지 않게 한다.
