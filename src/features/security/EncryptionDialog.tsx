@@ -95,7 +95,6 @@ function EnableBody({ onDone }: { onDone: () => void }) {
           <span className="text-foreground">
             이름 · 진급반번호 · 생년월일 · 기준성적 · 메모 · 변경 이력 · 분리 규칙 사유
           </span>
-          <span>현재·원래 반과 번호, 성별, 원본 파일 이름은 평문으로 저장됩니다.</span>
         </DialogDescription>
       </DialogHeader>
       <form
