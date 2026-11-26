@@ -27,7 +27,7 @@ import { useWorkspace } from "@/store/workspace";
 type Stage =
   | { kind: "pick"; error?: string }
   | { kind: "parsing"; path: string }
-  | { kind: "review"; path: string; parsed: PdfParseResult; match: MatchResult }
+  | { kind: "review"; path: string; sessionId: number; parsed: PdfParseResult; match: MatchResult }
   | { kind: "applying" };
 
 const METHOD_LABEL: Record<Match["method"], string> = {
@@ -49,14 +49,23 @@ export function PdfImportDialog({
 }) {
   const students = useWorkspace((s) => s.students);
   const refresh = useWorkspace((s) => s.refresh);
+  const sessionId = useWorkspace((s) => s.workspace?.sessionId);
   const [stage, setStage] = useState<Stage>({ kind: "pick" });
   const parsing = useRef<AbortController | null>(null);
-  useEffect(() => () => parsing.current?.abort(), []);
+  // 다른 작업 파일을 열면(편성표 화면은 그대로 남는다) 읽던 PDF와 검토 결과를 버린다.
+  // 학생 id는 파일마다 1부터 매기므로, 남겨 두면 이전 파일의 매핑이 새 파일 학생에게 반영된다.
+  const [stageSession, setStageSession] = useState(sessionId);
+  if (stageSession !== sessionId) {
+    setStageSession(sessionId);
+    setStage({ kind: "pick" });
+  }
+  useEffect(() => () => parsing.current?.abort(), [sessionId]);
 
   const load = async (path: string) => {
     parsing.current?.abort();
     const controller = new AbortController();
     parsing.current = controller;
+    const loadedFor = useWorkspace.getState().workspace?.sessionId;
     setStage({ kind: "parsing", path });
     try {
       const { parsePdf } = await import("@/lib/pdf");
@@ -67,8 +76,9 @@ export function PdfImportDialog({
         setStage({ kind: "pick", error: parsed.problems.join(" ") || "PDF에서 학생 행을 찾지 못했습니다." });
         return;
       }
+      if (loadedFor === undefined || loadedFor !== useWorkspace.getState().workspace?.sessionId) return;
       const match = matchPdfRows(parsed.rows, students);
-      setStage({ kind: "review", path, parsed, match });
+      setStage({ kind: "review", path, sessionId: loadedFor, parsed, match });
     } catch (e) {
       if (!controller.signal.aborted) {
         setStage({ kind: "pick", error: `PDF를 읽지 못했습니다. ${errorMessage(e)}` });
@@ -100,6 +110,7 @@ export function PdfImportDialog({
 
   const apply = async (
     path: string,
+    reviewSession: number,
     parsed: PdfParseResult,
     links: Map<number, { studentId: number; method: Match["method"] }>,
   ) => {
@@ -111,7 +122,7 @@ export function PdfImportDialog({
         studentId: l.studentId,
         method: l.method,
       }));
-      const rep = await api.applyPdfMapping(path, rows, linkList);
+      const rep = await api.applyPdfMapping(reviewSession, path, rows, linkList);
       await refresh();
       toast.success(`기준성적을 ${rep.linked}명에게 반영했습니다.`, {
         description: rep.unlinkedRows > 0 ? `연결하지 않은 PDF 행 ${rep.unlinkedRows}개는 저장만 했습니다.` : undefined,
@@ -192,7 +203,7 @@ export function PdfImportDialog({
             match={stage.match}
             students={students}
             onCancel={() => setStage({ kind: "pick" })}
-            onApply={(links) => apply(stage.path, stage.parsed, links)}
+            onApply={(links) => apply(stage.path, stage.sessionId, stage.parsed, links)}
           />
         )}
       </DialogContent>

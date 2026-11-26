@@ -403,7 +403,31 @@ pub fn ensure_extension(path: &str, extension: &str) -> PathBuf {
     p
 }
 
+/// 경로가 가리키는 파일의 식별값. 열린 작업 파일이 다른 파일로 바뀌었는지 비교할 때 쓴다.
+///
+/// 유닉스에서는 파일을 열지 않고 장치·inode 번호만 읽는다. SQLite가 쓰는 POSIX 잠금은 프로세스
+/// 단위라서, 같은 파일을 가리키는 다른 fd를 하나라도 닫으면 SQLite 연결이 쥔 트랜잭션 잠금까지 풀린다.
+/// Windows의 잠금은 핸들 단위라 핸들을 열어 비교해도 된다.
+#[derive(Debug, PartialEq, Eq)]
+pub struct FileId(#[cfg(unix)] (u64, u64), #[cfg(windows)] Handle);
+
+impl FileId {
+    pub fn of(path: &Path) -> io::Result<Self> {
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::MetadataExt;
+            let metadata = fs::metadata(path)?;
+            Ok(Self((metadata.dev(), metadata.ino())))
+        }
+        #[cfg(windows)]
+        {
+            Ok(Self(Handle::from_path(path)?))
+        }
+    }
+}
+
 /// 저장 대상이 이미 열려 있는 파일과 같은지 확인한다. 대상이 없으면 새 파일로 저장할 수 있다.
+/// 핸들을 열었다 닫으므로 SQLite 트랜잭션이 열려 있는 동안에는 부르지 않는다(`FileId` 참고).
 pub fn is_same_file(current: &Path, target: &Path) -> io::Result<bool> {
     if current == target {
         return Ok(true);
@@ -481,6 +505,40 @@ mod tests {
         assert!(ensure_local_volume(&dir.path().join("새 작업.mix")).is_ok());
         // 폴더가 없으면 판별할 수 없으므로 오류다.
         assert!(ensure_local_volume(&dir.path().join("없는 폴더/a.mix")).is_err());
+    }
+
+    /// 다른 프로세스(sqlite3 명령)의 쓰기가 막혀 있는지 본다. 같은 프로세스 안의 연결은
+    /// SQLite가 따로 막으므로 POSIX 잠금이 풀렸는지 확인하려면 다른 프로세스가 필요하다.
+    #[cfg(unix)]
+    fn external_write_blocked(path: &Path) -> Option<bool> {
+        let output = std::process::Command::new("sqlite3")
+            .arg(path)
+            .arg("UPDATE meta SET title = '외부' WHERE id = 1;")
+            .output()
+            .ok()?;
+        Some(!output.status.success())
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn file_id_keeps_sqlite_locks_but_closing_a_handle_drops_them() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("잠금.mix");
+        let conn = crate::db::create_new(&path, "잠금").unwrap();
+        let identity = FileId::of(&path).unwrap();
+        conn.execute_batch("BEGIN EXCLUSIVE").unwrap();
+        let Some(blocked) = external_write_blocked(&path) else {
+            eprintln!("sqlite3 명령이 없어 다른 프로세스 잠금 검사를 건너뜁니다.");
+            return;
+        };
+        assert!(blocked, "배타 잠금 중에는 다른 프로세스가 쓸 수 없다");
+        // 파일을 열지 않는 비교는 잠금을 유지한다.
+        assert_eq!(FileId::of(&path).unwrap(), identity);
+        assert_eq!(external_write_blocked(&path), Some(true));
+        // 같은 파일의 다른 fd를 닫으면 잠금이 풀린다(그래서 트랜잭션 중에는 FileId만 쓴다).
+        drop(Handle::from_path(&path).unwrap());
+        assert_eq!(external_write_blocked(&path), Some(false));
+        conn.execute_batch("ROLLBACK").unwrap();
     }
 
     #[test]

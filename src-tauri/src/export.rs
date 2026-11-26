@@ -124,9 +124,15 @@ fn template(conn: &Connection, codec: Codec) -> AppResult<Vec<u8>> {
 }
 
 pub fn export_xlsx(conn: &Connection, codec: Codec, path: &Path) -> AppResult<ExportReport> {
-    let seats = load_seats(conn, codec)?;
-    check_blocking(conn, &seats)?;
-    let bytes = template(conn, codec)?;
+    // 배치·결번·원본을 한 읽기 트랜잭션에서 읽어, 다른 연결의 쓰기가 끼어들어도 같은 시점의 자료를 본다.
+    let (seats, bytes) = {
+        let snapshot = conn.unchecked_transaction()?;
+        let seats = load_seats(&snapshot, codec)?;
+        check_blocking(&snapshot, &seats)?;
+        let bytes = template(&snapshot, codec)?;
+        (seats, bytes)
+        // 읽기만 했으므로 되돌리며 닫는다.
+    };
 
     let mut book = load_workbook(&bytes)?;
     let sheet = book

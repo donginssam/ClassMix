@@ -16,19 +16,23 @@ use crate::error::{AppError, AppResult};
 use crate::export::{self, ExportReport};
 use crate::os_integration::{self, AssociationStatus};
 use crate::paths::{
-    StagedFile, ensure_extension, file_name, has_extension, is_same_file, read_document,
+    FileId, StagedFile, ensure_extension, file_name, has_extension, is_same_file, read_document,
 };
 use crate::roster::{self, PdfApplyReport, PdfLink, PdfRowInput};
 use crate::settings::{self, RecentFile};
 use crate::xlsx_import::{self, ImportReport};
 
 static NEXT_ROSTER_GENERATION: AtomicU64 = AtomicU64::new(1);
+static NEXT_SESSION_ID: AtomicU64 = AtomicU64::new(1);
 const MAX_PDF_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PDF_ROWS: usize = 10_000;
 
 pub struct WorkFile {
     pub path: PathBuf,
-    file_identity: same_file::Handle,
+    /// 연 파일의 식별값. 경로의 파일이 바뀌었는지 비교한다(잠금을 풀지 않도록 파일을 열지 않는다).
+    file_identity: FileId,
+    /// 파일을 열 때마다 새로 정한다. 다른 파일에서 만든 미리보기(PDF 매핑 등)를 거부하는 데 쓴다.
+    session_id: u64,
     pub conn: Connection,
     pub read_only: bool,
     /// 암호가 걸린 파일인지(meta에 salt가 있음)
@@ -44,10 +48,11 @@ pub struct WorkFile {
 impl WorkFile {
     fn new(path: PathBuf, conn: Connection, read_only: bool) -> AppResult<Self> {
         let encrypted = crypto::header(&conn)?.is_some();
-        let file_identity = same_file::Handle::from_path(&path)?;
+        let file_identity = FileId::of(&path)?;
         Ok(Self {
             path,
             file_identity,
+            session_id: NEXT_SESSION_ID.fetch_add(1, Ordering::Relaxed),
             conn,
             read_only,
             encrypted,
@@ -190,6 +195,8 @@ pub struct WorkspaceInfo {
     pub locked: bool,
     pub created_at: String,
     pub updated_at: String,
+    /// 이 파일을 연 세션. 미리보기를 만든 파일과 반영할 파일이 같은지 확인한다.
+    pub session_id: u64,
 }
 
 fn workspace_info(wf: &WorkFile) -> AppResult<WorkspaceInfo> {
@@ -236,6 +243,7 @@ fn workspace_info(wf: &WorkFile) -> AppResult<WorkspaceInfo> {
         locked: wf.locked(),
         created_at,
         updated_at,
+        session_id: wf.session_id,
     })
 }
 
@@ -449,6 +457,7 @@ fn read_pdf(path: &Path) -> AppResult<Vec<u8>> {
 #[tauri::command]
 pub async fn apply_pdf_mapping(
     state: State<'_, AppState>,
+    session_id: u64,
     path: String,
     rows: Vec<PdfRowInput>,
     links: Vec<PdfLink>,
@@ -462,6 +471,8 @@ pub async fn apply_pdf_mapping(
     let file_name = file_name(&src);
     let bytes = read_pdf(&src)?;
     state.with_writable(|wf| {
+        // 학생 id는 파일마다 1부터 매기므로, 다른 파일에서 만든 매핑이면 엉뚱한 학생에게 기록된다.
+        ensure_session(wf, session_id, "PDF를 다시 불러와 주세요.")?;
         roster::apply_pdf(&mut wf.conn, codec!(wf), &file_name, &bytes, &rows, &links)
     })
 }
@@ -535,6 +546,16 @@ pub async fn export_xlsx(state: State<'_, AppState>, path: String) -> AppResult<
 
 // ───────────── 암호화 ─────────────
 
+/// 미리보기를 만든 작업 파일 세션과 지금 열린 세션이 같은지 확인한다.
+fn ensure_session(wf: &WorkFile, session_id: u64, retry: &str) -> AppResult<()> {
+    if wf.session_id != session_id {
+        return Err(AppError::InvalidInput(format!(
+            "미리보기를 만든 뒤 작업 파일이 바뀌었습니다. {retry}"
+        )));
+    }
+    Ok(())
+}
+
 fn same_file(wf: &WorkFile, path: &Path) -> AppResult<()> {
     if wf.path != path {
         return Err(AppError::Other(
@@ -607,7 +628,8 @@ fn enable_workspace_encryption(
         // 복사부터 교체까지 원본을 배타 잠금으로 묶는다. 그 사이 다른 PC의 커밋은 잠금에 막혀
         // 교체 전 원본에 들어갔다가 사라지지 않는다. 잠근 뒤에 파일과 열린 곳을 다시 확인한다.
         let source = crypto::lock_source(&wf.conn)?;
-        if wf.file_identity != same_file::Handle::from_path(&path)? {
+        // 핸들을 열었다 닫으면 유닉스에서 방금 잡은 잠금이 풀리므로 파일을 열지 않고 비교한다.
+        if wf.file_identity != FileId::of(&path)? {
             return Err(workspace_changed_externally());
         }
         let file = staged.as_ref().ok_or(AppError::NoOpenFile)?;
@@ -827,6 +849,28 @@ mod tests {
         state.close();
         let (conn, _) = db::open_existing(&path).unwrap();
         assert!(!WorkFile::new(path, conn, false).unwrap().encrypted);
+    }
+
+    #[test]
+    fn previews_from_another_open_session_are_rejected() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("세션.mix");
+        drop(db::create_new(&path, "세션").unwrap());
+        let open = || WorkFile::new(path.clone(), db::open_existing(&path).unwrap().0, false);
+        let first = open().unwrap();
+        let second = open().unwrap();
+        // 같은 파일을 다시 열어도 세션은 바뀐다.
+        assert_ne!(first.session_id, second.session_id);
+        assert_eq!(
+            workspace_info(&second).unwrap().session_id,
+            second.session_id
+        );
+        assert!(ensure_session(&second, second.session_id, "").is_ok());
+        let Err(err) = ensure_session(&second, first.session_id, "PDF를 다시 불러와 주세요.")
+        else {
+            panic!("다른 세션의 미리보기는 거부해야 합니다.");
+        };
+        assert!(err.to_string().contains("PDF를 다시"), "{err}");
     }
 
     #[test]
