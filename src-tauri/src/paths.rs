@@ -218,7 +218,12 @@ impl StagedFile {
     pub fn publish(self) -> AppResult<()> {
         self.reopen()?.sync_all()?;
         #[cfg(not(windows))]
-        self.file.persist(&self.target).map_err(|e| e.error)?;
+        {
+            self.file.persist(&self.target).map_err(|e| e.error)?;
+            if let Some(parent) = self.target.parent() {
+                sync_directory(parent);
+            }
+        }
         #[cfg(windows)]
         self.publish_by_handle()?;
         Ok(())
@@ -255,6 +260,18 @@ impl StagedFile {
         drop(directories);
         drop(directory);
         result
+    }
+}
+
+/// 이름 바꾸기(교체)를 디스크에 확정한다. 파일 내용은 교체 전에 이미 기록했으므로, 이 단계를 하지 않으면
+/// 교체 직후 전원이 꺼졌을 때 이전 파일로 돌아갈 수 있다(반쯤 쓴 파일이 남지는 않는다).
+/// 교체는 이미 끝났으므로 실패해도 오류로 돌려주지 않는다. 오류를 돌려주면 화면은 저장에 실패했다고
+/// 알리는데 실제 파일은 바뀐 상태가 되어 서로 어긋난다.
+/// 폴더 핸들은 작업 파일과 다른 파일이므로 열고 닫아도 SQLite 잠금에 영향이 없다(`FileId` 참고).
+#[cfg(not(windows))]
+fn sync_directory(dir: &Path) {
+    if let Err(e) = File::open(dir).and_then(|d| d.sync_all()) {
+        eprintln!("[ClassMix] 폴더 동기화 실패(파일은 이미 교체됨): {e}");
     }
 }
 

@@ -525,10 +525,10 @@ fn set_encryption_header(conn: &Connection, salt: &[u8], cipher: &Cipher) -> App
 
 #[cfg(test)]
 pub fn enable(conn: &mut Connection, salt: &[u8], cipher: &Cipher) -> AppResult<()> {
-    if header(conn)?.is_some() {
+    let tx = db::write_tx(conn)?;
+    if header(&tx)?.is_some() {
         return Err(AppError::InvalidInput("이미 암호가 걸려 있습니다.".into()));
     }
-    let tx = conn.transaction()?;
     recode_all(&tx, PLAIN, Codec(Some(cipher)))?;
     set_encryption_header(&tx, salt, cipher)?;
     tx.commit()?;
@@ -538,11 +538,12 @@ pub fn enable(conn: &mut Connection, salt: &[u8], cipher: &Cipher) -> AppResult<
 
 /// 암호화 끄기: 모든 대상 칸을 한꺼번에 풀고 meta의 암호 설정을 지운다.
 pub fn disable(conn: &mut Connection, cipher: &Cipher) -> AppResult<()> {
-    let h = required_header(conn)?;
+    // 비밀번호 확인과 다시 쓰기 사이에 암호 설정이 바뀌지 않도록 같은 트랜잭션 안에서 확인한다.
+    let tx = db::write_tx(conn)?;
+    let h = required_header(&tx)?;
     if !cipher.verify(&h.check) {
         return Err(AppError::WrongPassword);
     }
-    let tx = conn.transaction()?;
     recode_all(&tx, Codec(Some(cipher)), PLAIN)?;
     tx.execute(
         "UPDATE meta SET enc_salt = NULL, enc_iterations = NULL, enc_check = NULL WHERE id = 1",
@@ -561,11 +562,11 @@ pub fn change_password(
     new_salt: &[u8],
     new_cipher: &Cipher,
 ) -> AppResult<()> {
-    let h = required_header(conn)?;
+    let tx = db::write_tx(conn)?;
+    let h = required_header(&tx)?;
     if !current.verify(&h.check) {
         return Err(AppError::WrongPassword);
     }
-    let tx = conn.transaction()?;
     recode_all(&tx, Codec(Some(current)), Codec(Some(new_cipher)))?;
     tx.execute(
         "UPDATE meta SET enc_salt = ?1, enc_iterations = ?2, enc_check = ?3 WHERE id = 1",

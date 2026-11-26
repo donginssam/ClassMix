@@ -2,7 +2,7 @@
 
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, OpenFlags, Transaction, config::DbConfig, params};
+use rusqlite::{Connection, OpenFlags, Transaction, TransactionBehavior, config::DbConfig, params};
 use sha2::{Digest, Sha256};
 
 use crate::crypto::Codec;
@@ -22,6 +22,17 @@ const MIGRATIONS: &[&str] = &[];
 
 pub fn now() -> String {
     chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
+}
+
+/// 작업 파일에 쓰는 트랜잭션. 시작할 때 바로 쓰기 잠금(RESERVED)을 잡으므로, 읽고 확인한 뒤 쓰려는 순간
+/// 다른 연결에 막혀 실패하는 일이 없다. 잠금을 잡지 못하면 `busy_timeout`만큼 기다린 뒤 아무것도 바꾸지 않고
+/// 실패한다. 커밋하기 전에 drop되면(오류로 빠져나가면) 모든 쓰기가 되돌아간다.
+/// 쓰기 전에 확인할 값(반 수, 기존 학생 수, 암호 설정 등)도 이 트랜잭션 안에서 읽는다.
+pub fn write_tx(conn: &Connection) -> AppResult<Transaction<'_>> {
+    Ok(Transaction::new_unchecked(
+        conn,
+        TransactionBehavior::Immediate,
+    )?)
 }
 
 /// 작업 파일의 마지막 수정 시각(`meta.updated_at`)을 `at`으로 바꾼다.
@@ -206,7 +217,7 @@ pub fn open_existing(path: &Path) -> AppResult<(Connection, OpenOutcome)> {
     configure(&conn)?;
     if version < SCHEMA_VERSION {
         let backup = backup_path_for(path);
-        std::fs::copy(path, &backup)?;
+        backup_into(&conn, &backup)?;
         outcome.backup_path = Some(backup);
         migrate(&conn, version)?;
         validate_schema(&conn)?;
@@ -226,7 +237,7 @@ fn migrate(conn: &Connection, from: i32) -> AppResult<()> {
             AppError::Other(format!("v{v} → v{} 마이그레이션이 없습니다.", v + 1))
         })?;
         // 단계마다 한 트랜잭션: 실패하면(커밋 전 drop) 그 단계는 통째로 되돌아간다.
-        let tx = conn.unchecked_transaction()?;
+        let tx = write_tx(conn)?;
         tx.execute_batch(sql)?;
         tx.pragma_update(None, "user_version", v + 1)?;
         tx.commit()?;
@@ -270,6 +281,37 @@ pub fn insert_source_file(
 pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
     ensure_local_volume(target)?;
     validate_schema(conn)?;
+    copy_through_staging(conn, target, |copy| {
+        validate_schema(copy)?;
+        copy.execute(
+            "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
+            [],
+        )?;
+        Ok(())
+    })
+}
+
+/// 마이그레이션 전 백업 사본. 이전 버전 그대로(앱 ID·스키마 버전 포함) 남겨야 하므로 스키마를 검사하거나
+/// 고치지 않고, 파일 머리값이 원본과 같은지만 확인한다. 다 만든 뒤 바꿔 넣으므로 실패해도 반쪽 사본이 남지 않는다.
+/// 원본을 다른 핸들로 열어 복사하지 않는다(유닉스에서 그 핸들을 닫으면 SQLite의 잠금이 풀린다, `FileId` 참고).
+fn backup_into(conn: &Connection, target: &Path) -> AppResult<()> {
+    let header = read_header(conn)?;
+    copy_through_staging(conn, target, |copy| {
+        if read_header(copy)? != header {
+            return Err(AppError::Other(
+                "백업 사본을 확인하지 못했습니다. 파일을 바꾸지 않았습니다.".into(),
+            ));
+        }
+        Ok(())
+    })
+}
+
+/// `VACUUM INTO`로 임시 파일에 일관된 사본을 만들고, `check`를 통과하면 `target`에 바꿔 넣는다.
+fn copy_through_staging(
+    conn: &Connection,
+    target: &Path,
+    check: impl FnOnce(&Connection) -> AppResult<()>,
+) -> AppResult<()> {
     let staged = StagedFile::new(target)?;
     {
         let tmp_str = staged
@@ -280,11 +322,7 @@ pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
         conn.execute("VACUUM INTO ?1", params![tmp_str])?;
         staged.reopen()?;
         let copy = open_connection(staged.path(), OpenFlags::SQLITE_OPEN_READ_WRITE)?;
-        validate_schema(&copy)?;
-        copy.execute(
-            "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
-            [],
-        )?;
+        check(&copy)?;
     }
     staged.publish()
 }
@@ -563,5 +601,52 @@ mod tests {
         src.execute_batch("ROLLBACK").unwrap();
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "예전 사본");
         assert_eq!(only_files(dir.path()), ["사본.mix", "원본.mix"]);
+    }
+
+    #[test]
+    fn write_transactions_take_the_write_lock_up_front() {
+        let dir = tmp();
+        let path = dir.path().join("작업.mix");
+        let a = create_new(&path, "작업").unwrap();
+        let (b, _) = open_existing(&path).unwrap();
+        b.busy_timeout(std::time::Duration::ZERO).unwrap();
+        let tx = write_tx(&a).unwrap();
+        // 아직 아무것도 쓰지 않았어도, 다른 연결은 쓰기를 시작하는 시점에 바로 막힌다.
+        let err = write_tx(&b).unwrap_err();
+        assert!(
+            matches!(&err, AppError::Db(e) if e.sqlite_error_code() == Some(rusqlite::ErrorCode::DatabaseBusy)),
+            "쓰기 잠금 대기 실패여야 합니다: {err}"
+        );
+        drop(tx);
+        write_tx(&b).unwrap().commit().unwrap();
+    }
+
+    #[test]
+    fn migration_backup_is_an_untouched_copy_published_atomically() {
+        let dir = tmp();
+        let src = create_new(&dir.path().join("원본.mix"), "원본").unwrap();
+        // 이전 버전 파일처럼 머리값과 열림 표시를 남겨 둔다.
+        src.pragma_update(None, "user_version", 7).unwrap();
+        src.execute("UPDATE meta SET opened_by = 'PC-1'", [])
+            .unwrap();
+        let target = dir.path().join("원본.bak.mix");
+        std::fs::write(&target, "예전 백업").unwrap();
+
+        src.execute_batch("BEGIN").unwrap(); // 트랜잭션 안에서는 VACUUM INTO가 실패한다
+        assert!(backup_into(&src, &target).is_err());
+        src.execute_batch("ROLLBACK").unwrap();
+        assert_eq!(std::fs::read_to_string(&target).unwrap(), "예전 백업");
+        assert_eq!(only_files(dir.path()), ["원본.bak.mix", "원본.mix"]);
+
+        backup_into(&src, &target).unwrap();
+        let copy = Connection::open(&target).unwrap();
+        assert_eq!(read_header(&copy).unwrap(), (APPLICATION_ID, 7));
+        let (title, by): (String, Option<String>) = copy
+            .query_row("SELECT title, opened_by FROM meta", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!((title.as_str(), by.as_deref()), ("원본", Some("PC-1")));
+        assert_eq!(only_files(dir.path()), ["원본.bak.mix", "원본.mix"]);
     }
 }

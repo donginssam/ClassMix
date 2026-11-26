@@ -14,7 +14,7 @@ use serde::Serialize;
 use umya_spreadsheet::{Workbook, reader::xlsx};
 
 use crate::crypto::Codec;
-use crate::db::{insert_source_file, next_id, now};
+use crate::db::{insert_source_file, next_id, now, write_tx};
 use crate::error::{AppError, AppResult};
 use crate::names::{collapse_spaces, same_name_key};
 use crate::paths::read_document;
@@ -564,14 +564,15 @@ pub fn apply_import(
     bytes: &[u8],
     plan: &ImportPlan,
 ) -> AppResult<()> {
-    let existing: i64 = conn.query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))?;
+    let ts = now();
+    let tx = write_tx(conn)?;
+    // 확인과 쓰기 사이에 다른 연결이 끼어들지 않도록 트랜잭션 안에서 확인한다.
+    let existing: i64 = tx.query_row("SELECT COUNT(*) FROM student", [], |r| r.get(0))?;
     if existing > 0 {
         return Err(AppError::InvalidInput(
             "이미 XLSX를 가져온 작업 파일입니다. 다른 XLSX로 작업하려면 새 반편성 파일을 만들어 주세요.".into(),
         ));
     }
-    let ts = now();
-    let tx = conn.transaction()?;
     insert_source_file(&tx, codec, "xlsx", file_name, bytes, &ts)?;
 
     let mut ids: HashMap<String, i64> = HashMap::new();

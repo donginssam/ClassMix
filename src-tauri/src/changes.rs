@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::Codec;
-use crate::db::{next_id, now, touch};
+use crate::db::{next_id, now, touch, write_tx};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -385,8 +385,8 @@ pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppR
     if cs.is_empty() {
         return Ok(());
     }
-    let cc = class_count(conn)?;
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
+    let cc = class_count(&tx)?;
     apply_in_tx(&tx, codec, cs, cc, Replay::New)?;
     tx.execute("DELETE FROM change_log WHERE undone = 1", [])?;
     let seq: i64 = tx.query_row(
@@ -418,8 +418,8 @@ fn load_payload(codec: Codec, id: i64, raw: Value) -> AppResult<ChangeSet> {
 
 /// 마지막 변경을 되돌린다. 되돌린 변경의 설명을 돌려준다(없으면 None).
 pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
-    let cc = class_count(conn)?;
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
+    let cc = class_count(&tx)?;
     let row: Option<(i64, Value)> = tx
         .query_row(
             "SELECT id, payload FROM change_log WHERE undone = 0 ORDER BY seq DESC LIMIT 1",
@@ -442,8 +442,8 @@ pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
 
 /// 되돌린 변경 중 가장 오래된 것을 다시 적용한다.
 pub fn redo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
-    let cc = class_count(conn)?;
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
+    let cc = class_count(&tx)?;
     let row: Option<(i64, Value)> = tx
         .query_row(
             "SELECT id, payload FROM change_log WHERE undone = 1 ORDER BY seq ASC LIMIT 1",

@@ -7,7 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::changes::{self, HistoryCache, HistoryEntry};
 use crate::crypto::Codec;
-use crate::db::{next_id, now, touch};
+use crate::db::{next_id, now, touch, write_tx};
 use crate::error::{AppError, AppResult};
 use crate::roster::{self, GapDto, StudentDto, StudentPlacement};
 
@@ -173,7 +173,7 @@ pub fn set_memo(
 ) -> AppResult<()> {
     let memo = memo.map(|m| m.trim().to_string()).filter(|m| !m.is_empty());
     // 바꾸기와 수정 시각을 한 트랜잭션으로(둘 중 하나만 남지 않게)
-    let tx = conn.unchecked_transaction()?;
+    let tx = write_tx(conn)?;
     let n = tx.execute(
         "UPDATE student SET memo = ?1 WHERE id = ?2",
         params![
@@ -251,7 +251,7 @@ pub fn create_rule(conn: &mut Connection, codec: Codec, rule: &NewRule) -> AppRe
         .map(|r| r.trim().to_string())
         .filter(|r| !r.is_empty());
     let ts = now();
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
     let id = next_id(&tx, "separation_rule")?;
     tx.execute(
         "INSERT INTO separation_rule (id, kind, origin, enabled, reason, created_at) VALUES (?1, ?2, 'manual', 1, ?3, ?4)",
@@ -283,7 +283,7 @@ pub fn update_rule(
     let reason = reason
         .map(|r| r.trim().to_string())
         .filter(|r| !r.is_empty());
-    let tx = conn.unchecked_transaction()?;
+    let tx = write_tx(conn)?;
     let n = tx.execute(
         "UPDATE separation_rule SET enabled = ?1, reason = ?2 WHERE id = ?3",
         params![
@@ -302,7 +302,7 @@ pub fn update_rule(
 
 /// 직접 만든 규칙만 지울 수 있다. 자동 규칙(동명이인)은 끄기만 한다.
 pub fn delete_rule(conn: &Connection, id: i64) -> AppResult<()> {
-    let tx = conn.unchecked_transaction()?;
+    let tx = write_tx(conn)?;
     let n = tx.execute(
         "DELETE FROM separation_rule WHERE id = ?1 AND kind != 'same_name'",
         params![id],
@@ -325,7 +325,7 @@ pub fn resolve_twin_candidates(
     dismiss: &[Vec<i64>],
 ) -> AppResult<()> {
     let ts = now();
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
     for group in register {
         let members: Vec<RuleMember> = group
             .iter()

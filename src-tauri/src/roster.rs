@@ -7,7 +7,7 @@ use rusqlite::{Connection, params};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::Codec;
-use crate::db::{insert_source_file, next_id, now, touch};
+use crate::db::{insert_source_file, next_id, now, touch, write_tx};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Serialize)]
@@ -210,7 +210,7 @@ pub fn apply_pdf(
     }
 
     let ts = now();
-    let tx = conn.transaction()?;
+    let tx = write_tx(conn)?;
     tx.execute("DELETE FROM pdf_row", [])?;
     tx.execute("DELETE FROM source_file WHERE kind = 'pdf'", [])?;
     tx.execute("UPDATE student SET gender = NULL, birth_date = NULL, base_score = NULL, match_method = NULL", [])?;
