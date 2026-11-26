@@ -14,11 +14,11 @@ import {
   type BoardState,
 } from "@/domain/changes";
 import { allViolations, describeViolation, type Violation } from "@/domain/separation";
-import type { ChangeSet } from "@/lib/api";
+import type { ChangeReceipt, ChangeSet } from "@/lib/api";
 import { useWorkspace } from "@/store/workspace";
 import { useBoardUi } from "./uiStore";
 
-export function boardState(): BoardState {
+function boardState(): BoardState {
   const s = useWorkspace.getState();
   return {
     students: s.students,
@@ -28,16 +28,11 @@ export function boardState(): BoardState {
   };
 }
 
-function currentViolations(): Violation[] {
-  const { studentsById, rules } = useWorkspace.getState();
-  return allViolations(rules, (id) => studentsById.get(id)?.curClass);
-}
-
 const vKey = (v: Violation) => `${v.rule.id}:${v.cls}:${[...v.studentIds].sort().join(",")}`;
 
-async function undoThis(change: object) {
-  if (!(await useWorkspace.getState().undoIfLatest(change)))
-    toast.info("그 뒤에 다른 변경이 있어 되돌리지 않았습니다.", {
+async function undoThis(change: ChangeReceipt) {
+  if ((await useWorkspace.getState().undoIfLatest(change)) === false)
+    toast.info("이미 되돌렸거나 그 뒤에 다른 변경이 있어 되돌리지 않았습니다.", {
       description: "변경 이력에서 확인한 뒤 [되돌리기]로 차례대로 되돌려 주세요.",
     });
 }
@@ -45,7 +40,7 @@ async function undoThis(change: object) {
 type Built = { ok: true; change: ChangeSet } | { ok: false; error: string };
 
 /** 변경 묶음을 적용한다. 바뀐 학생을 강조하고, 새 위반이 생기면 토스트로 알린다(막지는 않음). */
-export async function run(built: Built, opts?: { quiet?: boolean }): Promise<boolean> {
+async function run(built: Built, opts?: { quiet?: boolean }): Promise<boolean> {
   if (!built.ok) {
     toast.error(built.error);
     return false;
@@ -54,15 +49,19 @@ export async function run(built: Built, opts?: { quiet?: boolean }): Promise<boo
     if (!opts?.quiet) toast("바뀐 것이 없습니다.");
     return false;
   }
-  const before = new Set(currentViolations().map(vKey));
-  const ok = await useWorkspace.getState().applyChange(built.change);
-  if (!ok) return false;
-  const change = useWorkspace.getState().lastChange;
-  const moved = built.change.students.filter((m) => m.from.c !== m.to.c).map((m) => m.studentId);
-  useBoardUi.getState().setHighlight(moved);
-  const { studentsById } = useWorkspace.getState();
+  const { workspace, studentsById, rules, applyChange } = useWorkspace.getState();
+  if (!workspace) return false;
+  const change = await applyChange(workspace.sessionId, built.change);
+  if (!change || useWorkspace.getState().workspace?.sessionId !== change.sessionId) return false;
+  const destinations = new Map(
+    built.change.students.filter((m) => m.from.c !== m.to.c).map((m) => [m.studentId, m.to.c]),
+  );
+  useBoardUi.getState().setHighlight([...destinations.keys()]);
+  if (!destinations.size) return true;
+  const classOf = (id: number) => studentsById.get(id)?.curClass;
   const nameOf = (id: number) => studentsById.get(id)?.nameNorm ?? `#${id}`;
-  const added = currentViolations().filter((v) => !before.has(vKey(v)));
+  const before = new Set(allViolations(rules, classOf).map(vKey));
+  const added = allViolations(rules, (id) => destinations.get(id) ?? classOf(id)).filter((v) => !before.has(vKey(v)));
   if (added.length) {
     toast.warning("분리 규칙 위반이 생겼습니다.", {
       description: added.map((v) => describeViolation(v, nameOf)).join("\n"),

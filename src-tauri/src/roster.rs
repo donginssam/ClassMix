@@ -171,6 +171,7 @@ pub fn apply_pdf(
     codec: Codec,
     file_name: &str,
     bytes: &[u8],
+    sha256: &str,
     rows: &[PdfRowInput],
     links: &[PdfLink],
 ) -> AppResult<PdfApplyReport> {
@@ -214,7 +215,7 @@ pub fn apply_pdf(
     tx.execute("DELETE FROM pdf_row", [])?;
     tx.execute("DELETE FROM source_file WHERE kind = 'pdf'", [])?;
     tx.execute("UPDATE student SET gender = NULL, birth_date = NULL, base_score = NULL, match_method = NULL", [])?;
-    insert_source_file(&tx, codec, "pdf", file_name, bytes, &ts)?;
+    insert_source_file(&tx, codec, "pdf", file_name, bytes, sha256, &ts)?;
 
     for (i, r) in rows.iter().enumerate() {
         let link = links_by_row.get(&i).copied();
@@ -314,7 +315,16 @@ mod tests {
             student_id: id,
             method: "next_seat+name".into(),
         }];
-        let rep = apply_pdf(&mut conn, PLAIN, "sample.pdf", b"%PDF-", &rows, &links).unwrap();
+        let rep = apply_pdf(
+            &mut conn,
+            PLAIN,
+            "sample.pdf",
+            b"%PDF-",
+            &crate::db::sha256_hex(b"%PDF-"),
+            &rows,
+            &links,
+        )
+        .unwrap();
         assert_eq!((rep.linked, rep.unlinked_rows), (1, 1));
         let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
@@ -324,7 +334,16 @@ mod tests {
         assert_eq!(score, Some(90050));
 
         // 다시 반영하면 이전 값은 지워진다
-        apply_pdf(&mut conn, PLAIN, "sample.pdf", b"%PDF-", &rows, &[]).unwrap();
+        apply_pdf(
+            &mut conn,
+            PLAIN,
+            "sample.pdf",
+            b"%PDF-",
+            &crate::db::sha256_hex(b"%PDF-"),
+            &rows,
+            &[],
+        )
+        .unwrap();
         let score: Option<i64> = conn
             .query_row("SELECT base_score FROM student WHERE id=?1", [id], |r| {
                 r.get(0)
@@ -357,6 +376,17 @@ mod tests {
                 method: "manual".into(),
             },
         ];
-        assert!(apply_pdf(&mut conn, PLAIN, "x.pdf", b"", &rows, &links).is_err());
+        assert!(
+            apply_pdf(
+                &mut conn,
+                PLAIN,
+                "x.pdf",
+                b"",
+                &crate::db::sha256_hex(b""),
+                &rows,
+                &links
+            )
+            .is_err()
+        );
     }
 }

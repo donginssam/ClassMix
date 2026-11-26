@@ -24,6 +24,11 @@ pub fn now() -> String {
     chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, false)
 }
 
+/// 같은 연결에서 다른 DB 연결의 커밋이 있었는지 비교하는 값.
+pub fn data_version(conn: &Connection) -> rusqlite::Result<i64> {
+    conn.pragma_query_value(None, "data_version", |row| row.get(0))
+}
+
 /// 작업 파일에 쓰는 트랜잭션. 시작할 때 바로 쓰기 잠금(RESERVED)을 잡으므로, 읽고 확인한 뒤 쓰려는 순간
 /// 다른 연결에 막혀 실패하는 일이 없다. 잠금을 잡지 못하면 `busy_timeout`만큼 기다린 뒤 아무것도 바꾸지 않고
 /// 실패한다. 커밋하기 전에 drop되면(오류로 빠져나가면) 모든 쓰기가 되돌아간다.
@@ -255,20 +260,26 @@ pub fn next_id(conn: &Connection, table: &str) -> AppResult<i64> {
     )?)
 }
 
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    Sha256::digest(bytes)
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect()
+}
+
 /// 가져온 파일의 원본과 해시를 같은 트랜잭션에서 저장한다.
+/// `sha256`은 `bytes`의 `sha256_hex` 값이다(호출부에서 이미 확인한 해시를 다시 계산하지 않는다).
 pub fn insert_source_file(
     tx: &Transaction<'_>,
     codec: Codec,
     kind: &str,
     file_name: &str,
     bytes: &[u8],
+    sha256: &str,
     imported_at: &str,
 ) -> AppResult<()> {
+    debug_assert_eq!(sha256, sha256_hex(bytes));
     let id = next_id(tx, "source_file")?;
-    let sha256: String = Sha256::digest(bytes)
-        .iter()
-        .map(|b| format!("{b:02x}"))
-        .collect();
     tx.execute(
         "INSERT INTO source_file (id, kind, file_name, sha256, content, imported_at) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
         params![id, kind, file_name, sha256, codec.blob("source_file.content", id, bytes)?, imported_at],
@@ -292,7 +303,7 @@ pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
 }
 
 /// 마이그레이션 전 백업 사본. 이전 버전 그대로(앱 ID·스키마 버전 포함) 남겨야 하므로 스키마를 검사하거나
-/// 고치지 않고, 파일 머리값이 원본과 같은지만 확인한다. 다 만든 뒤 바꿔 넣으므로 실패해도 반쪽 사본이 남지 않는다.
+/// 고치지 않고, 파일 식별 값(application_id·user_version)이 원본과 같은지만 확인한다. 다 만든 뒤 바꿔 넣으므로 실패해도 반쪽 사본이 남지 않는다.
 /// 원본을 다른 핸들로 열어 복사하지 않는다(유닉스에서 그 핸들을 닫으면 SQLite의 잠금이 풀린다, `FileId` 참고).
 fn backup_into(conn: &Connection, target: &Path) -> AppResult<()> {
     let header = read_header(conn)?;

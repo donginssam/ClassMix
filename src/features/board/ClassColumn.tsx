@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import type { ClassSlot, MatrixRow } from "@/domain/boardMatrix";
 import { hasRomanLetters } from "@/domain/normalize";
 import { cleanReading } from "@/domain/numbering";
 import type { Violation } from "@/domain/separation";
@@ -41,19 +42,6 @@ export function columnMinWidth(prefs: CellViewPrefs, pdf: boolean) {
     // 이름 칸(약 6글자)과 메뉴 단추. 메모는 남는 폭에만 보인다.
     132 + (prefs.showPrev ? 34 : 0) + (pdf && prefs.showScore ? 54 : 0) + (pdf && prefs.showBirth ? 54 : 0)
   );
-}
-
-export interface ClassSlot {
-  kind: "student" | "gap";
-  number: number;
-  student?: Student;
-  gap?: Gap;
-}
-
-export interface MatrixRow {
-  number: number;
-  /** 이 번호 줄의 칸 수(보통 1) */
-  units: number;
 }
 
 /** 왼쪽 번호 축. 가로로 스크롤해도 붙어 있다. */
@@ -214,16 +202,16 @@ export const ClassColumn = memo(function ClassColumn(props: ClassColumnProps) {
           <div key={r.number} style={{ height: r.units * ROW_H }} className="flex flex-col">
             {slots.map((slot) =>
               slot.kind === "gap" ? (
-                <GapCell key={`g${slot.gap!.id}`} gap={slot.gap!} readOnly={readOnly} />
+                <GapCell key={`g${slot.gap.id}`} gap={slot.gap} readOnly={readOnly} />
               ) : (
                 <StudentCell
-                  key={slot.student!.id}
-                  s={slot.student!}
+                  key={slot.student.id}
+                  s={slot.student}
                   prefs={prefs}
                   pdf={pdf}
                   classCount={props.classCount}
-                  issues={props.studentIssues.get(slot.student!.id)}
-                  kinds={props.ruleKinds.get(slot.student!.id)}
+                  issues={props.studentIssues.get(slot.student.id)}
+                  kinds={props.ruleKinds.get(slot.student.id)}
                   readOnly={readOnly}
                 />
               ),

@@ -118,6 +118,11 @@ export interface HistoryEntry {
   createdAt: string;
 }
 
+export interface ChangeReceipt {
+  sessionId: number;
+  revision: number;
+}
+
 export interface BoardData {
   students: Student[];
   gaps: Gap[];
@@ -223,6 +228,8 @@ export function errorMessage(e: unknown): string {
   return String(e);
 }
 
+const SHA256_HEX_LENGTH = 64;
+
 export const api = {
   createWorkFile: (path: string) => invoke<WorkspaceInfo>("create_work_file", { path }),
   openWorkFile: (path: string) => invoke<OpenResult>("open_work_file", { path }),
@@ -233,12 +240,20 @@ export const api = {
   saveWorkFileCopy: (path: string) => invoke<string>("save_work_file_copy", { path }),
   listRecentFiles: () => invoke<RecentFile[]>("list_recent_files"),
   removeRecentFile: (path: string) => invoke<void>("remove_recent_file", { path }),
-  importXlsx: (path: string) => invoke<{ report: ImportReport; workspace: WorkspaceInfo }>("import_xlsx", { path }),
-  readPdfFile: async (path: string) => new Uint8Array(await invoke<ArrayBuffer>("read_pdf_file", { path })),
-  applyPdfMapping: (sessionId: number, path: string, rows: PdfRowInput[], links: PdfLink[]) =>
-    invoke<PdfApplyReport>("apply_pdf_mapping", { sessionId, path, rows, links }),
-  applyChange: (change: ChangeSet) => invoke<void>("apply_change", { change }),
-  undoChange: () => invoke<string | null>("undo_change"),
+  importXlsx: (sessionId: number, path: string) =>
+    invoke<{ report: ImportReport; workspace: WorkspaceInfo }>("import_xlsx", { sessionId, path }),
+  readPdfFile: async (path: string) => {
+    const response = new Uint8Array(await invoke<ArrayBuffer>("read_pdf_file", { path }));
+    // Rust의 바이너리 응답은 SHA-256 16진수 64바이트 뒤에 PDF 원본이 이어진다.
+    const sha256 = new TextDecoder().decode(response.subarray(0, SHA256_HEX_LENGTH));
+    if (!/^[0-9a-f]{64}$/.test(sha256)) throw new Error("PDF 응답 형식이 올바르지 않습니다.");
+    return { sha256, bytes: response.subarray(SHA256_HEX_LENGTH) };
+  },
+  applyPdfMapping: (sessionId: number, path: string, sha256: string, rows: PdfRowInput[], links: PdfLink[]) =>
+    invoke<PdfApplyReport>("apply_pdf_mapping", { sessionId, path, sha256, rows, links }),
+  applyChange: (sessionId: number, change: ChangeSet) =>
+    invoke<ChangeReceipt | null>("apply_change", { sessionId, change }),
+  undoChange: (expected?: ChangeReceipt) => invoke<string | null>("undo_change", { expected }),
   redoChange: () => invoke<string | null>("redo_change"),
   setMemo: (studentId: number, memo: string | null) => invoke<void>("set_memo", { studentId, memo }),
   createRule: (rule: { kind: RuleKind; reason: string | null; members: RuleMember[] }) =>

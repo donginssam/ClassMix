@@ -41,6 +41,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { buildBoardMatrix } from "@/domain/boardMatrix";
 import { numberingOf } from "@/domain/changes";
 import { hasRomanLetters, nameKey } from "@/domain/normalize";
 import { cleanReading } from "@/domain/numbering";
@@ -76,12 +77,10 @@ import { EncryptionDialog } from "@/features/security/EncryptionDialog";
 import { BalanceMeters } from "@/features/stats/BalanceMeters";
 import { StatsPanel } from "@/features/stats/StatsPanel";
 import { actions } from "./actions";
-import { ClassColumn, columnMinWidth, NumberAxis, type ClassSlot, type MatrixRow } from "./ClassColumn";
+import { ClassColumn, columnMinWidth, NumberAxis } from "./ClassColumn";
 import { BoardDialogs } from "./dialogs";
 import { HistoryPanel } from "./HistoryPanel";
 import { scrollToStudent, useBoardUi } from "./uiStore";
-
-export type { ClassSlot };
 
 /** 학생 행 위를 먼저, 없으면 반 카드를 놓을 곳으로 고른다. */
 // 모듈 상수로 둔다: 렌더마다 새 객체를 넘기면 dnd-kit의 센서·컨텍스트가 매번 바뀌어 모든 학생 칸이 다시 그려진다.
@@ -154,33 +153,7 @@ export function BoardScreen() {
     [students],
   );
 
-  // 편성표: 반마다 번호 → 칸 목록. 줄 높이는 그 번호에서 칸이 가장 많은 반에 맞춘다.
-  const { classes, rows } = useMemo(() => {
-    const classes = Array.from({ length: classCount }, (_, i) => ({
-      cls: i + 1,
-      slotsByNumber: new Map<number, ClassSlot[]>(),
-    }));
-    const put = (cls: number, slot: ClassSlot) => {
-      const m = classes[cls - 1]?.slotsByNumber;
-      if (!m) return;
-      const list = m.get(slot.number);
-      if (list) list.push(slot);
-      else m.set(slot.number, [slot]);
-    };
-    for (const s of students) put(s.curClass, { kind: "student", number: s.curNumber, student: s });
-    for (const g of gaps) put(g.class, { kind: "gap", number: g.number, gap: g });
-    let max = 0;
-    for (const c of classes)
-      for (const [n, list] of c.slotsByNumber) {
-        max = Math.max(max, n);
-        list.sort((a, b) => (a.kind === b.kind ? 0 : a.kind === "student" ? -1 : 1));
-      }
-    const rows: MatrixRow[] = Array.from({ length: max }, (_, i) => ({
-      number: i + 1,
-      units: Math.max(1, ...classes.map((c) => c.slotsByNumber.get(i + 1)?.length ?? 0)),
-    }));
-    return { classes, rows };
-  }, [students, gaps, classCount]);
+  const { classes, rows } = useMemo(() => buildBoardMatrix(classCount, students, gaps), [classCount, students, gaps]);
   // 편차 막대 끝 = 경고 기준(학년 평균의 n%)과 가장 큰 편차 중 큰 쪽(모두 100배 정수, 막대 길이 계산용)
   const devScale = useMemo(() => {
     const om = stats.overallMean;

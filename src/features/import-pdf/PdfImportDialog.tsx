@@ -24,10 +24,12 @@ import { useFileDrop } from "@/lib/useFileDrop";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/store/workspace";
 
+type PdfReview = { path: string; sha256: string; sessionId: number; parsed: PdfParseResult; match: MatchResult };
+
 type Stage =
   | { kind: "pick"; error?: string }
   | { kind: "parsing"; path: string }
-  | { kind: "review"; path: string; sessionId: number; parsed: PdfParseResult; match: MatchResult }
+  | ({ kind: "review" } & PdfReview)
   | { kind: "applying" };
 
 const METHOD_LABEL: Record<Match["method"], string> = {
@@ -62,23 +64,27 @@ export function PdfImportDialog({
   useEffect(() => () => parsing.current?.abort(), [sessionId]);
 
   const load = async (path: string) => {
+    const loadedFor = sessionId;
+    if (loadedFor === undefined || loadedFor !== useWorkspace.getState().workspace?.sessionId) return;
     parsing.current?.abort();
     const controller = new AbortController();
     parsing.current = controller;
-    const loadedFor = useWorkspace.getState().workspace?.sessionId;
     setStage({ kind: "parsing", path });
     try {
       const { parsePdf } = await import("@/lib/pdf");
       controller.signal.throwIfAborted();
-      const parsed = await parsePdf(await api.readPdfFile(path), controller.signal);
+      const { sha256, bytes } = await api.readPdfFile(path);
       controller.signal.throwIfAborted();
+      const parsed = await parsePdf(bytes, controller.signal);
+      controller.signal.throwIfAborted();
+      const current = useWorkspace.getState();
+      if (loadedFor !== current.workspace?.sessionId) return;
       if (parsed.rows.length === 0) {
         setStage({ kind: "pick", error: parsed.problems.join(" ") || "PDF에서 학생 행을 찾지 못했습니다." });
         return;
       }
-      if (loadedFor === undefined || loadedFor !== useWorkspace.getState().workspace?.sessionId) return;
-      const match = matchPdfRows(parsed.rows, students);
-      setStage({ kind: "review", path, sessionId: loadedFor, parsed, match });
+      const match = matchPdfRows(parsed.rows, current.students);
+      setStage({ kind: "review", path, sha256, sessionId: loadedFor, parsed, match });
     } catch (e) {
       if (!controller.signal.aborted) {
         setStage({ kind: "pick", error: `PDF를 읽지 못했습니다. ${errorMessage(e)}` });
@@ -108,12 +114,7 @@ export function PdfImportDialog({
     }
   };
 
-  const apply = async (
-    path: string,
-    reviewSession: number,
-    parsed: PdfParseResult,
-    links: Map<number, { studentId: number; method: Match["method"] }>,
-  ) => {
+  const apply = async ({ path, sha256, sessionId: reviewSession, parsed }: PdfReview, links: LinkMap) => {
     setStage({ kind: "applying" });
     try {
       const rows: PdfRowInput[] = parsed.rows.map(toInput);
@@ -122,8 +123,9 @@ export function PdfImportDialog({
         studentId: l.studentId,
         method: l.method,
       }));
-      const rep = await api.applyPdfMapping(reviewSession, path, rows, linkList);
+      const rep = await api.applyPdfMapping(reviewSession, path, sha256, rows, linkList);
       await refresh();
+      if (reviewSession !== useWorkspace.getState().workspace?.sessionId) return;
       toast.success(`기준성적을 ${rep.linked}명에게 반영했습니다.`, {
         description: rep.unlinkedRows > 0 ? `연결하지 않은 PDF 행 ${rep.unlinkedRows}개는 저장만 했습니다.` : undefined,
       });
@@ -131,6 +133,7 @@ export function PdfImportDialog({
       setStage({ kind: "pick" });
       onApplied?.();
     } catch (e) {
+      if (reviewSession !== useWorkspace.getState().workspace?.sessionId) return;
       toast.error("반영하지 못했습니다.", { description: errorMessage(e) });
       setStage({ kind: "pick" });
     }
@@ -203,7 +206,7 @@ export function PdfImportDialog({
             match={stage.match}
             students={students}
             onCancel={() => setStage({ kind: "pick" })}
-            onApply={(links) => apply(stage.path, stage.sessionId, stage.parsed, links)}
+            onApply={(links) => apply(stage, links)}
           />
         )}
       </DialogContent>

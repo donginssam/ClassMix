@@ -101,15 +101,15 @@ function resortInto(next: Next, cls: number, members: Student[], gaps: GapLike[]
   next.numbering.set(cls, "sorted");
 }
 
-function classMembers(board: BoardState, cls: number): Student[] {
+function classMembers(board: Pick<BoardState, "students">, cls: number): Student[] {
   return board.students.filter((s) => s.curClass === cls);
 }
 
-function classGaps(board: BoardState, cls: number): GapLike[] {
+function classGaps(board: Pick<BoardState, "gaps">, cls: number): GapLike[] {
   return board.gaps.filter((g) => g.class === cls).map(toRow);
 }
 
-function slotsOf(board: BoardState, cls: number): Slot<Student, GapLike>[] {
+function slotsOf(board: Pick<BoardState, "students" | "gaps">, cls: number): Slot<Student, GapLike>[] {
   return currentSlots(classMembers(board, cls), classGaps(board, cls));
 }
 
@@ -192,7 +192,11 @@ export function setNumber(board: BoardState, studentId: number, newNumber: numbe
 }
 
 /** 번호 수정 미리보기 문구. 예) "16번 김라희 ~ 29번 홍하늘, 14명 번호 +1" */
-export function setNumberPreview(board: BoardState, studentId: number, newNumber: number): string | null {
+export function setNumberPreview(
+  board: Pick<BoardState, "students" | "gaps">,
+  studentId: number,
+  newNumber: number,
+): string | null {
   const s = board.students.find((x) => x.id === studentId);
   if (!s) return null;
   const r = setStudentNumber(slotsOf(board, s.curClass), studentId, newNumber, newGap);

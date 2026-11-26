@@ -27,7 +27,7 @@ export function ImportXlsxScreen() {
     setBusy(true);
     setError(null);
     try {
-      const res = await api.importXlsx(path);
+      const res = await api.importXlsx(workspace.sessionId, path);
       setReport(res.report);
     } catch (e) {
       setError(errorMessage(e));

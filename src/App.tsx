@@ -55,7 +55,7 @@ export default function App() {
   if (ready) {
     if (!workspace) screen = <StartScreen />;
     else if (workspace.locked) screen = <UnlockScreen />;
-    else if (workspace.studentCount === 0) screen = <ImportXlsxScreen />;
+    else if (workspace.studentCount === 0) screen = <ImportXlsxScreen key={workspace.sessionId} />;
     else screen = <BoardScreen />;
   }
 

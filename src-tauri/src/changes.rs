@@ -12,7 +12,7 @@ use rusqlite::{Connection, OptionalExtension, Transaction, params};
 use serde::{Deserialize, Serialize};
 
 use crate::crypto::Codec;
-use crate::db::{next_id, now, touch, write_tx};
+use crate::db::{data_version, next_id, now, touch, write_tx};
 use crate::error::{AppError, AppResult};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -374,8 +374,18 @@ fn class_count(conn: &Connection) -> AppResult<i64> {
     n.ok_or_else(|| AppError::InvalidInput("XLSX를 먼저 가져와 주세요.".into()))
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct UndoTarget {
+    id: i64,
+    data_version: i64,
+}
+
 /// 새 변경을 적용하고 이력에 남긴다. 되돌린 뒤 남아 있던 "다시 실행" 기록은 지운다.
-pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppResult<()> {
+pub fn apply_change(
+    conn: &mut Connection,
+    codec: Codec,
+    cs: &ChangeSet,
+) -> AppResult<Option<UndoTarget>> {
     if !ACTIONS.contains(&cs.action.as_str()) {
         return Err(AppError::InvalidInput(format!(
             "알 수 없는 변경: {}",
@@ -383,7 +393,7 @@ pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppR
         )));
     }
     if cs.is_empty() {
-        return Ok(());
+        return Ok(None);
     }
     let tx = write_tx(conn)?;
     let cc = class_count(&tx)?;
@@ -407,8 +417,12 @@ pub fn apply_change(conn: &mut Connection, codec: Codec, cs: &ChangeSet) -> AppR
             now()
         ],
     )?;
+    let target = UndoTarget {
+        id,
+        data_version: data_version(&tx)?,
+    };
     tx.commit()?;
-    Ok(())
+    Ok(Some(target))
 }
 
 fn load_payload(codec: Codec, id: i64, raw: Value) -> AppResult<ChangeSet> {
@@ -418,7 +432,28 @@ fn load_payload(codec: Codec, id: i64, raw: Value) -> AppResult<ChangeSet> {
 
 /// 마지막 변경을 되돌린다. 되돌린 변경의 설명을 돌려준다(없으면 None).
 pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
+    undo_in_tx(conn, codec, None)
+}
+
+pub fn undo_if_latest(
+    conn: &mut Connection,
+    codec: Codec,
+    target: UndoTarget,
+) -> AppResult<Option<String>> {
+    undo_in_tx(conn, codec, Some(target))
+}
+
+fn undo_in_tx(
+    conn: &mut Connection,
+    codec: Codec,
+    target: Option<UndoTarget>,
+) -> AppResult<Option<String>> {
     let tx = write_tx(conn)?;
+    if let Some(target) = target
+        && data_version(&tx)? != target.data_version
+    {
+        return Ok(None);
+    }
     let cc = class_count(&tx)?;
     let row: Option<(i64, Value)> = tx
         .query_row(
@@ -430,6 +465,9 @@ pub fn undo(conn: &mut Connection, codec: Codec) -> AppResult<Option<String>> {
     let Some((id, payload)) = row else {
         return Ok(None);
     };
+    if target.is_some_and(|target| target.id != id) {
+        return Ok(None);
+    }
     let cs = load_payload(codec, id, payload)?;
     apply_in_tx(&tx, codec, &cs.inverse(), cc, Replay::History)?;
     tx.execute(

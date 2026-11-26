@@ -26,7 +26,7 @@ import { hasRomanLetters } from "@/domain/normalize";
 import { cleanReading, isHangulOnly, MAX_STUDENT_NUMBER } from "@/domain/numbering";
 import { api, errorMessage, type Gap, type Student } from "@/lib/api";
 import { useWorkspace } from "@/store/workspace";
-import { actions, boardState } from "./actions";
+import { actions } from "./actions";
 import { useBoardUi } from "./uiStore";
 
 /** 보드의 작은 편집 대화상자들을 한곳에서 띄운다. */
@@ -52,12 +52,16 @@ function NumberDialog({ studentId, onClose }: { studentId: number | null; onClos
 }
 
 function NumberDialogBody({ student, onClose }: { student: Student; onClose: () => void }) {
+  const students = useWorkspace((s) => s.students);
+  const gaps = useWorkspace((s) => s.gaps);
   const [value, setValue] = useState(String(student.curNumber));
   const n = Number(value);
   // 상한을 넘는 값은 미리 보기(오류 문구)만 보여 주고 적용하지 않는다.
   const valid = /^\d{1,9}$/.test(value.trim()) && n >= 1;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const preview = useMemo(() => (valid ? setNumberPreview(boardState(), student.id, n) : null), [student, value]);
+  const preview = useMemo(
+    () => (valid ? setNumberPreview({ students, gaps }, student.id, n) : null),
+    [valid, students, gaps, student.id, n],
+  );
 
   const submit = async () => {
     if (!valid || n > MAX_STUDENT_NUMBER) return;

@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Mutex, MutexGuard};
 
 use rusqlite::{Connection, params};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 
 use crate::board::{self, BoardData, NewRule};
@@ -24,6 +24,7 @@ use crate::xlsx_import::{self, ImportReport};
 
 static NEXT_ROSTER_GENERATION: AtomicU64 = AtomicU64::new(1);
 static NEXT_SESSION_ID: AtomicU64 = AtomicU64::new(1);
+static NEXT_CHANGE_REVISION: AtomicU64 = AtomicU64::new(1);
 const MAX_PDF_BYTES: u64 = 64 * 1024 * 1024;
 const MAX_PDF_ROWS: usize = 10_000;
 
@@ -41,6 +42,7 @@ pub struct WorkFile {
     pub cipher: Option<Cipher>,
     /// 보드를 다시 읽을 때 이력 복호화·파싱을 줄이는 캐시. 파일을 닫으면 함께 버린다.
     pub history_cache: HistoryCache,
+    last_change: Option<(u64, changes::UndoTarget)>,
     /// 현재 반·번호·한글 표기 이외의 학생 자료가 바뀌거나 파일을 다시 열면 갱신한다.
     roster_generation: u64,
 }
@@ -58,6 +60,7 @@ impl WorkFile {
             encrypted,
             cipher: None,
             history_cache: HistoryCache::default(),
+            last_change: None,
             roster_generation: NEXT_ROSTER_GENERATION.fetch_add(1, Ordering::Relaxed),
         })
     }
@@ -155,7 +158,7 @@ impl AppState {
         })
     }
 
-    /// 학생 자료의 버전을 유지하는 호출부는 배치 조회에 포함된 값만 바꿀 수 있다.
+    /// 로스터 버전을 자동으로 갱신하지 않는 쓰기 경로.
     fn with_writable_file<T>(&self, f: impl FnOnce(&mut WorkFile) -> AppResult<T>) -> AppResult<T> {
         self.with_file(|wf| {
             if wf.read_only {
@@ -338,14 +341,10 @@ fn workspace_snapshot(
     if !include_history {
         wf.history_cache = HistoryCache::default();
     }
-    let data_version = || -> rusqlite::Result<i64> {
-        wf.conn
-            .pragma_query_value(None, "data_version", |row| row.get(0))
-    };
-    let before = data_version()?;
+    let before = db::data_version(&wf.conn)?;
     let tx = wf.conn.unchecked_transaction()?;
     let workspace = workspace_info(wf)?;
-    let current = data_version()?;
+    let current = db::data_version(&tx)?;
     // 외부 연결이 읽기 트랜잭션 시작 전에 쓰면 학생 자료 전체를 다시 보낸다.
     let roster_version = (!workspace.locked && before == current)
         .then(|| format!("{}:{current}", wf.roster_generation));
@@ -428,24 +427,40 @@ pub struct ImportXlsxResult {
 }
 
 #[tauri::command]
-pub async fn import_xlsx(state: State<'_, AppState>, path: String) -> AppResult<ImportXlsxResult> {
-    let src = PathBuf::from(&path);
-    let file_name = file_name(&src);
-    let bytes = xlsx_import::read_xlsx_file(&src)?;
+pub async fn import_xlsx(
+    state: State<'_, AppState>,
+    session_id: u64,
+    path: String,
+) -> AppResult<ImportXlsxResult> {
+    import_xlsx_into(&state, session_id, Path::new(&path))
+}
+
+fn import_xlsx_into(state: &AppState, session_id: u64, src: &Path) -> AppResult<ImportXlsxResult> {
+    let file_name = file_name(src);
+    let bytes = xlsx_import::read_xlsx_file(src)?;
     let plan = xlsx_import::plan_import(&file_name, xlsx_import::parse_roster_bytes(&bytes)?)?;
-    state.with_writable(|wf| {
+    state.with_writable_file(|wf| {
+        ensure_session(wf, session_id, "XLSX를 다시 선택해 주세요.")?;
         xlsx_import::apply_import(&mut wf.conn, codec!(wf), &file_name, &bytes, &plan)?;
+        wf.invalidate_roster();
         Ok(ImportXlsxResult {
-            report: plan.report.clone(),
+            report: plan.report,
             workspace: workspace_info(wf)?,
         })
     })
 }
 
-/// PDF 파일 내용을 그대로 돌려준다(프런트엔드에서 pdf.js로 파싱).
+/// PDF 바이트 앞에 같은 내용의 SHA-256(ASCII 64바이트)을 붙인다.
 #[tauri::command]
 pub async fn read_pdf_file(path: String) -> AppResult<tauri::ipc::Response> {
-    Ok(tauri::ipc::Response::new(read_pdf(Path::new(&path))?))
+    Ok(tauri::ipc::Response::new(pdf_preview(Path::new(&path))?))
+}
+
+fn pdf_preview(path: &Path) -> AppResult<Vec<u8>> {
+    let mut bytes = read_pdf(path)?;
+    let mut response = db::sha256_hex(&bytes).into_bytes();
+    response.append(&mut bytes);
+    Ok(response)
 }
 
 fn read_pdf(path: &Path) -> AppResult<Vec<u8>> {
@@ -455,11 +470,23 @@ fn read_pdf(path: &Path) -> AppResult<Vec<u8>> {
     read_document(path, MAX_PDF_BYTES, "PDF")
 }
 
+/// 검토한 PDF와 같은 내용일 때만 바이트를 돌려준다. 확인한 해시는 저장할 때 그대로 쓴다.
+fn read_reviewed_pdf(path: &Path, expected_sha256: &str) -> AppResult<Vec<u8>> {
+    let bytes = read_pdf(path)?;
+    if db::sha256_hex(&bytes) != expected_sha256 {
+        return Err(AppError::InvalidInput(
+            "검토한 뒤 PDF가 바뀌었습니다. PDF를 다시 불러와 주세요.".into(),
+        ));
+    }
+    Ok(bytes)
+}
+
 #[tauri::command]
 pub async fn apply_pdf_mapping(
     state: State<'_, AppState>,
     session_id: u64,
     path: String,
+    sha256: String,
     rows: Vec<PdfRowInput>,
     links: Vec<PdfLink>,
 ) -> AppResult<PdfApplyReport> {
@@ -470,30 +497,98 @@ pub async fn apply_pdf_mapping(
     }
     let src = PathBuf::from(&path);
     let file_name = file_name(&src);
-    let bytes = read_pdf(&src)?;
-    state.with_writable(|wf| {
+    let bytes = read_reviewed_pdf(&src, &sha256)?;
+    state.with_writable_file(|wf| {
         // 학생 id는 파일마다 1부터 매기므로, 다른 파일에서 만든 매핑이면 엉뚱한 학생에게 기록된다.
         ensure_session(wf, session_id, "PDF를 다시 불러와 주세요.")?;
-        roster::apply_pdf(&mut wf.conn, codec!(wf), &file_name, &bytes, &rows, &links)
+        let report = roster::apply_pdf(
+            &mut wf.conn,
+            codec!(wf),
+            &file_name,
+            &bytes,
+            &sha256,
+            &rows,
+            &links,
+        )?;
+        wf.invalidate_roster();
+        Ok(report)
     })
 }
 
 // ───────────── 반편성 보드(M4~M7) ─────────────
 
 #[tauri::command]
-pub async fn apply_change(state: State<'_, AppState>, change: ChangeSet) -> AppResult<()> {
+pub async fn apply_change(
+    state: State<'_, AppState>,
+    session_id: u64,
+    change: ChangeSet,
+) -> AppResult<Option<ChangeReceipt>> {
+    apply_board_change(&state, session_id, &change)
+}
+
+#[derive(Clone, Copy, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ChangeReceipt {
+    session_id: u64,
+    revision: u64,
+}
+
+fn apply_board_change(
+    state: &AppState,
+    session_id: u64,
+    change: &ChangeSet,
+) -> AppResult<Option<ChangeReceipt>> {
     // 변경 묶음이 바꾸는 학생 값은 모두 배치 조회에 포함된다.
-    state.with_writable_file(|wf| changes::apply_change(&mut wf.conn, codec!(wf), &change))
+    state.with_writable_file(|wf| {
+        ensure_session(wf, session_id, "변경을 다시 시도해 주세요.")?;
+        let Some(target) = changes::apply_change(&mut wf.conn, codec!(wf), change)? else {
+            return Ok(None);
+        };
+        let revision = NEXT_CHANGE_REVISION.fetch_add(1, Ordering::Relaxed);
+        wf.last_change = Some((revision, target));
+        Ok(Some(ChangeReceipt {
+            session_id,
+            revision,
+        }))
+    })
 }
 
 #[tauri::command]
-pub async fn undo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
-    state.with_writable_file(|wf| changes::undo(&mut wf.conn, codec!(wf)))
+pub async fn undo_change(
+    state: State<'_, AppState>,
+    expected: Option<ChangeReceipt>,
+) -> AppResult<Option<String>> {
+    undo_board_change(&state, expected)
+}
+
+fn undo_board_change(
+    state: &AppState,
+    expected: Option<ChangeReceipt>,
+) -> AppResult<Option<String>> {
+    state.with_writable_file(|wf| {
+        let label = if let Some(expected) = expected {
+            let Some((revision, target)) = wf.last_change else {
+                return Ok(None);
+            };
+            if expected.session_id != wf.session_id || expected.revision != revision {
+                return Ok(None);
+            }
+            changes::undo_if_latest(&mut wf.conn, codec!(wf), target)?
+        } else {
+            changes::undo(&mut wf.conn, codec!(wf))?
+        };
+        wf.last_change = None;
+        Ok(label)
+    })
 }
 
 #[tauri::command]
 pub async fn redo_change(state: State<'_, AppState>) -> AppResult<Option<String>> {
-    state.with_writable_file(|wf| changes::redo(&mut wf.conn, codec!(wf)))
+    state.with_writable_file(|wf| {
+        let label = changes::redo(&mut wf.conn, codec!(wf))?;
+        wf.last_change = None;
+        Ok(label)
+    })
 }
 
 #[tauri::command]
@@ -547,11 +642,11 @@ pub async fn export_xlsx(state: State<'_, AppState>, path: String) -> AppResult<
 
 // ───────────── 암호화 ─────────────
 
-/// 미리보기를 만든 작업 파일 세션과 지금 열린 세션이 같은지 확인한다.
+/// 동작을 시작한 작업 파일 세션과 지금 열린 세션이 같은지 확인한다.
 fn ensure_session(wf: &WorkFile, session_id: u64, retry: &str) -> AppResult<()> {
     if wf.session_id != session_id {
         return Err(AppError::InvalidInput(format!(
-            "미리보기를 만든 뒤 작업 파일이 바뀌었습니다. {retry}"
+            "작업 파일이 바뀌었습니다. {retry}"
         )));
     }
     Ok(())
@@ -853,6 +948,160 @@ mod tests {
             panic!("다른 세션의 미리보기는 거부해야 합니다.");
         };
         assert!(err.to_string().contains("PDF를 다시"), "{err}");
+    }
+
+    #[test]
+    fn xlsx_import_only_writes_to_the_session_that_started_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let open_empty = |name| {
+            let path = dir.path().join(name);
+            let conn = db::create_new(&path, "t").unwrap();
+            WorkFile::new(path, conn, false).unwrap()
+        };
+        let first = open_empty("first.mix");
+        let first_session = first.session_id;
+        let state = AppState {
+            file: Mutex::new(Some(first)),
+            ..AppState::default()
+        };
+        let second = open_empty("second.mix");
+        let second_session = second.session_id;
+        *state.lock_file().unwrap() = Some(second);
+        let source = crate::test_support::fixture();
+
+        assert!(matches!(
+            import_xlsx_into(&state, first_session, &source),
+            Err(AppError::InvalidInput(_))
+        ));
+        let snapshot = workspace_snapshot(&state, false, None).unwrap().unwrap();
+        assert_eq!(snapshot.workspace.student_count, 0);
+        assert!(snapshot.workspace.xlsx_file_name.is_none());
+
+        let report = import_xlsx_into(&state, second_session, &source).unwrap();
+        assert_eq!(report.workspace.session_id, second_session);
+        assert_eq!(report.report.imported, 240);
+    }
+
+    #[test]
+    fn pdf_preview_can_only_be_applied_to_the_bytes_it_displayed() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("selected.pdf");
+        let original = include_bytes!("../../tests/fixtures/sample.pdf");
+        std::fs::write(&path, original).unwrap();
+        let preview = pdf_preview(&path).unwrap();
+        let (hash, bytes) = preview.split_at(64);
+        let hash = std::str::from_utf8(hash).unwrap();
+        assert_eq!(bytes, original);
+        assert_eq!(read_reviewed_pdf(&path, hash).unwrap(), bytes);
+
+        let mut replacement = original.to_vec();
+        let last = replacement.last_mut().unwrap();
+        *last ^= 1;
+        std::fs::write(&path, replacement).unwrap();
+        assert!(matches!(
+            read_reviewed_pdf(&path, hash),
+            Err(AppError::InvalidInput(_))
+        ));
+    }
+
+    fn reading_change(from: Option<&str>, to: &str) -> ChangeSet {
+        ChangeSet {
+            action: "set_reading".into(),
+            label: to.into(),
+            students: vec![],
+            gaps: vec![],
+            numbering: vec![],
+            readings: vec![changes::ReadingChange {
+                student_id: 1,
+                from: from.map(str::to_owned),
+                to: Some(to.into()),
+            }],
+        }
+    }
+
+    #[test]
+    fn conditional_undo_only_reverts_the_change_returned_for_that_session() {
+        let (dir, conn) = crate::test_support::sample_db();
+        let path = dir.path().join("t.mix");
+        let wf = WorkFile::new(path.clone(), conn, false).unwrap();
+        let session = wf.session_id;
+        let state = AppState {
+            file: Mutex::new(Some(wf)),
+            ..AppState::default()
+        };
+        let first = apply_board_change(&state, session, &reading_change(None, "가람"))
+            .unwrap()
+            .unwrap();
+        let second_change = reading_change(Some("가람"), "나래");
+        let second = apply_board_change(&state, session, &second_change)
+            .unwrap()
+            .unwrap();
+        assert_eq!(undo_board_change(&state, Some(first)).unwrap(), None);
+        assert_eq!(
+            undo_board_change(&state, Some(second)).unwrap().as_deref(),
+            Some("나래")
+        );
+        assert_eq!(undo_board_change(&state, Some(first)).unwrap(), None);
+
+        // 다시 적용하며 이전 이력 ID를 재사용해도 이전 알림은 무효다.
+        let third = apply_board_change(&state, session, &second_change)
+            .unwrap()
+            .unwrap();
+        assert_eq!(undo_board_change(&state, Some(second)).unwrap(), None);
+        assert_eq!(
+            undo_board_change(&state, Some(third)).unwrap().as_deref(),
+            Some("나래")
+        );
+
+        let (conn, _) = db::open_existing(&path).unwrap();
+        let next = WorkFile::new(path, conn, false).unwrap();
+        let next_session = next.session_id;
+        *state.lock_file().unwrap() = Some(next);
+        assert!(matches!(
+            apply_board_change(&state, session, &second_change),
+            Err(AppError::InvalidInput(_))
+        ));
+        let fourth = apply_board_change(&state, next_session, &second_change)
+            .unwrap()
+            .unwrap();
+        assert_eq!(undo_board_change(&state, Some(third)).unwrap(), None);
+        assert_eq!(
+            undo_board_change(&state, Some(fourth)).unwrap().as_deref(),
+            Some("나래")
+        );
+    }
+
+    #[test]
+    fn conditional_undo_rejects_a_history_id_reused_by_another_connection() {
+        let (dir, conn) = crate::test_support::sample_db();
+        let path = dir.path().join("t.mix");
+        let (mut other, _) = db::open_existing(&path).unwrap();
+        let wf = WorkFile::new(path, conn, false).unwrap();
+        let session = wf.session_id;
+        let state = AppState {
+            file: Mutex::new(Some(wf)),
+            ..AppState::default()
+        };
+        let receipt = apply_board_change(&state, session, &reading_change(None, "가람"))
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(
+            changes::undo(&mut other, crypto::PLAIN).unwrap().as_deref(),
+            Some("가람")
+        );
+        changes::apply_change(&mut other, crypto::PLAIN, &reading_change(None, "나래")).unwrap();
+
+        assert_eq!(undo_board_change(&state, Some(receipt)).unwrap(), None);
+        let recent = changes::history(&other, crypto::PLAIN, 2).unwrap();
+        assert_eq!(recent.len(), 1);
+        assert_eq!(recent[0].id, 1);
+        assert_eq!(recent[0].label, "나래");
+        assert!(!recent[0].undone);
+        assert_eq!(
+            undo_board_change(&state, None).unwrap().as_deref(),
+            Some("나래")
+        );
     }
 
     #[test]

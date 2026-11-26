@@ -14,7 +14,7 @@ use serde::Serialize;
 use umya_spreadsheet::{Workbook, reader::xlsx};
 
 use crate::crypto::Codec;
-use crate::db::{insert_source_file, next_id, now, write_tx};
+use crate::db::{insert_source_file, next_id, now, sha256_hex, write_tx};
 use crate::error::{AppError, AppResult};
 use crate::names::{collapse_spaces, same_name_key};
 use crate::paths::read_document;
@@ -573,7 +573,15 @@ pub fn apply_import(
             "이미 XLSX를 가져온 작업 파일입니다. 다른 XLSX로 작업하려면 새 반편성 파일을 만들어 주세요.".into(),
         ));
     }
-    insert_source_file(&tx, codec, "xlsx", file_name, bytes, &ts)?;
+    insert_source_file(
+        &tx,
+        codec,
+        "xlsx",
+        file_name,
+        bytes,
+        &sha256_hex(bytes),
+        &ts,
+    )?;
 
     let mut ids: HashMap<String, i64> = HashMap::new();
     {

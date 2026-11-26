@@ -706,6 +706,7 @@ mod tests {
             PLAIN,
             "sample.pdf",
             b"%PDF-1.6 sample",
+            &crate::db::sha256_hex(b"%PDF-1.6 sample"),
             &rows,
             &links,
         )
@@ -1539,7 +1540,16 @@ mod tests {
             student_id: s0.id,
             method: "manual".into(),
         }];
-        roster::apply_pdf(&mut conn, codec, "again.pdf", b"%PDF-again", &rows, &links).unwrap();
+        roster::apply_pdf(
+            &mut conn,
+            codec,
+            "again.pdf",
+            b"%PDF-again",
+            &crate::db::sha256_hex(b"%PDF-again"),
+            &rows,
+            &links,
+        )
+        .unwrap();
         // 메모, 규칙(만들기·사유 바꾸기·쌍둥이 등록), 빈 번호 예정 이름, 한글 표기, 이동·되돌리기·다시 실행
         board::set_memo(&conn, codec, s0.id, Some("암호화 중 메모".into())).unwrap();
         let rid = board::create_rule(

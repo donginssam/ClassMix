@@ -6,6 +6,7 @@ import {
   api,
   errorMessage,
   type BoardData,
+  type ChangeReceipt,
   type ChangeSet,
   type Student,
   type WorkspaceInfo,
@@ -19,21 +20,16 @@ interface WorkspaceState extends BoardData {
   rosterVersion: string | null;
   historyError: string | null;
   setHistoryOpen: (open: boolean) => void;
-  /**
-   * 반편성 상태(되돌리기 대상)를 마지막으로 바꾼 변경의 표식. 변경·되돌리기·다시 실행에 성공하거나
-   * 다른 파일로 바뀔 때마다 새 객체가 된다. "방금 그 변경만 되돌리기"에 쓴다.
-   */
-  lastChange: object;
-  /** `token`이 아직 마지막 변경일 때만 되돌린다. 그사이 다른 변경이 있었으면 false */
-  undoIfLatest: (token: object) => Promise<boolean>;
+  /** 지정한 변경을 되돌린다. 대상이 바뀌었으면 false, 실행이 실패했으면 undefined */
+  undoIfLatest: (receipt: ChangeReceipt) => Promise<boolean | undefined>;
   /** XLSX를 막 가져와 로마자 성명 한글 표기 입력 단계를 띄워야 하는지 */
   pendingReadingPrompt: boolean;
   setPendingReadingPrompt: (v: boolean) => void;
   /** 작업 파일·보드 데이터를 다시 읽는다 */
   refresh: () => Promise<void>;
   setWorkspace: (w: WorkspaceInfo | null) => Promise<void>;
-  /** 변경 묶음을 적용하고 다시 읽는다. 성공하면 true */
-  applyChange: (cs: ChangeSet) => Promise<boolean>;
+  /** 변경 묶음을 적용하고 다시 읽는다. 성공하면 저장한 변경의 식별값을 돌려준다. */
+  applyChange: (sessionId: number, cs: ChangeSet) => Promise<ChangeReceipt | null | undefined>;
   undo: () => Promise<void>;
   redo: () => Promise<void>;
 }
@@ -115,14 +111,12 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     await updateTitle(workspace);
   };
 
-  const mutate = async (operation: () => Promise<unknown>, failure: string) => {
+  const mutate = async <T>(operation: () => Promise<T>, failure: string): Promise<T | undefined> => {
     try {
-      await operation();
-      set({ lastChange: {} });
-      return true;
+      return await operation();
     } catch (e) {
       toast.error(failure, { description: errorMessage(e) });
-      return false;
+      return undefined;
     } finally {
       await refresh().catch(() => undefined);
     }
@@ -132,6 +126,7 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
     mutate(async () => {
       const label = await operation();
       if (label) toast(`${action}: ${label}`);
+      return label;
     }, failure);
 
   const undo = async () => {
@@ -146,12 +141,10 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
       if (open) void refresh().catch(() => undefined);
       else set({ history: null, historyError: null });
     },
-    lastChange: {},
     pendingReadingPrompt: false,
     setPendingReadingPrompt: (v) => set({ pendingReadingPrompt: v }),
     refresh,
     setWorkspace: async (workspace) => {
-      set({ lastChange: {} });
       if (workspace && !workspace.locked) {
         await refresh();
       } else {
@@ -160,15 +153,15 @@ export const useWorkspace = create<WorkspaceState>((set, get) => {
         await updateTitle(workspace);
       }
     },
-    applyChange: (cs) => mutate(() => api.applyChange(cs), "변경하지 못했습니다."),
+    applyChange: (sessionId, cs) => mutate(() => api.applyChange(sessionId, cs), "변경하지 못했습니다."),
     undo,
     redo: async () => {
       await replay(api.redoChange, "다시 실행하기", "다시 실행하지 못했습니다.");
     },
-    undoIfLatest: async (token) => {
-      if (get().lastChange !== token) return false;
-      await undo();
-      return true;
+    undoIfLatest: async (receipt) => {
+      if (get().workspace?.sessionId !== receipt.sessionId) return false;
+      const label = await replay(() => api.undoChange(receipt), "되돌리기", "되돌리지 못했습니다.");
+      return label === undefined ? undefined : label !== null;
     },
   };
 });
