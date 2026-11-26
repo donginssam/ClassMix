@@ -6,7 +6,7 @@
 //! 3. `apply_import`: 한 트랜잭션으로 DB에 저장한다(원본 BLOB, 학생, 반 상태, 가져온 결번, 동명이인 규칙).
 
 use std::collections::{BTreeMap, HashMap};
-use std::io::Cursor;
+use std::io::{self, Cursor, Read};
 use std::path::Path;
 
 use rusqlite::{Connection, params};
@@ -17,6 +17,21 @@ use crate::crypto::Codec;
 use crate::db::{insert_source_file, next_id, now};
 use crate::error::{AppError, AppResult};
 use crate::names::{collapse_spaces, same_name_key};
+use crate::paths::read_document;
+
+pub const MAX_XLSX_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_XLSX_EXPANDED_BYTES: u64 = 128 * 1024 * 1024;
+const MAX_XLSX_PART_BYTES: u64 = 32 * 1024 * 1024;
+const MAX_XLSX_PARTS: usize = 1024;
+const MAX_SHEET_ROWS: u32 = 10_001;
+const MAX_SHEET_COLUMNS: u32 = 1024;
+/// 통합 문서 전체의 셀·공유 문자열 수. 학생 1,000명 × 50열의 10배 정도 여유.
+const MAX_XLSX_CELLS: u64 = 500_000;
+const MAX_XLSX_STRINGS: u64 = 500_000;
+pub const MAX_CLASS_COUNT: i64 = 100;
+/// 수동 편집(`changes::MAX_MANUAL_GAP_NUMBER`, 프런트엔드 `MAX_STUDENT_NUMBER`)과 같은 한도.
+const MAX_IMPORTED_NUMBER: i64 = crate::changes::MAX_MANUAL_GAP_NUMBER;
+const MAX_IMPORT_GAPS: usize = 20_000;
 
 pub const HEADERS: [&str; 10] = [
     "학번",
@@ -67,7 +82,12 @@ fn parse_int(raw: &str) -> Result<Option<i64>, ()> {
 pub fn header_columns(
     sheet: &umya_spreadsheet::Worksheet,
 ) -> AppResult<HashMap<&'static str, u32>> {
-    let (max_col, _) = sheet.highest_column_and_row();
+    let (max_col, max_row) = sheet.highest_column_and_row();
+    if max_col > MAX_SHEET_COLUMNS || max_row > MAX_SHEET_ROWS {
+        return Err(AppError::InvalidXlsx(
+            "XLSX 첫 시트의 행 또는 열이 너무 많습니다.".into(),
+        ));
+    }
     let mut col_of: HashMap<&'static str, u32> = HashMap::new();
     for col in 1..=max_col {
         let header: String = sheet
@@ -94,15 +114,154 @@ pub fn header_columns(
 }
 
 /// 첫 시트를 읽어 행 목록으로 바꾼다. 필수 헤더가 없으면 오류.
+#[cfg(test)]
 pub fn parse_roster(path: &Path) -> AppResult<Vec<RosterRow>> {
-    let book = xlsx::read(path).map_err(|e| AppError::Xlsx(e.to_string()))?;
-    parse_first_sheet(&book)
+    parse_roster_bytes(&read_xlsx_file(path)?)
+}
+
+pub fn read_xlsx_file(path: &Path) -> AppResult<Vec<u8>> {
+    read_document(path, MAX_XLSX_BYTES, "XLSX")
 }
 
 pub fn parse_roster_bytes(bytes: &[u8]) -> AppResult<Vec<RosterRow>> {
+    parse_first_sheet(&load_workbook(bytes)?)
+}
+
+/// 가져오기·내보내기 모두 동일한 ZIP 한도와 매크로 정책을 적용한다.
+pub fn load_workbook(bytes: &[u8]) -> AppResult<Workbook> {
+    let too_large =
+        || AppError::InvalidXlsx("XLSX의 크기 또는 압축을 푼 내용이 너무 큽니다.".into());
+    let archive_error = |e: zip::result::ZipError| AppError::Xlsx(e.to_string());
+    if bytes.len() as u64 > MAX_XLSX_BYTES {
+        return Err(too_large());
+    }
+    let mut archive = zip::ZipArchive::new(Cursor::new(bytes)).map_err(archive_error)?;
+    if archive.len() > MAX_XLSX_PARTS {
+        return Err(too_large());
+    }
+    let mut remaining = MAX_XLSX_EXPANDED_BYTES;
+    let (mut cells, mut strings) = (0u64, 0u64);
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(archive_error)?;
+        let name = entry.name().map_err(archive_error)?.to_ascii_lowercase();
+        if name.ends_with("vbaproject.bin")
+            || name.ends_with("jsaproject.bin")
+            || name.starts_with("xl/macrosheets/")
+        {
+            return Err(macro_error());
+        }
+        let limit = remaining.min(MAX_XLSX_PART_BYTES);
+        if entry.size() > limit {
+            return Err(too_large());
+        }
+        // 압축을 푸는 동안 행·셀·공유 문자열 태그를 세어, umya가 구조체를 만들기 전에 막는다.
+        // 콘텐츠 형식과 관계 목록은 부품 이름과 관계없이 매크로 형식을 선언하므로 내용도 본다.
+        let declares_types = name == "[content_types].xml" || name.ends_with(".rels");
+        let mut tags = XmlTagCounter {
+            captured: declares_types.then(Vec::new),
+            ..XmlTagCounter::default()
+        };
+        let read = io::copy(&mut entry.by_ref().take(limit + 1), &mut tags)?;
+        if read > limit {
+            return Err(too_large());
+        }
+        remaining -= read;
+        if let Some(text) = &tags.captured {
+            let text = text.to_ascii_lowercase();
+            if MACRO_TYPE_MARKERS
+                .iter()
+                .any(|marker| text.windows(marker.len()).any(|w| w == marker.as_bytes()))
+            {
+                return Err(macro_error());
+            }
+        }
+        cells += tags.cells;
+        strings += tags.strings;
+        if tags.rows > MAX_SHEET_ROWS.into() || cells > MAX_XLSX_CELLS || strings > MAX_XLSX_STRINGS
+        {
+            return Err(AppError::InvalidXlsx(
+                "XLSX의 행, 셀 또는 문자열 수가 너무 많습니다.".into(),
+            ));
+        }
+    }
     let book =
         xlsx::read_reader(Cursor::new(bytes), true).map_err(|e| AppError::Xlsx(e.to_string()))?;
-    parse_first_sheet(&book)
+    if book.has_macros() || book.has_jsa_macros() {
+        return Err(macro_error());
+    }
+    Ok(book)
+}
+
+/// XML 시작 태그를 지역 이름(접두사 제외)으로 센다. 시트가 어느 경로에 있든 모든 구성 요소에
+/// 적용하며, 주석 안의 태그까지 세는 쪽으로 넉넉하게 계산한다.
+#[derive(Default)]
+struct XmlTagCounter {
+    /// Some이면 읽은 내용을 그대로 모은다(부품 크기 한도 안에서).
+    captured: Option<Vec<u8>>,
+    in_name: bool,
+    name: [u8; 8],
+    len: usize,
+    rows: u64,
+    cells: u64,
+    strings: u64,
+}
+
+impl XmlTagCounter {
+    fn end_name(&mut self) {
+        // 이름이 버퍼보다 길면 len이 버퍼 크기를 넘어 어떤 이름과도 맞지 않는다.
+        if let Some(name) = self.name.get(..self.len) {
+            let local = name.rsplit(|b| *b == b':').next().unwrap_or(name);
+            match local {
+                b"row" => self.rows += 1,
+                b"c" => self.cells += 1,
+                b"si" => self.strings += 1,
+                _ => {}
+            }
+        }
+        self.in_name = false;
+    }
+}
+
+impl io::Write for XmlTagCounter {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        if let Some(captured) = &mut self.captured {
+            captured.extend_from_slice(buf);
+        }
+        for &b in buf {
+            if self.in_name {
+                if b.is_ascii_whitespace() || b == b'>' || b == b'/' {
+                    self.end_name();
+                } else if let Some(slot) = self.name.get_mut(self.len) {
+                    *slot = b;
+                    self.len += 1;
+                } else {
+                    self.len = usize::MAX;
+                }
+            }
+            if !self.in_name && b == b'<' {
+                self.in_name = true;
+                self.len = 0;
+            }
+        }
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+/// `[Content_Types].xml`·`.rels`에서 매크로 부품을 가리키는 형식(소문자).
+/// - `vbaproject`: VBA 프로젝트 콘텐츠 형식·관계 형식
+/// - `jsaproject`: ONLYOFFICE 매크로 관계 형식
+/// - `macroenabled`: `.xlsm`·`.xltm` 통합 문서 본문 형식
+/// - `macrosheet`: Excel 4.0 매크로 시트(`xlMacrosheet`, `xlIntlMacrosheet`, `macrosheet+xml`)
+const MACRO_TYPE_MARKERS: [&str; 4] = ["vbaproject", "jsaproject", "macroenabled", "macrosheet"];
+
+fn macro_error() -> AppError {
+    AppError::InvalidXlsx(
+        "매크로가 포함된 파일입니다. 나이스에서 내려받은 XLSX를 선택해 주세요.".into(),
+    )
 }
 
 fn parse_first_sheet(book: &Workbook) -> AppResult<Vec<RosterRow>> {
@@ -265,6 +424,19 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
             list_rows(&unassigned)
         )));
     }
+    let out_of_range: Vec<&RosterRow> = students
+        .iter()
+        .filter(|r| {
+            r.next_class.is_some_and(|c| c > MAX_CLASS_COUNT)
+                || r.next_number.is_some_and(|n| n > MAX_IMPORTED_NUMBER)
+        })
+        .collect();
+    if !out_of_range.is_empty() {
+        return Err(AppError::InvalidXlsx(format!(
+            "진급반코드는 {MAX_CLASS_COUNT}, 진급반번호는 {MAX_IMPORTED_NUMBER}까지 지원합니다. ({})",
+            list_rows(&out_of_range)
+        )));
+    }
     // 오류: 같은 반 번호 중복
     let mut by_seat: BTreeMap<(i64, i64), Vec<&RosterRow>> = BTreeMap::new();
     for r in &students {
@@ -328,6 +500,7 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
         .max()
         .unwrap_or(0);
     let mut classes = Vec::new();
+    let mut remaining_gaps = MAX_IMPORT_GAPS;
     for class in 1..=class_count {
         let mut nums: Vec<i64> = students
             .iter()
@@ -338,7 +511,11 @@ pub fn plan_import(file_name: &str, rows: Vec<RosterRow>) -> AppResult<ImportPla
         let last = nums.last().copied().unwrap_or(0);
         let gaps: Vec<i64> = (1..last)
             .filter(|n| nums.binary_search(n).is_err())
+            .take(remaining_gaps + 1)
             .collect();
+        remaining_gaps = remaining_gaps
+            .checked_sub(gaps.len())
+            .ok_or_else(|| AppError::InvalidXlsx("XLSX에 가져올 결번이 너무 많습니다.".into()))?;
         if nums.is_empty() {
             warnings.push(format!("{class}반에 학생이 없습니다."));
         }
@@ -426,18 +603,31 @@ pub fn apply_import(
         }
     }
 
+    let mut by_class: HashMap<i64, Vec<&RosterRow>> = HashMap::new();
+    for student in &plan.students {
+        by_class
+            .entry(student.next_class.unwrap())
+            .or_default()
+            .push(student);
+    }
+    for group in by_class.values_mut() {
+        group.sort_unstable_by_key(|r| r.next_number);
+    }
     for c in &plan.report.classes {
         tx.execute(
             "INSERT INTO class_state (class, numbering) VALUES (?1, 'original')",
             params![c.class],
         )?;
         // 가져온 결번은 빈 번호로 보관해 나중에 재정렬해도 사라지지 않게 한다.
+        let group = by_class
+            .get(&c.class)
+            .map(Vec::as_slice)
+            .unwrap_or_default();
         for gap in &c.gaps {
-            let anchor: String = plan
-                .students
-                .iter()
-                .filter(|r| r.next_class == Some(c.class) && r.next_number.unwrap_or(0) < *gap)
-                .max_by_key(|r| r.next_number)
+            let preceding = group.partition_point(|r| r.next_number.unwrap_or(0) < *gap);
+            let anchor = preceding
+                .checked_sub(1)
+                .map(|i| group[i])
                 .map(|r| collapse_spaces(&r.name))
                 .unwrap_or_default();
             let gid = next_id(&tx, "number_gap")?;
@@ -508,6 +698,97 @@ mod tests {
         assert_eq!(r.same_name_groups.len(), 12);
         assert!(r.same_name_groups.iter().all(|g| g.len() == 2));
         assert_eq!(r.roman_name_count, 45);
+    }
+
+    #[test]
+    fn checks_supported_class_and_number_before_building_summaries() {
+        let rows = parse_roster(&fixture()).unwrap();
+        let mut above_class = rows.clone();
+        above_class[0].next_class = Some(MAX_CLASS_COUNT + 1);
+        assert!(plan_import("sample.xlsx", above_class).is_err());
+        let mut above_number = rows;
+        above_number[0].next_number = Some(MAX_IMPORTED_NUMBER + 1);
+        assert!(plan_import("sample.xlsx", above_number).is_err());
+    }
+
+    fn zip_with(name: &str, content: &[u8]) -> Vec<u8> {
+        use std::io::Write;
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file(name, zip::write::SimpleFileOptions::default())
+            .unwrap();
+        archive.write_all(content).unwrap();
+        archive.finish().unwrap().into_inner()
+    }
+
+    fn assert_too_many(bytes: &[u8]) {
+        let Err(AppError::InvalidXlsx(message)) = load_workbook(bytes) else {
+            panic!("행·셀 한도를 넘으면 파싱 전에 거부해야 합니다.");
+        };
+        assert!(message.contains("너무 많습니다"), "{message}");
+    }
+
+    #[test]
+    fn counts_rows_cells_and_strings_while_unzipping() {
+        // 파일 위치와 네임스페이스 접두사와 관계없이 센다.
+        let rows = "<x:row/>".repeat(MAX_SHEET_ROWS as usize + 1);
+        assert_too_many(&zip_with("xl/other/data.xml", rows.as_bytes()));
+        let cells = "<c r=\"A1\"/>".repeat(MAX_XLSX_CELLS as usize + 1);
+        assert_too_many(&zip_with("xl/worksheets/sheet1.xml", cells.as_bytes()));
+        let strings = "<si><t>a</t></si>".repeat(MAX_XLSX_STRINGS as usize + 1);
+        assert_too_many(&zip_with("xl/sharedStrings.xml", strings.as_bytes()));
+
+        let mut counter = XmlTagCounter::default();
+        io::Write::write_all(
+            &mut counter,
+            b"<?xml?><row r=\"1\"><c><v>1</v></c><col/><cols></cols><cell/></row>",
+        )
+        .unwrap();
+        assert_eq!((counter.rows, counter.cells, counter.strings), (1, 1, 0));
+        // 실제 파일은 한도 안에 있다.
+        assert!(load_workbook(&std::fs::read(fixture()).unwrap()).is_ok());
+    }
+
+    #[test]
+    fn rejects_macro_parts_declared_under_other_names() {
+        let cases = [
+            (
+                "[Content_Types].xml",
+                r#"<Override PartName="/xl/data.bin" ContentType="application/vnd.ms-office.vbaProject"/>"#,
+            ),
+            (
+                "[Content_Types].xml",
+                r#"<Override PartName="/xl/workbook.xml" ContentType="application/vnd.ms-excel.sheet.macroEnabled.main+xml"/>"#,
+            ),
+            (
+                "xl/_rels/workbook.xml.rels",
+                r#"<Relationship Type="http://schemas.microsoft.com/office/2006/relationships/xlMacrosheet" Target="other/m1.xml"/>"#,
+            ),
+        ];
+        for (name, content) in cases {
+            let Err(AppError::InvalidXlsx(message)) =
+                load_workbook(&zip_with(name, content.as_bytes()))
+            else {
+                panic!("{name}: 매크로 형식을 거부해야 합니다.");
+            };
+            assert!(message.contains("매크로"), "{name}: {message}");
+        }
+    }
+
+    #[test]
+    fn rejects_xlsx_with_a_macro_project_part() {
+        let mut archive = zip::ZipWriter::new(Cursor::new(Vec::new()));
+        archive
+            .start_file(
+                "xl/vbaProject.bin",
+                zip::write::SimpleFileOptions::default(),
+            )
+            .unwrap();
+        let workbook = archive.finish().unwrap().into_inner();
+        let Err(AppError::InvalidXlsx(message)) = load_workbook(&workbook) else {
+            panic!("매크로 구성 요소를 거부해야 합니다.");
+        };
+        assert!(message.contains("매크로"));
     }
 
     /// 샘플에는 없는 경우를 행을 고쳐 확인한다: 나이스 번호 결번, 이전학적 중복, 앞뒤 공백 이름.

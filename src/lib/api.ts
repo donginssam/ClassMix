@@ -18,6 +18,8 @@ export interface WorkspaceInfo {
   locked: boolean;
   createdAt: string;
   updatedAt: string;
+  /** 이 파일을 연 세션. 파일을 열 때마다 바뀐다(미리보기를 만든 파일인지 확인용). */
+  sessionId: number;
 }
 
 export interface OpenResult {
@@ -211,6 +213,11 @@ export interface AppErrorPayload {
   message: string;
 }
 
+export function errorCode(e: unknown): string | undefined {
+  if (e && typeof e === "object" && "code" in e) return String((e as AppErrorPayload).code);
+  return undefined;
+}
+
 export function errorMessage(e: unknown): string {
   if (e && typeof e === "object" && "message" in e) return String((e as AppErrorPayload).message);
   return String(e);
@@ -228,8 +235,8 @@ export const api = {
   removeRecentFile: (path: string) => invoke<void>("remove_recent_file", { path }),
   importXlsx: (path: string) => invoke<{ report: ImportReport; workspace: WorkspaceInfo }>("import_xlsx", { path }),
   readPdfFile: async (path: string) => new Uint8Array(await invoke<ArrayBuffer>("read_pdf_file", { path })),
-  applyPdfMapping: (path: string, rows: PdfRowInput[], links: PdfLink[]) =>
-    invoke<PdfApplyReport>("apply_pdf_mapping", { path, rows, links }),
+  applyPdfMapping: (sessionId: number, path: string, rows: PdfRowInput[], links: PdfLink[]) =>
+    invoke<PdfApplyReport>("apply_pdf_mapping", { sessionId, path, rows, links }),
   applyChange: (change: ChangeSet) => invoke<void>("apply_change", { change }),
   undoChange: () => invoke<string | null>("undo_change"),
   redoChange: () => invoke<string | null>("redo_change"),

@@ -2,11 +2,12 @@
 
 use std::path::{Path, PathBuf};
 
-use rusqlite::{Connection, OpenFlags, Transaction, params};
+use rusqlite::{Connection, OpenFlags, Transaction, config::DbConfig, params};
 use sha2::{Digest, Sha256};
 
 use crate::crypto::Codec;
 use crate::error::{AppError, AppResult};
+use crate::paths::{StagedFile, ensure_local_volume, resolve_parent};
 
 /// `PRAGMA application_id` 값. ASCII 'CMIX'.
 pub const APPLICATION_ID: i32 = 0x434D_4958;
@@ -33,75 +34,100 @@ fn configure(conn: &Connection) -> AppResult<()> {
     Ok(())
 }
 
-/// 같은 폴더의 임시 파일 경로 `<이름>.classmix-tmp`. 같은 폴더라야 rename 한 번으로 바꿔 넣을 수 있다.
-pub fn temp_path_for(path: &Path) -> PathBuf {
-    let mut name = path
-        .file_name()
-        .map(|s| s.to_os_string())
-        .unwrap_or_default();
-    name.push(".classmix-tmp");
-    path.with_file_name(name)
+fn harden(conn: &Connection) -> AppResult<()> {
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_TRIGGER, false)?;
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_ENABLE_VIEW, false)?;
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_TRUSTED_SCHEMA, false)?;
+    conn.set_db_config(DbConfig::SQLITE_DBCONFIG_DEFENSIVE, true)?;
+    Ok(())
 }
 
-/// 지난번에 중간에 멈춰 남은 임시 파일(과 그 저널)을 지운다.
-fn remove_stale(tmp: &Path) -> AppResult<()> {
-    for p in [
-        tmp.to_path_buf(),
-        PathBuf::from(format!("{}-journal", tmp.display())),
-    ] {
-        if p.exists() {
-            std::fs::remove_file(&p)?;
+/// 현재 스키마 버전의 객체와 DDL만 허용한다. 앱 ID와 버전은 파일 형식 표시다.
+pub fn validate_schema(conn: &Connection) -> AppResult<()> {
+    validate_schema_at(conn, SCHEMA_VERSION)
+}
+
+/// `version` 스키마의 객체와 DDL만 허용한다. 마이그레이션 전 파일은 그 파일 버전으로 검사한다.
+fn validate_schema_at(conn: &Connection, version: i32) -> AppResult<()> {
+    let steps = usize::try_from(version - 1)
+        .ok()
+        .and_then(|steps| MIGRATIONS.get(..steps))
+        .ok_or_else(unsupported_schema)?;
+    compare_schema(conn, &reference_schema(steps)?)
+}
+
+/// v1 스키마에 마이그레이션을 차례로 적용해, 그 버전에서 앱이 만드는 스키마를 그대로 재현한다.
+fn reference_schema(migrations: &[&str]) -> AppResult<Connection> {
+    let reference = Connection::open_in_memory()?;
+    reference.execute_batch(SCHEMA_V1)?;
+    for sql in migrations {
+        reference.execute_batch(sql)?;
+    }
+    Ok(reference)
+}
+
+fn compare_schema(conn: &Connection, reference: &Connection) -> AppResult<()> {
+    const OBJECTS: &str =
+        "SELECT type, name, tbl_name, sql FROM main.sqlite_schema ORDER BY type, name";
+    let mut actual = conn.prepare(OBJECTS)?;
+    let mut expected = reference.prepare(OBJECTS)?;
+    let (mut actual, mut expected) = (actual.query([])?, expected.query([])?);
+    loop {
+        match (actual.next()?, expected.next()?) {
+            (None, None) => return Ok(()),
+            (Some(actual), Some(expected)) => {
+                for index in 0..4 {
+                    if actual.get_ref(index)? != expected.get_ref(index)? {
+                        return Err(unsupported_schema());
+                    }
+                }
+            }
+            _ => return Err(unsupported_schema()),
         }
     }
-    Ok(())
 }
 
-/// 다 만든 임시 파일을 대상 위치로 한 번에 바꿔 넣는다(같은 폴더 안 rename, 기존 파일은 이때 교체).
-/// 실패하면 임시 파일을 지우고, 대상 위치의 기존 파일은 그대로 둔다.
-pub fn replace_with(tmp: &Path, target: &Path) -> AppResult<()> {
-    std::fs::rename(tmp, target).inspect_err(|_| {
-        let _ = std::fs::remove_file(tmp);
-    })?;
-    Ok(())
+fn unsupported_schema() -> AppError {
+    AppError::InvalidInput(
+        "ClassMix가 지원하는 작업 파일 구조와 다릅니다. 원본 파일을 확인해 주세요.".into(),
+    )
 }
 
-/// 임시 파일에 `build`를 한 뒤 대상 위치로 바꿔 넣는다. 도중에 실패하면 임시 파일만 지운다.
-fn build_then_replace(target: &Path, build: impl FnOnce(&Path) -> AppResult<()>) -> AppResult<()> {
-    let tmp = temp_path_for(target);
-    remove_stale(&tmp)?;
-    if let Err(e) = build(&tmp) {
-        let _ = remove_stale(&tmp);
-        return Err(e);
-    }
-    replace_with(&tmp, target)
+fn open_connection(path: &Path, flags: OpenFlags) -> AppResult<Connection> {
+    let conn = Connection::open_with_flags(
+        resolve_parent(path)?,
+        flags | OpenFlags::SQLITE_OPEN_NOFOLLOW,
+    )?;
+    harden(&conn)?;
+    Ok(conn)
+}
+
+pub fn empty_database(staged: &StagedFile) -> AppResult<Connection> {
+    staged.reopen()?;
+    let conn = open_connection(staged.path(), OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    staged.reopen()?;
+    configure(&conn)?;
+    conn.execute_batch(SCHEMA_V1)?;
+    conn.pragma_update(None, "application_id", APPLICATION_ID)?;
+    conn.pragma_update(None, "user_version", SCHEMA_VERSION)?;
+    Ok(conn)
 }
 
 /// 새 작업 파일을 만든다. 같은 경로에 파일이 있으면(저장 대화상자에서 덮어쓰기 확인을 받은 경우)
 /// 새 파일을 다 만든 뒤에 바꿔 넣으므로, 만들다 실패해도 기존 파일은 그대로 남는다.
 pub fn create_new(path: &Path, title: &str) -> AppResult<Connection> {
-    build_then_replace(path, |tmp| {
-        let mut conn = Connection::open_with_flags(
-            tmp,
-            OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
-        )?;
-        configure(&conn)?;
-        // 표 만들기·meta·식별값·버전을 한 트랜잭션으로: 반쯤 만든 파일이 생기지 않는다.
-        let tx = conn.transaction()?;
-        tx.pragma_update(None, "application_id", APPLICATION_ID)?;
-        tx.execute_batch(SCHEMA_V1)?;
+    ensure_local_volume(path)?;
+    let staged = StagedFile::new(path)?;
+    {
+        let conn = empty_database(&staged)?;
         let ts = now();
-        tx.execute(
+        conn.execute(
             "INSERT INTO meta (id, title, app_version, created_at, updated_at) VALUES (1, ?1, ?2, ?3, ?3)",
             params![title, env!("APP_VERSION"), ts],
         )?;
-        tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
-        tx.commit()?;
-        Ok(())
-        // conn은 여기서 닫힌다(Windows에서는 열린 파일을 바꿔 넣을 수 없다).
-    })?;
-    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
-    configure(&conn)?;
-    Ok(conn)
+    }
+    staged.publish()?;
+    Ok(open_existing(path)?.0)
 }
 
 #[derive(Debug, Default)]
@@ -147,29 +173,44 @@ pub fn open_existing(path: &Path) -> AppResult<(Connection, OpenOutcome)> {
             path.display()
         )));
     }
-    let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+    ensure_local_volume(path)?;
+    let conn = open_connection(path, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
     let (app_id, version) = read_header(&conn)?;
     if app_id != APPLICATION_ID || version < 1 {
         return Err(AppError::NotClassMixFile);
     }
-
     let mut outcome = OpenOutcome::default();
     if version > SCHEMA_VERSION {
         drop(conn);
-        let conn = Connection::open_with_flags(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let conn = open_connection(path, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        if read_header(&conn)? != (app_id, version) {
+            return Err(AppError::NotClassMixFile);
+        }
+        validate_schema(&conn).map_err(|_| {
+            AppError::InvalidInput("이 작업 파일을 열려면 ClassMix를 업데이트해 주세요.".into())
+        })?;
         conn.pragma_update(None, "foreign_keys", "ON")?;
         outcome.read_only = true;
         outcome.newer_version = true;
         return Ok((conn, outcome));
     }
 
+    // 이전 버전 파일은 그 버전의 스키마로 검사한 뒤 마이그레이션하고, 결과를 현재 스키마로 다시 검사한다.
+    validate_schema_at(&conn, version)?;
     configure(&conn)?;
     if version < SCHEMA_VERSION {
         let backup = backup_path_for(path);
         std::fs::copy(path, &backup)?;
         outcome.backup_path = Some(backup);
         migrate(&conn, version)?;
+        validate_schema(&conn)?;
     }
+    // 예전 버전이 남긴 열림 표시(PC 이름)를 지운다. 값이 있을 때만 써서, 열기만으로 파일이 바뀌지 않게 한다.
+    conn.execute(
+        "UPDATE meta SET opened_by = NULL, opened_at = NULL \
+         WHERE id = 1 AND (opened_by IS NOT NULL OR opened_at IS NOT NULL)",
+        [],
+    )?;
     Ok((conn, outcome))
 }
 
@@ -218,21 +259,28 @@ pub fn insert_source_file(
     Ok(())
 }
 
-/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 사본에는 열림 표시를 남기지 않는다.
+/// 일관된 단일 파일 사본을 만든다(`VACUUM INTO`). 예전 버전의 열림 표시(PC 이름)는 사본에 남기지 않는다.
 /// 임시 파일에 다 만든 뒤 바꿔 넣으므로, 실패해도 대상 위치의 기존 파일은 그대로 남는다.
 pub fn vacuum_into(conn: &Connection, target: &Path) -> AppResult<()> {
-    build_then_replace(target, |tmp| {
-        let tmp_str = tmp
+    ensure_local_volume(target)?;
+    validate_schema(conn)?;
+    let staged = StagedFile::new(target)?;
+    {
+        let tmp_str = staged
+            .path()
             .to_str()
             .ok_or_else(|| AppError::InvalidInput("경로에 쓸 수 없는 문자가 있습니다.".into()))?;
+        staged.reopen()?;
         conn.execute("VACUUM INTO ?1", params![tmp_str])?;
-        let copy = Connection::open_with_flags(tmp, OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        staged.reopen()?;
+        let copy = open_connection(staged.path(), OpenFlags::SQLITE_OPEN_READ_WRITE)?;
+        validate_schema(&copy)?;
         copy.execute(
             "UPDATE meta SET opened_by = NULL, opened_at = NULL WHERE id = 1",
             [],
         )?;
-        Ok(())
-    })
+    }
+    staged.publish()
 }
 
 #[cfg(test)]
@@ -290,6 +338,78 @@ mod tests {
     }
 
     #[test]
+    fn opening_clears_legacy_open_marker_without_touching_clean_files() {
+        let dir = tmp();
+        let path = dir.path().join("예전 표시.mix");
+        drop(create_new(&path, "예전 표시").unwrap());
+        // 표시가 없는 파일은 열기만으로 바뀌지 않는다.
+        let before = std::fs::read(&path).unwrap();
+        drop(open_existing(&path).unwrap());
+        assert_eq!(std::fs::read(&path).unwrap(), before);
+        // 예전 버전이 남긴 PC 이름은 쓰기 가능하게 열 때 지운다.
+        Connection::open(&path)
+            .unwrap()
+            .execute(
+                "UPDATE meta SET opened_by = '김OO의 PC', opened_at = 'x' WHERE id = 1",
+                [],
+            )
+            .unwrap();
+        let (conn, _) = open_existing(&path).unwrap();
+        let marker: (Option<String>, Option<String>) = conn
+            .query_row("SELECT opened_by, opened_at FROM meta", [], |r| {
+                Ok((r.get(0)?, r.get(1)?))
+            })
+            .unwrap();
+        assert_eq!(marker, (None, None));
+    }
+
+    #[test]
+    fn schema_is_checked_against_the_files_own_version() {
+        // 가상의 v1 → v2 마이그레이션으로, 버전마다 다른 기준 스키마를 쓰는지 확인한다.
+        const ADD_COLUMN: &str = "ALTER TABLE student ADD COLUMN extra TEXT;";
+        let dir = tmp();
+        let conn = create_new(&dir.path().join("v1.mix"), "v1").unwrap();
+        let v1 = reference_schema(&[]).unwrap();
+        let v2 = reference_schema(&[ADD_COLUMN]).unwrap();
+        assert!(compare_schema(&conn, &v1).is_ok());
+        assert!(
+            compare_schema(&conn, &v2).is_err(),
+            "마이그레이션 전 파일은 v2와 다르다"
+        );
+        conn.execute_batch(ADD_COLUMN).unwrap();
+        assert!(
+            compare_schema(&conn, &v2).is_ok(),
+            "마이그레이션한 파일은 v2와 같다"
+        );
+        assert!(compare_schema(&conn, &v1).is_err());
+        // 마이그레이션이 없는 버전은 기준을 만들 수 없으므로 거부한다.
+        assert!(validate_schema_at(&conn, SCHEMA_VERSION + 1).is_err());
+        assert!(validate_schema_at(&conn, 0).is_err());
+    }
+
+    #[test]
+    fn rejects_unsupported_schema_objects_and_definitions() {
+        let dir = tmp();
+        let path = dir.path().join("작업.mix");
+        {
+            let conn = create_new(&path, "작업").unwrap();
+            conn.execute_batch("CREATE TABLE extra_notes (id INTEGER PRIMARY KEY);")
+                .unwrap();
+        }
+        assert!(open_existing(&path).is_err());
+
+        let changed_index = dir.path().join("다른 구조.mix");
+        {
+            let conn = create_new(&changed_index, "작업").unwrap();
+            conn.execute_batch(
+                "DROP INDEX idx_student_class; CREATE INDEX idx_student_class ON student(id);",
+            )
+            .unwrap();
+        }
+        assert!(open_existing(&changed_index).is_err());
+    }
+
+    #[test]
     fn newer_version_opens_read_only() {
         let dir = tmp();
         let p = dir.path().join("new.mix");
@@ -341,8 +461,9 @@ mod tests {
         let dir = tmp();
         let p = dir.path().join("덮어쓰기.mix");
         std::fs::write(&p, "이전 내용").unwrap();
-        // 지난번에 중간에 멈춰 남은 임시 파일도 정리된다
-        std::fs::write(temp_path_for(&p), "남은 임시 파일").unwrap();
+        // 기존 임시 파일 이름에 있는 다른 파일에는 손대지 않는다.
+        let other = dir.path().join("덮어쓰기.mix.classmix-tmp");
+        std::fs::write(&other, "기존 파일").unwrap();
         let conn = create_new(&p, "새 파일").unwrap();
         let (app_id, version): (i32, i32) = (
             conn.query_row("PRAGMA application_id", [], |r| r.get(0))
@@ -352,7 +473,11 @@ mod tests {
         );
         assert_eq!((app_id, version), (APPLICATION_ID, SCHEMA_VERSION));
         drop(conn);
-        assert_eq!(only_files(dir.path()), vec!["덮어쓰기.mix".to_string()]);
+        assert_eq!(std::fs::read_to_string(other).unwrap(), "기존 파일");
+        assert_eq!(
+            only_files(dir.path()),
+            ["덮어쓰기.mix", "덮어쓰기.mix.classmix-tmp"]
+        );
         assert!(open_existing(&p).is_ok());
     }
 
@@ -417,7 +542,7 @@ mod tests {
             .query_row("SELECT opened_by FROM meta", [], |r| r.get(0))
             .unwrap();
         assert_eq!(src_by.as_deref(), Some("PC-1"), "원본은 그대로");
-        assert!(!temp_path_for(&target).exists());
+        assert_eq!(only_files(dir.path()), ["사본.mix", "원본.mix"]);
     }
 
     #[test]
@@ -431,6 +556,6 @@ mod tests {
         assert!(vacuum_into(&src, &target).is_err());
         src.execute_batch("ROLLBACK").unwrap();
         assert_eq!(std::fs::read_to_string(&target).unwrap(), "예전 사본");
-        assert!(!temp_path_for(&target).exists());
+        assert_eq!(only_files(dir.path()), ["사본.mix", "원본.mix"]);
     }
 }
